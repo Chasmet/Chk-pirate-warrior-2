@@ -38,14 +38,17 @@ jobs:
       - name: Préparer Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Installer Android 34
+      - name: Installer l'environnement Android requis par Godot 4.4
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager --install \
             'platform-tools' \
             'build-tools;34.0.0' \
-            'platforms;android-34'
+            'platforms;android-34' \
+            'cmdline-tools;latest' \
+            'cmake;3.10.2.4988404' \
+            'ndk;23.2.8568313'
 
       - name: Créer la clé de signature debug Android
         shell: bash
@@ -62,6 +65,28 @@ jobs:
               -validity 10000 \
               -dname 'CN=Android Debug,O=Android,C=US'
           fi
+          test -f "$HOME/.android/debug.keystore"
+
+      - name: Configurer Java Android et la clé dans Godot
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/debug_keystore = "$HOME/.android/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+          cat "$HOME/.config/godot/editor_settings-4.tres"
+          test -x "$JAVA_HOME/bin/java"
+          test -x "$ANDROID_HOME/platform-tools/adb"
+          test -x "$ANDROID_HOME/build-tools/34.0.0/apksigner"
+          test -d "$ANDROID_HOME/ndk/23.2.8568313"
+          test -d "$ANDROID_HOME/cmake/3.10.2.4988404"
 
       - name: Construire un projet d'export propre
         shell: bash
@@ -114,6 +139,10 @@ jobs:
       - name: Exporter le jeu avec Godot 4.4
         id: export
         uses: firebelley/godot-export@v8.0.0
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /home/runner/.android/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         with:
           godot_executable_download_url: https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
           godot_export_templates_download_url: https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz
@@ -129,17 +158,15 @@ jobs:
         run: |
           echo "Dossier d'export: ${{ steps.export.outputs.build_directory }}"
           find "${{ steps.export.outputs.build_directory }}" -type f -name '*.apk' -print
-          UNSIGNED_APK="$(find "${{ steps.export.outputs.build_directory }}" -type f -name '*.apk' | head -n 1)"
-          test -n "$UNSIGNED_APK"
-          test -s "$UNSIGNED_APK"
+          SOURCE_APK="$(find "${{ steps.export.outputs.build_directory }}" -type f -name '*.apk' | head -n 1)"
+          test -n "$SOURCE_APK"
+          test -s "$SOURCE_APK"
 
           ZIPALIGN="$ANDROID_HOME/build-tools/34.0.0/zipalign"
           APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
-          test -x "$ZIPALIGN"
-          test -x "$APKSIGNER"
-
           mkdir -p artifact
-          "$ZIPALIGN" -f -p 4 "$UNSIGNED_APK" artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk
+
+          "$ZIPALIGN" -f -p 4 "$SOURCE_APK" artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk
           "$APKSIGNER" sign \
             --ks "$HOME/.android/debug.keystore" \
             --ks-key-alias androiddebugkey \
