@@ -2,20 +2,6 @@ name: Compiler APK Android jouable
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'project.godot'
-      - 'export_presets.cfg'
-      - 'scenes/**'
-      - 'scripts/**'
-      - 'data/**'
-      - 'assets/equipements/**'
-      - 'assets/audio/**'
-      - 'joueur 1 cheikh anime.glb'
-      - 'player_3_Nelvyn_Godot_anime (1).glb'
-      - 'Yvane_anime_Godot_Draco.glb'
-      - '.github/workflows/build_android_apk.yml'
 
 permissions:
   contents: read
@@ -95,7 +81,6 @@ jobs:
           export/android/android_sdk_path = "$ANDROID_HOME"
           export/android/debug_keystore = "$HOME/.android/debug.keystore"
           EOF
-          cat "$HOME/.config/godot/editor_settings-4.4.tres"
           test -f "$HOME/.android/debug.keystore"
 
       - name: Construire un projet d'export propre
@@ -156,38 +141,38 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/ci_export/build/android"
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
             --export-debug Android \
-            "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V0.1_unsigned.apk" \
+            "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V0.2_unsigned.apk" \
             --verbose
-          test -s "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V0.1_unsigned.apk"
+          test -s "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V0.2_unsigned.apk"
 
       - name: Aligner, signer et vérifier l'APK
         shell: bash
         run: |
-          SOURCE_APK="$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V0.1_unsigned.apk"
+          SOURCE_APK="$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V0.2_unsigned.apk"
           ZIPALIGN="$ANDROID_HOME/build-tools/34.0.0/zipalign"
           APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
 
-          "$ZIPALIGN" -f -p 4 "$SOURCE_APK" "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk"
+          "$ZIPALIGN" -f -p 4 "$SOURCE_APK" "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2_aligned.apk"
           "$APKSIGNER" sign \
             --ks "$HOME/.android/debug.keystore" \
             --ks-key-alias androiddebugkey \
             --ks-pass pass:android \
             --key-pass pass:android \
-            --out "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk" \
-            "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk"
-          rm "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk"
+            --out "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk" \
+            "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2_aligned.apk"
+          rm "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2_aligned.apk"
 
-          "$APKSIGNER" verify --verbose --print-certs "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk"
-          unzip -t "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk" >/dev/null
-          test -s "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk"
-          ls -lh "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk"
-          file "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk"
-          sha256sum "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk"
+          "$APKSIGNER" verify --verbose --print-certs "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk"
+          unzip -t "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk" >/dev/null
+          test -s "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk"
+          ls -lh "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk"
+          file "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk"
+          sha256sum "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk"
 
       - name: Publier l'APK
         uses: actions/upload-artifact@v4
         with:
-          name: CHK-Pirate-Warrior-2-V0.1-APK
-          path: artifact/CHK_Pirate_Warrior_2_V0.1.apk
+          name: CHK-Pirate-Warrior-2-V0.2-APK
+          path: artifact/CHK_Pirate_Warrior_2_V0.2.apk
           if-no-files-found: error
           retention-days: 30
