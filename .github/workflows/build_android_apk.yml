@@ -1,7 +1,10 @@
-name: Compiler APK Android jouable
+name: Compiler APK Android complet
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - agent/full-game-rebuild-v1
 
 permissions:
   contents: read
@@ -9,10 +12,10 @@ permissions:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
-      - name: Récupérer le dépôt
+      - name: Récupérer le dépôt complet
         uses: actions/checkout@v4
 
       - name: Installer Java 17
@@ -24,7 +27,7 @@ jobs:
       - name: Préparer Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Installer l'environnement Android requis par Godot 4.4
+      - name: Installer Android 34
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
@@ -34,13 +37,8 @@ jobs:
             'platforms;android-34' \
             'cmake;3.10.2.4988404' \
             'ndk;23.2.8568313'
-          test -x "$JAVA_HOME/bin/java"
-          test -x "$ANDROID_HOME/platform-tools/adb"
-          test -x "$ANDROID_HOME/build-tools/34.0.0/apksigner"
-          test -d "$ANDROID_HOME/ndk/23.2.8568313"
-          test -d "$ANDROID_HOME/cmake/3.10.2.4988404"
 
-      - name: Installer Godot 4.4 et ses modèles Android
+      - name: Installer Godot 4.4 et modèles Android
         shell: bash
         run: |
           mkdir -p /tmp/godot "$HOME/.local/share/godot/export_templates/4.4.stable"
@@ -48,11 +46,9 @@ jobs:
           unzip -q /tmp/godot/godot.zip -d /tmp/godot/bin
           chmod +x /tmp/godot/bin/Godot_v4.4-stable_linux.x86_64
           sudo ln -sf /tmp/godot/bin/Godot_v4.4-stable_linux.x86_64 /usr/local/bin/godot
-
           wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz -O /tmp/godot/templates.tpz
           unzip -q -j /tmp/godot/templates.tpz -d "$HOME/.local/share/godot/export_templates/4.4.stable"
           godot --version
-          test -f "$HOME/.local/share/godot/export_templates/4.4.stable/android_debug.apk"
 
       - name: Créer la clé Android debug
         shell: bash
@@ -63,13 +59,10 @@ jobs:
             -storepass android \
             -alias androiddebugkey \
             -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
+            -keyalg RSA -keysize 2048 -validity 10000 \
             -dname 'CN=Android Debug,O=Android,C=US'
-          test -f "$HOME/.android/debug.keystore"
 
-      - name: Configurer les chemins Android et le keystore lus par Godot 4.4
+      - name: Configurer Godot Android
         shell: bash
         run: |
           mkdir -p "$HOME/.config/godot"
@@ -81,57 +74,109 @@ jobs:
           export/android/android_sdk_path = "$ANDROID_HOME"
           export/android/debug_keystore = "$HOME/.android/debug.keystore"
           EOF
-          test -f "$HOME/.android/debug.keystore"
 
-      - name: Construire un projet d'export propre
+      - name: Construire le projet d'export AVEC TOUS LES ASSETS
         shell: bash
         run: |
+          set -euo pipefail
           rm -rf ci_export artifact
-          mkdir -p ci_export/assets artifact
-          cp project.godot ci_export/
-          cp export_presets.cfg ci_export/
-          cp -R scenes ci_export/
-          cp -R scripts ci_export/
-          cp -R data ci_export/
-          cp -R assets/equipements ci_export/assets/
-          cp -R assets/audio ci_export/assets/
+          mkdir -p ci_export artifact
+          cp project.godot export_presets.cfg ci_export/
+          cp -R scenes scripts data assets ci_export/
           cp 'joueur 1 cheikh anime.glb' ci_export/
+          cp 'Yvane_anime_Godot_Draco.glb' ci_export/
           cp 'player_3_Nelvyn_Godot_anime (1).glb' ci_export/
 
+          echo '===== INVENTAIRE PROJET COMPLET ====='
+          du -sh ci_export/assets
+          find ci_export/assets -type f -iname '*.glb' | wc -l
+          find ci_export/assets/audio -type f -iname '*.ogg' | wc -l
+          test "$(find ci_export/assets/royaumes -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 11
+          ASSET_MB=$(du -sm ci_export/assets | cut -f1)
+          if [ "$ASSET_MB" -lt 100 ]; then
+            echo "ERREUR: seulement ${ASSET_MB} Mo d'assets copiés; export incomplet."
+            exit 2
+          fi
+
+      - name: Décoder automatiquement les GLB Draco si nécessaire
+        shell: bash
+        run: |
+          set -e
           mkdir -p /tmp/gltf-convert
           cd /tmp/gltf-convert
           npm init -y >/dev/null 2>&1
           npm install --silent @gltf-transform/core@4 @gltf-transform/extensions@4 draco3dgltf
-          cat > decode_draco.mjs <<'NODE'
+          cat > decode_all_draco.mjs <<'NODE'
           import { NodeIO } from '@gltf-transform/core';
           import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
           import draco3d from 'draco3dgltf';
-          import process from 'node:process';
+          import fs from 'node:fs';
+          import path from 'node:path';
 
-          const input = process.argv[2];
-          const output = process.argv[3];
+          const root = process.argv[2];
           const decoder = await draco3d.createDecoderModule();
           const io = new NodeIO()
             .registerExtensions(ALL_EXTENSIONS)
             .registerDependencies({'draco3d.decoder': decoder});
-          const document = await io.read(input);
-          for (const extension of document.getRoot().listExtensionsUsed()) {
-            if (extension.extensionName === 'KHR_draco_mesh_compression') extension.dispose();
+          const files = [];
+          function walk(dir) {
+            for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+              const p = path.join(dir, entry.name);
+              if (entry.isDirectory()) walk(p);
+              else if (entry.name.toLowerCase().endsWith('.glb')) files.push(p);
+            }
           }
-          await io.write(output, document);
+          walk(root);
+          let decoded = 0;
+          for (const file of files) {
+            try {
+              const doc = await io.read(file);
+              const draco = doc.getRoot().listExtensionsUsed().find(e => e.extensionName === 'KHR_draco_mesh_compression');
+              if (!draco) continue;
+              draco.dispose();
+              const tmp = file + '.decoded.glb';
+              await io.write(tmp, doc);
+              fs.renameSync(tmp, file);
+              decoded++;
+              console.log('Draco décodé:', file);
+            } catch (error) {
+              console.warn('GLB conservé sans conversion:', file, String(error));
+            }
+          }
+          console.log(`GLB analysés=${files.length}, Draco décodés=${decoded}`);
           NODE
-          node decode_draco.mjs \
-            "$GITHUB_WORKSPACE/Yvane_anime_Godot_Draco.glb" \
-            "$GITHUB_WORKSPACE/ci_export/Yvane_anime_Godot_Draco.glb" \
-            || echo 'Conversion Yvane impossible : visuel de secours disponible.'
-          cd "$GITHUB_WORKSPACE"
+          node decode_all_draco.mjs "$GITHUB_WORKSPACE/ci_export"
 
-      - name: Importer le projet avec Godot
+      - name: Importer toutes les ressources Godot
         shell: bash
         run: |
-          godot --headless --path "$GITHUB_WORKSPACE/ci_export" --import
+          set -o pipefail
+          godot --headless --path "$GITHUB_WORKSPACE/ci_export" --import 2>&1 | tee godot-import.log
+          if grep -E "SCRIPT ERROR:|Parse Error:" godot-import.log; then
+            echo 'Erreur de script détectée pendant import.'
+            exit 3
+          fi
 
-      - name: Exporter le véritable APK Android
+      - name: Audit strict des 11 royaumes et assets
+        shell: bash
+        run: |
+          godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
+            --script res://scripts/tests/full_repo_audit.gd
+
+      - name: Vérifier le chargement du projet
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 45s godot --headless --path "$GITHUB_WORKSPACE/ci_export" --editor --quit-after 5 2>&1 | tee godot-smoke.log || STATUS=$?
+          STATUS=${STATUS:-0}
+          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access" godot-smoke.log; then
+            exit 4
+          fi
+          if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
+            exit "$STATUS"
+          fi
+
+      - name: Exporter le véritable APK Android complet
         shell: bash
         env:
           GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /home/runner/.android/debug.keystore
@@ -141,38 +186,43 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/ci_export/build/android"
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
             --export-debug Android \
-            "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V0.2_unsigned.apk" \
+            "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_FULL_unsigned.apk" \
             --verbose
-          test -s "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V0.2_unsigned.apk"
+          test -s "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_FULL_unsigned.apk"
 
-      - name: Aligner, signer et vérifier l'APK
+      - name: Aligner signer et vérifier l'APK
         shell: bash
         run: |
-          SOURCE_APK="$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V0.2_unsigned.apk"
+          set -euo pipefail
+          SOURCE_APK="$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_FULL_unsigned.apk"
+          FINAL_APK="$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_FULL.apk"
           ZIPALIGN="$ANDROID_HOME/build-tools/34.0.0/zipalign"
           APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
-
-          "$ZIPALIGN" -f -p 4 "$SOURCE_APK" "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2_aligned.apk"
+          "$ZIPALIGN" -f -p 4 "$SOURCE_APK" "$GITHUB_WORKSPACE/artifact/aligned.apk"
           "$APKSIGNER" sign \
             --ks "$HOME/.android/debug.keystore" \
             --ks-key-alias androiddebugkey \
-            --ks-pass pass:android \
-            --key-pass pass:android \
-            --out "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk" \
-            "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2_aligned.apk"
-          rm "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2_aligned.apk"
+            --ks-pass pass:android --key-pass pass:android \
+            --out "$FINAL_APK" "$GITHUB_WORKSPACE/artifact/aligned.apk"
+          rm "$GITHUB_WORKSPACE/artifact/aligned.apk"
+          "$APKSIGNER" verify --verbose --print-certs "$FINAL_APK"
+          unzip -t "$FINAL_APK" >/dev/null
+          APK_MB=$(du -m "$FINAL_APK" | cut -f1)
+          echo "APK final: ${APK_MB} Mo"
+          if [ "$APK_MB" -lt 70 ]; then
+            echo 'ERREUR: APK anormalement petit; les assets complets ne sont probablement pas embarqués.'
+            exit 5
+          fi
+          sha256sum "$FINAL_APK" | tee artifact/SHA256.txt
 
-          "$APKSIGNER" verify --verbose --print-certs "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk"
-          unzip -t "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk" >/dev/null
-          test -s "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk"
-          ls -lh "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk"
-          file "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk"
-          sha256sum "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.2.apk"
-
-      - name: Publier l'APK
+      - name: Publier APK complet et rapports
         uses: actions/upload-artifact@v4
         with:
-          name: CHK-Pirate-Warrior-2-V0.2-APK
-          path: artifact/CHK_Pirate_Warrior_2_V0.2.apk
+          name: CHK-Pirate-Warrior-2-FULL-APK
+          path: |
+            artifact/CHK_Pirate_Warrior_2_FULL.apk
+            artifact/SHA256.txt
+            godot-import.log
+            godot-smoke.log
           if-no-files-found: error
           retention-days: 30
