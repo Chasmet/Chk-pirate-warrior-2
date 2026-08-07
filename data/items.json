@@ -1,0 +1,12 @@
+{
+  "piece": {"name":"Pièce","stack":9999,"category":"monnaie","weight":0.0},
+  "boussole": {"name":"Boussole","stack":1,"category":"outil","weight":0.3},
+  "coffre": {"name":"Coffre","stack":5,"category":"tresor","weight":2.5},
+  "carte_ile": {"name":"Carte d'île","stack":11,"category":"exploration","weight":0.1},
+  "cle_ancienne": {"name":"Clé ancienne","stack":20,"category":"quete","weight":0.1},
+  "fragment_memoire": {"name":"Fragment de mémoire","stack":99,"category":"rare","weight":0.1},
+  "potion_vie": {"name":"Potion de vie","stack":20,"category":"consommable","weight":0.5},
+  "potion_energie": {"name":"Potion d'énergie","stack":20,"category":"consommable","weight":0.5},
+  "materiau_bateau": {"name":"Matériau de bateau","stack":50,"category":"craft","weight":1.0},
+  "objet_rare_ile": {"name":"Objet rare d'île","stack":11,"category":"rare","weight":0.5}
+}
