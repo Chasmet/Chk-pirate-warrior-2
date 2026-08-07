@@ -1,0 +1,153 @@
+name: Importer le lot 2 de décors CC0
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/import_cc0_decor_batch2.yml'
+      - 'tools/cc0_decor_batch2_manifest.json'
+      - 'tools/blender_optimize_asset.py'
+
+permissions:
+  contents: write
+
+jobs:
+  import-decor-batch2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      LIBGL_ALWAYS_SOFTWARE: '1'
+      MESA_LOADER_DRIVER_OVERRIDE: llvmpipe
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Installer Assimp, Blender et le rendu logiciel
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y assimp-utils blender python3-numpy libegl1 libegl-mesa0 libgl1-mesa-dri
+          assimp version
+          blender --version
+
+      - name: Télécharger, vérifier, convertir et optimiser le lot 2
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import subprocess
+          import urllib.parse
+          import urllib.request
+
+          root = pathlib.Path.cwd()
+          manifest = json.loads((root / 'tools/cc0_decor_batch2_manifest.json').read_text(encoding='utf-8'))
+          base = manifest['source']['mirror_raw_base']
+          temp = pathlib.Path('/tmp/chk_cc0_decor_batch2')
+          temp.mkdir(parents=True, exist_ok=True)
+          rows = []
+
+          for asset in manifest['assets']:
+              source_name = asset['source_file']
+              url = base + urllib.parse.quote(source_name)
+              source_path = temp / source_name
+              print(f'Téléchargement CC0 : {url}')
+              request = urllib.request.Request(url, headers={'User-Agent': 'CHK-Pirate-Warrior-2-Decor-Batch2'})
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  data = response.read()
+              source_path.write_bytes(data)
+
+              git_sha = hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest()
+              if git_sha != asset['source_blob_sha']:
+                  raise RuntimeError(f'SHA invalide pour {source_name}: {git_sha} != {asset["source_blob_sha"]}')
+
+              out_dir = root / 'assets/decors_glb'
+              glb_path = out_dir / 'glb' / f"{asset['output']}.glb"
+              png_path = out_dir / 'png' / f"{asset['output']}.png"
+              glb_path.parent.mkdir(parents=True, exist_ok=True)
+              png_path.parent.mkdir(parents=True, exist_ok=True)
+
+              intermediate = temp / f"{asset['output']}_assimp.glb"
+              subprocess.run(['assimp', 'export', str(source_path), str(intermediate), '-f', 'glb2'], check=True)
+              if not intermediate.exists() or intermediate.stat().st_size == 0:
+                  raise RuntimeError(f'Assimp n’a pas généré {intermediate}')
+
+              subprocess.run([
+                  'blender', '--background',
+                  '--python', str(root / 'tools/blender_optimize_asset.py'),
+                  '--', str(intermediate), str(glb_path), str(png_path), 'decor'
+              ], check=True)
+
+              rows.append({
+                  'name': asset['output'],
+                  'source': source_name,
+                  'source_size': source_path.stat().st_size,
+                  'glb_size': glb_path.stat().st_size,
+              })
+
+          report = root / 'assets/decors_glb/IMPORT_REPORT_BATCH2.md'
+          lines = [
+              '# Rapport import — Décors GLB CC0 — Lot 2', '',
+              'Source artistique : **Kenney Pirate Kit — CC0 1.0 Universal**.', '',
+              'Chaîne : **FBX ASCII CC0 → Assimp GLB → Blender optimisation mobile → GLB + PNG**.', '',
+              '| Asset | Source | Source | GLB final | Réduction |',
+              '|---|---|---:|---:|---:|',
+          ]
+          for row in rows:
+              reduction = (1.0 - row['glb_size'] / row['source_size']) * 100.0 if row['source_size'] else 0.0
+              lines.append(
+                  f"| `{row['name']}` | `{row['source']}` | {row['source_size']/1024:.1f} Ko | "
+                  f"{row['glb_size']/1024:.1f} Ko | {reduction:.1f}% |"
+              )
+          lines += [
+              '',
+              'Chaque modèle possède un aperçu PNG transparent 512×512.',
+              '',
+              'Licence : CC0 1.0 Universal. Attribution non obligatoire.',
+          ]
+          report.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+
+          license_file = root / 'assets/decors_glb/LICENSE_BATCH2_CC0.md'
+          license_file.write_text(
+              '# Licence — lot 2 de décors\n\n'
+              '**Kenney — Pirate Kit**\n\n'
+              '- Licence : Creative Commons CC0 1.0 Universal\n'
+              '- Page officielle : https://kenney.nl/assets/pirate-kit\n'
+              '- Usage commercial et non commercial autorisé.\n'
+              '- Attribution non obligatoire.\n\n'
+              'Les fichiers GLB de ce lot sont des conversions et optimisations des sources originales.\n',
+              encoding='utf-8'
+          )
+          PY
+
+      - name: Vérifier le lot 2
+        run: |
+          python3 - <<'PY'
+          import json
+          import pathlib
+          root = pathlib.Path.cwd()
+          manifest = json.loads((root / 'tools/cc0_decor_batch2_manifest.json').read_text(encoding='utf-8'))
+          for asset in manifest['assets']:
+              glb = root / 'assets/decors_glb/glb' / f"{asset['output']}.glb"
+              png = root / 'assets/decors_glb/png' / f"{asset['output']}.png"
+              assert glb.exists() and glb.stat().st_size > 1000, glb
+              assert png.exists() and png.stat().st_size > 1000, png
+              print(asset['output'], glb.stat().st_size, png.stat().st_size)
+          print(f"Lot validé : {len(manifest['assets'])} GLB + {len(manifest['assets'])} PNG")
+          PY
+
+      - name: Enregistrer le lot 2 dans main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/decors_glb
+          if git diff --cached --quiet; then
+            echo "Aucun changement à enregistrer."
+            exit 0
+          fi
+          git commit -m "Ajouter le lot 2 de décors CC0 optimisés [skip ci]"
+          git push origin HEAD:main
