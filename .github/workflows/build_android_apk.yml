@@ -12,6 +12,9 @@ on:
       - 'data/**'
       - 'assets/equipements/**'
       - 'assets/audio/**'
+      - 'joueur 1 cheikh anime.glb'
+      - 'player_3_Nelvyn_Godot_anime (1).glb'
+      - 'Yvane_anime_Godot_Draco.glb'
       - '.github/workflows/build_android_apk.yml'
 
 permissions:
@@ -35,17 +38,14 @@ jobs:
       - name: Préparer Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Installer les composants Android requis par Godot 4.4
+      - name: Installer Android 34
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager --install \
             'platform-tools' \
             'build-tools;34.0.0' \
-            'platforms;android-34' \
-            'cmdline-tools;latest' \
-            'cmake;3.10.2.4988404' \
-            'ndk;23.2.8568313'
+            'platforms;android-34'
 
       - name: Créer la clé de signature debug Android
         shell: bash
@@ -63,17 +63,68 @@ jobs:
               -dname 'CN=Android Debug,O=Android,C=US'
           fi
 
+      - name: Construire un projet d'export propre
+        shell: bash
+        run: |
+          rm -rf ci_export
+          mkdir -p ci_export/assets
+          cp project.godot ci_export/
+          cp export_presets.cfg ci_export/
+          cp -R scenes ci_export/
+          cp -R scripts ci_export/
+          cp -R data ci_export/
+          cp -R assets/equipements ci_export/assets/
+          cp -R assets/audio ci_export/assets/
+          cp 'joueur 1 cheikh anime.glb' ci_export/
+          cp 'player_3_Nelvyn_Godot_anime (1).glb' ci_export/
+
+          # Yvane est actuellement compressé avec Draco. On tente une conversion
+          # sans compression afin que Godot 4.4 puisse l'importer. Si la conversion
+          # échoue, le contrôleur affiche automatiquement un modèle de secours.
+          mkdir -p /tmp/gltf-convert
+          cd /tmp/gltf-convert
+          npm init -y >/dev/null 2>&1
+          npm install --silent @gltf-transform/core@4 @gltf-transform/extensions@4 draco3dgltf
+          cat > decode_draco.mjs <<'NODE'
+          import { NodeIO } from '@gltf-transform/core';
+          import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+          import draco3d from 'draco3dgltf';
+          import process from 'node:process';
+
+          const input = process.argv[2];
+          const output = process.argv[3];
+          const decoder = await draco3d.createDecoderModule();
+          const io = new NodeIO()
+            .registerExtensions(ALL_EXTENSIONS)
+            .registerDependencies({'draco3d.decoder': decoder});
+          const document = await io.read(input);
+          for (const extension of document.getRoot().listExtensionsUsed()) {
+            if (extension.extensionName === 'KHR_draco_mesh_compression') {
+              extension.dispose();
+            }
+          }
+          await io.write(output, document);
+          NODE
+          node decode_draco.mjs \
+            "$GITHUB_WORKSPACE/Yvane_anime_Godot_Draco.glb" \
+            "$GITHUB_WORKSPACE/ci_export/Yvane_anime_Godot_Draco.glb" \
+            || echo 'Conversion Yvane impossible : utilisation du visuel de secours.'
+          cd "$GITHUB_WORKSPACE"
+
+          echo 'Contenu du projet exportable :'
+          find ci_export -maxdepth 3 -type f | sort
+
       - name: Exporter le jeu avec Godot 4.4
         id: export
         uses: firebelley/godot-export@v8.0.0
         env:
-          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ env.HOME }}/.android/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /home/runner/.android/debug.keystore
           GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
           GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         with:
           godot_executable_download_url: https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
           godot_export_templates_download_url: https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz
-          relative_project_path: ./
+          relative_project_path: ./ci_export/
           cache: true
           export_debug: true
           archive_output: false
