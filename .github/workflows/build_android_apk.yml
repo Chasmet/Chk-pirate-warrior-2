@@ -89,8 +89,8 @@ jobs:
 
           echo '===== INVENTAIRE PROJET COMPLET ====='
           du -sh ci_export/assets
-          find ci_export/assets -type f -iname '*.glb' | wc -l
-          find ci_export/assets/audio -type f -iname '*.ogg' | wc -l
+          echo "GLB: $(find ci_export/assets -type f -iname '*.glb' | wc -l)"
+          echo "OGG: $(find ci_export/assets/audio -type f -iname '*.ogg' | wc -l)"
           test "$(find ci_export/assets/royaumes -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 11
           ASSET_MB=$(du -sm ci_export/assets | cut -f1)
           if [ "$ASSET_MB" -lt 100 ]; then
@@ -98,26 +98,34 @@ jobs:
             exit 2
           fi
 
-      - name: Décoder automatiquement les GLB Draco si nécessaire
+      - name: Réparer les GLB compressés et isoler les fichiers corrompus
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p /tmp/gltf-convert
+          : > "$GITHUB_WORKSPACE/artifact/GLB_BROKEN.txt"
           cd /tmp/gltf-convert
           npm init -y >/dev/null 2>&1
-          npm install --silent @gltf-transform/core@4 @gltf-transform/extensions@4 draco3dgltf
-          cat > decode_all_draco.mjs <<'NODE'
+          npm install --silent @gltf-transform/core@4 @gltf-transform/extensions@4 @gltf-transform/functions@4 draco3dgltf
+          cat > repair_all_glb.mjs <<'NODE'
           import { NodeIO } from '@gltf-transform/core';
           import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+          import { dequantize } from '@gltf-transform/functions';
           import draco3d from 'draco3dgltf';
           import fs from 'node:fs';
           import path from 'node:path';
 
           const root = process.argv[2];
+          const reportPath = process.argv[3];
           const decoder = await draco3d.createDecoderModule();
+          const encoder = await draco3d.createEncoderModule();
           const io = new NodeIO()
             .registerExtensions(ALL_EXTENSIONS)
-            .registerDependencies({'draco3d.decoder': decoder});
+            .registerDependencies({
+              'draco3d.decoder': decoder,
+              'draco3d.encoder': encoder,
+            });
+
           const files = [];
           function walk(dir) {
             for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
@@ -127,25 +135,58 @@ jobs:
             }
           }
           walk(root);
-          let decoded = 0;
+
+          let rewritten = 0;
+          let dracoDecoded = 0;
+          let dequantized = 0;
+          let quarantined = 0;
+          const broken = [];
+
           for (const file of files) {
             try {
               const doc = await io.read(file);
-              const draco = doc.getRoot().listExtensionsUsed().find(e => e.extensionName === 'KHR_draco_mesh_compression');
-              if (!draco) continue;
-              draco.dispose();
-              const tmp = file + '.decoded.glb';
-              await io.write(tmp, doc);
-              fs.renameSync(tmp, file);
-              decoded++;
-              console.log('Draco décodé:', file);
+              const extensions = doc.getRoot().listExtensionsUsed();
+              const dracoExt = extensions.find(e => e.extensionName === 'KHR_draco_mesh_compression');
+              const quantExt = extensions.find(e => e.extensionName === 'KHR_mesh_quantization');
+              let changed = false;
+
+              if (quantExt) {
+                await doc.transform(dequantize());
+                dequantized++;
+                changed = true;
+              }
+
+              if (dracoExt) {
+                dracoExt.dispose();
+                dracoDecoded++;
+                changed = true;
+              }
+
+              if (changed) {
+                const tmp = file + '.repaired.glb';
+                await io.write(tmp, doc);
+                fs.renameSync(tmp, file);
+                rewritten++;
+                console.log('GLB réparé:', path.relative(root, file));
+              }
             } catch (error) {
-              console.warn('GLB conservé sans conversion:', file, String(error));
+              quarantined++;
+              const relative = path.relative(root, file);
+              const message = `${relative} | ${String(error)}`;
+              broken.push(message);
+              const invalidPath = file + '.invalid';
+              fs.renameSync(file, invalidPath);
+              console.warn('GLB isolé:', message);
             }
           }
-          console.log(`GLB analysés=${files.length}, Draco décodés=${decoded}`);
+
+          fs.writeFileSync(reportPath,
+            `GLB analysés=${files.length}\nRéécrits=${rewritten}\nDraco décodés=${dracoDecoded}\nDéquantifiés=${dequantized}\nIsolés=${quarantined}\n\n` +
+            broken.join('\n') + '\n');
+          console.log(`GLB analysés=${files.length}, réécrits=${rewritten}, Draco=${dracoDecoded}, déquantifiés=${dequantized}, isolés=${quarantined}`);
           NODE
-          node decode_all_draco.mjs "$GITHUB_WORKSPACE/ci_export"
+          node repair_all_glb.mjs "$GITHUB_WORKSPACE/ci_export" "$GITHUB_WORKSPACE/artifact/GLB_BROKEN.txt"
+          cat "$GITHUB_WORKSPACE/artifact/GLB_BROKEN.txt"
 
       - name: Importer toutes les ressources Godot
         shell: bash
@@ -216,13 +257,15 @@ jobs:
           sha256sum "$FINAL_APK" | tee artifact/SHA256.txt
 
       - name: Publier APK complet et rapports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: CHK-Pirate-Warrior-2-FULL-APK
           path: |
             artifact/CHK_Pirate_Warrior_2_FULL.apk
             artifact/SHA256.txt
+            artifact/GLB_BROKEN.txt
             godot-import.log
             godot-smoke.log
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
