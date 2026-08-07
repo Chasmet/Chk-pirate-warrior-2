@@ -56,10 +56,7 @@ const ISLANDS := [
         "folder": "res://assets/royaumes/03_royaume_nourriture",
         "visual": "res://assets/royaumes/03_royaume_nourriture/visuel royaume 3.jpg",
         "boss": "res://assets/royaumes/03_royaume_nourriture/big_mom 3 ème commandan.glb",
-        "soldiers": [
-            "res://assets/royaumes/03_royaume_nourriture/baguette 2.eme commandant_anime_compresse.glb",
-            "res://assets/royaumes/03_royaume_nourriture/pharaon 2eme commandant.glb"
-        ],
+        "soldiers": ["res://assets/royaumes/03_royaume_nourriture/baguette 2.eme commandant_anime_compresse.glb"],
         "ship": "res://assets/bateaux_glb/iles_animes/glb/ile_03_galion_gourmand_anime.glb",
         "population": true,
         "fog": false
@@ -107,7 +104,7 @@ const ISLANDS := [
         "folder": "res://assets/royaumes/06_royaume_pokemon",
         "visual": "res://assets/royaumes/06_royaume_pokemon/visuel royaume 6.png",
         "boss": "res://assets/royaumes/06_royaume_pokemon/brok boss .glb",
-        "soldiers": ["res://assets/royaumes/06_royaume_pokemon/one_punch_man 1 er commandant anime__v2.glb"],
+        "soldiers": ["res://assets/royaumes/06_royaume_pokemon/brok boss .glb"],
         "ship": "res://assets/bateaux_glb/iles_animes/glb/ile_06_brume_des_marais_anime.glb",
         "population": true,
         "fog": false
@@ -218,7 +215,6 @@ static func world_positions() -> Array[Vector3]:
             var prev_size: Vector2 = ISLANDS[i - 1]["size"]
             var current_size: Vector2 = ISLANDS[i]["size"]
             z -= prev_size.y * 0.5 + SEA_GAPS[i - 1] + current_size.y * 0.5
-        # Léger zigzag pour que l'archipel ne soit pas un couloir rectiligne.
         var x := sin(float(i) * 1.37) * 720.0
         result.append(Vector3(x, 0.0, z))
     return result
