@@ -11,11 +11,17 @@ var max_slots: int = 30
 
 var _heroes: Dictionary = {}
 var _items: Dictionary = {}
+const HERO_ORDER := ["cheikh", "yvane", "nelvyn"]
 
 func _ready() -> void:
+    _ensure_input_actions()
     _heroes = _load_json("res://data/heroes.json")
     _items = _load_json("res://data/items.json")
     _apply_hero_capacity()
+
+func _process(_delta: float) -> void:
+    if Input.is_action_just_pressed("switch_hero"):
+        cycle_hero()
 
 func _load_json(path: String) -> Dictionary:
     if not FileAccess.file_exists(path):
@@ -31,6 +37,11 @@ func set_hero(hero_id: String) -> void:
     selected_hero = hero_id
     _apply_hero_capacity()
     hero_changed.emit(hero_id)
+
+func cycle_hero() -> void:
+    var index := HERO_ORDER.find(selected_hero)
+    index = (index + 1) % HERO_ORDER.size()
+    set_hero(HERO_ORDER[index])
 
 func set_island(island_id: int) -> void:
     current_island = clampi(island_id, 1, 11)
@@ -90,3 +101,38 @@ func load_save() -> bool:
 func _apply_hero_capacity() -> void:
     var hero := get_hero_data()
     max_slots = int(hero.get("backpack_capacity", 24))
+
+func _ensure_input_actions() -> void:
+    var actions := [
+        "move_left", "move_right", "move_forward", "move_back",
+        "attack", "dodge", "ability_1", "ability_2", "interact",
+        "embark", "open_inventory", "open_map", "quick_save",
+        "pause_game", "switch_hero"
+    ]
+    for action in actions:
+        if not InputMap.has_action(action):
+            InputMap.add_action(action, 0.2)
+
+    _bind_key_once("move_left", KEY_A)
+    _bind_key_once("move_right", KEY_D)
+    _bind_key_once("move_forward", KEY_W)
+    _bind_key_once("move_back", KEY_S)
+    _bind_key_once("attack", KEY_J)
+    _bind_key_once("dodge", KEY_K)
+    _bind_key_once("ability_1", KEY_L)
+    _bind_key_once("ability_2", KEY_SEMICOLON)
+    _bind_key_once("interact", KEY_E)
+    _bind_key_once("embark", KEY_B)
+    _bind_key_once("open_inventory", KEY_I)
+    _bind_key_once("open_map", KEY_M)
+    _bind_key_once("quick_save", KEY_F5)
+    _bind_key_once("pause_game", KEY_P)
+    _bind_key_once("switch_hero", KEY_H)
+
+func _bind_key_once(action: StringName, keycode: Key) -> void:
+    for event in InputMap.action_get_events(action):
+        if event is InputEventKey and event.physical_keycode == keycode:
+            return
+    var event := InputEventKey.new()
+    event.physical_keycode = keycode
+    InputMap.action_add_event(action, event)
