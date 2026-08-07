@@ -36,6 +36,72 @@ Chaque île doit être suffisamment grande pour permettre une véritable explora
 
 Cette île représente la conclusion de l’aventure. Elle doit être plus dangereuse, mystérieuse et difficile que les autres. Le joueur y affronte les dernières épreuves et peut obtenir un **objet extrêmement rare**, lié à la fin du jeu et à l’histoire principale.
 
+<!-- WORLD_SCALE_START -->
+## Échelle officielle du monde et distances entre les îles
+
+Les dimensions et distances ci-dessous deviennent la référence obligatoire de conception du monde ouvert.
+
+### Taille minimale des royaumes
+
+- **Chaque île principale doit mesurer au minimum 1 km dans sa dimension utile.**
+- Les dimensions ci-dessous correspondent à l’emprise terrestre jouable cible, hors surface maritime.
+- Une île peut être agrandie si son contenu, son relief ou ses quêtes le nécessitent, mais elle ne doit pas être réduite sous cette échelle sans décision explicite de conception.
+
+| Royaume | Emprise jouable cible | Traversée en exploration normale |
+|---|---:|---:|
+| Île 01 | 1,2 km × 1,0 km | 8 à 12 minutes |
+| Île 02 | 1,3 km × 1,1 km | 9 à 13 minutes |
+| Île 03 | 1,5 km × 1,2 km | 10 à 15 minutes |
+| Île 04 | 1,7 km × 1,4 km | 12 à 17 minutes |
+| Île 05 | 2,2 km × 1,7 km | 15 à 22 minutes |
+| Île 06 | 1,9 km × 1,5 km | 13 à 18 minutes |
+| Île 07 | 2,4 km × 1,8 km | 16 à 24 minutes |
+| Île 08 | 2,2 km × 1,8 km | 15 à 22 minutes |
+| Île 09 | 2,3 km × 1,8 km | 15 à 22 minutes |
+| Île 10 | 2,6 km × 2,0 km | 18 à 26 minutes |
+| Île 11 | 3,0 km × 2,3 km | 20 à 30 minutes |
+
+### Distances maritimes officielles
+
+Les distances sont mesurées **entre les côtes navigables les plus logiques des îles voisines**, et non entre leurs centres. Cela garantit une vraie zone maritime même lorsque les îles font plusieurs kilomètres de large.
+
+| Liaison principale | Mer ouverte à parcourir |
+|---|---:|
+| Île 01 ↔ Île 02 | 700 m |
+| Île 02 ↔ Île 03 | 850 m |
+| Île 03 ↔ Île 04 | 1 000 m |
+| Île 04 ↔ Île 05 | 1 150 m |
+| Île 05 ↔ Île 06 | 900 m |
+| Île 06 ↔ Île 07 | 1 250 m |
+| Île 07 ↔ Île 08 | 1 350 m |
+| Île 08 ↔ Île 09 | 1 100 m |
+| Île 09 ↔ Île 10 | 1 400 m |
+| Île 10 ↔ Île 11 | 1 500 m |
+
+La règle générale est donc : **environ 700 m à 1,5 km de mer ouverte entre deux royaumes voisins**.
+
+### Conséquences obligatoires pour le gameplay
+
+- Les déplacements entre royaumes doivent se faire réellement en bateau, sans écran de téléportation automatique.
+- Les traversées maritimes doivent contenir de l’activité : navires marchands, pirates, équipages indépendants, pêcheurs, faune marine, épaves, météo et événements aléatoires.
+- Les îles doivent apparaître progressivement à l’horizon. Leurs repères majeurs doivent être visibles avant l’arrivée lorsque la météo le permet.
+- La mer ne doit pas ressembler à un simple couloir entre deux niveaux : le joueur doit pouvoir s’écarter de la route directe pour explorer, combattre ou chercher des secrets.
+- Les zones côtières, ports et points d’accostage doivent être conçus à l’échelle des distances réelles.
+
+### Streaming et optimisation Android
+
+La grande taille du monde ne signifie jamais que tout doit être chargé simultanément.
+
+- Découper les îles en cellules d’environ **250 × 250 m**.
+- Regrouper les cellules en macro-secteurs jusqu’à **500 × 500 m** pour l’organisation du monde.
+- Charger en détail uniquement les secteurs proches du joueur.
+- Décharger les PNJ, collisions complexes, intérieurs et objets interactifs éloignés.
+- Employer plusieurs niveaux de détail pour bâtiments, végétation, bateaux et reliefs.
+- Les îles éloignées doivent utiliser des silhouettes/meshes très simplifiés jusqu’à l’approche.
+- Les routes maritimes doivent utiliser le même principe de streaming afin que les navires et événements éloignés n’occupent pas inutilement la mémoire.
+- Éviter les murs invisibles autour des îles ; les limites du monde doivent être placées largement au-delà de l’archipel ou justifiées par le scénario.
+<!-- WORLD_SCALE_END -->
+
 ## 3. Contenu obligatoire de chaque île
 
 Chaque île doit comporter :

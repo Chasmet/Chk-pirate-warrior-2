@@ -8,6 +8,24 @@ Le Royaume de la nourriture est une île fertile et très peuplée, organisée a
 
 L’île ne doit pas être une copie du Royaume de la sucrerie : ici, l’identité repose sur les aliments complets, les cultures, les épices, la cuisson, les marchés et la diversité des cuisines.
 
+<!-- WORLD_SCALE_START -->
+## Échelle officielle, dimensions et navigation maritime
+
+Cette règle est obligatoire pour la construction de la version jouable de l’Île 03.
+
+- **Dimension cible de l’île : 1,5 km × 1,2 km** d’emprise terrestre jouable approximative, hors mer.
+- **Aucune île principale ne doit descendre sous 1 km de dimension utile.** Les dimensions indiquées sont des cibles minimales de conception et peuvent être agrandies si le relief ou le contenu le justifie.
+- Temps de traversée recherché en exploration normale, avec routes, reliefs, rencontres et détours : **10 à 15 minutes**. Il ne s’agit pas du temps d’un sprint parfaitement droit d’un bord à l’autre.
+- Les distances maritimes sont toujours mesurées **de côte navigable à côte navigable**, jamais de centre d’île à centre d’île.
+- Mer ouverte vers l’Île 02 (royaume précédent) : **850 m entre les côtes navigables**.
+- Mer ouverte vers l’Île 04 (royaume suivant) : **1 000 m entre les côtes navigables**.
+- L’arrivée depuis la mer doit rester continue : le joueur navigue réellement jusqu’au port, à une plage ou à un point d’accostage. Pas de téléportation automatique entre deux îles principales.
+- L’île doit rester visible progressivement depuis la mer grâce à sa silhouette, ses montagnes, tours, lumières ou monuments caractéristiques.
+- Pour Android, le territoire doit être découpé en cellules de streaming d’environ **250 × 250 m**, regroupées en macro-secteurs pouvant atteindre **500 × 500 m**. Seules les zones proches du joueur sont maintenues en haute qualité.
+- Utiliser LOD, occlusion, MultiMesh/instances, collisions simplifiées et chargement/déchargement par distance afin que la taille du royaume ne force jamais le téléphone à charger toute l’île en détail simultanément.
+- Les panoramas lointains et les autres îles visibles à l’horizon peuvent employer des versions très simplifiées jusqu’à l’approche du joueur.
+<!-- WORLD_SCALE_END -->
+
 ## Relief et géographie
 
 - Grandes plaines agricoles traversées par des canaux d’irrigation.
