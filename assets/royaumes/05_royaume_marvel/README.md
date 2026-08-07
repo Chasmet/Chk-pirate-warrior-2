@@ -1,115 +1,284 @@
-# Notice de conception — Île 05 : Royaume des super-héros
+# Notice de conception — Île 05 : Royaume futuriste des héros
 
-> Référence obligatoire pour tout développeur ou agent travaillant sur cette île. Le dossier porte actuellement le nom `05_royaume_marvel`. Les assets présents sont `boss ultime Boruto.glb` et `himawarie 1 er commedan .glb`.
+> Référence obligatoire pour tout développeur ou agent travaillant sur cette île. Le visuel principal à respecter est `visuel ile 5.png`. Les personnages déjà présents dans ce dossier sont `boss ultime Boruto.glb` et `himawarie 1 er commedan .glb`.
 
 ## Identité générale
 
-Ce royaume est une immense île-métropole verticale où vivent des combattants dotés de pouvoirs, des scientifiques, des ninjas modernes, des soldats technologiques et une population civile très dense. L’île doit donner l’impression d’être le centre le plus avancé du monde, avec des gratte-ciel, des laboratoires, des zones résidentielles, des arènes, des portails cosmiques et des quartiers endommagés par d’anciens affrontements.
+L’Île 5 est une immense île-métropole futuriste construite au milieu de l’océan. Elle doit donner l’impression d’être le royaume le plus avancé technologiquement parmi les premières îles du jeu. Son identité repose sur une grande capitale verticale, des infrastructures de haute technologie, des défenses puissantes, un port stratégique et une tour centrale monumentale visible depuis très loin en mer.
 
-L’ambiance alterne entre ville héroïque lumineuse, quartiers populaires vivants et secteurs interdits dominés par l’énergie instable.
+L’île mélange aventure maritime, technologie, pouvoirs, ninjas modernes et architecture héroïque. Elle doit rester un vrai territoire explorable et vivant, pas seulement une ville décorative.
+
+## Référence visuelle obligatoire
+
+Le fichier `visuel ile 5.png` définit la direction artistique principale.
+
+Éléments à conserver dans la version jouable :
+
+- grande île rocheuse entourée par l’océan ;
+- capitale dense occupant une grande partie de l’île ;
+- immense tour centrale sombre et vitrée, silhouette courbe et immédiatement reconnaissable ;
+- plateforme avancée en hauteur sur la tour principale ;
+- nombreuses tours secondaires futuristes ;
+- remparts et fortifications autour des zones importantes ;
+- routes, passerelles et voies surélevées reliant les quartiers ;
+- port important avec plusieurs quais ;
+- plateformes d’atterrissage et installations aériennes ;
+- falaises naturelles au bord de l’île ;
+- éclairages bleus, blancs et dorés ;
+- coucher de soleil et reflets sur la mer comme ambiance visuelle de référence.
+
+La tour centrale est le symbole du royaume et doit servir de repère visuel pendant toute l’exploration.
 
 ## Relief et géographie
 
-- Grande baie artificielle entourée de tours et de plateformes portuaires.
-- Centre-ville vertical avec gratte-ciel reliés par des passerelles.
-- Montagne côtière abritant un ancien sanctuaire ninja.
-- Canyon d’impact créé par une bataille passée.
-- Île-laboratoire secondaire reliée par un pont énergétique.
-- Réseau de tunnels, métros et bases secrètes.
-- Quartiers résidentiels, parcs et zones industrielles.
-- Tour orbitale servant de repère principal.
-- Arène centrale destinée aux entraînements et tournois.
+L’île doit être grande et divisée en zones clairement différentes.
 
-La navigation doit fonctionner au sol, sur les toits, dans les tunnels et sur des plateformes en hauteur.
+### 1. Capitale centrale
+
+Le cœur du royaume. Quartiers modernes, grandes places, bâtiments administratifs, commerces, logements, transports, laboratoires et installations militaires.
+
+### 2. Tour centrale
+
+Plus haut bâtiment de l’île. Elle contient plusieurs étages explorables : hall principal, laboratoires, centre de commandement, zones sécurisées, plateforme aérienne et niveau supérieur réservé au boss.
+
+### 3. Port principal
+
+Grande baie protégée par les fortifications. Elle doit accueillir :
+
+- navires marchands ;
+- bateaux civils ;
+- navires militaires ;
+- bateaux pirates capturés ;
+- ateliers de réparation ;
+- entrepôts ;
+- zones d’accostage du joueur.
+
+### 4. Falaises extérieures
+
+Zones plus naturelles avec chemins escarpés, grottes marines, petits postes d’observation et passages secrets permettant parfois d’entrer dans la ville autrement que par le port principal.
+
+### 5. Quartier scientifique
+
+Laboratoires, centres d’énergie, drones, prototypes et expériences. Plusieurs quêtes d’infiltration ou de sabotage doivent se dérouler ici.
+
+### 6. Quartier militaire
+
+Caserne, centre d’entraînement, hangars, tourelles, postes de contrôle et pistes d’atterrissage.
+
+### 7. Îlots secondaires
+
+Petites positions fortifiées autour de l’île principale. Ils peuvent contenir des phares, radars, mini-boss, trésors et batteries défensives.
 
 ## Météo et lumière
 
-Le climat naturel est tempéré, mais la technologie et les pouvoirs perturbent l’atmosphère.
+Climat maritime tempéré avec technologie influençant localement l’atmosphère.
 
-- Orages électriques autour de la tour orbitale.
-- Pluie urbaine réfléchissant les néons.
-- Brouillard énergétique près des laboratoires.
-- Tempêtes cosmiques rares ouvrant des failles temporaires.
-- Fortes rafales entre les gratte-ciel.
-- Pannes de courant nocturnes dans certains quartiers.
+- Journées lumineuses avec ciel dégagé.
+- Couchers de soleil très présents dans l’identité de l’île.
+- Vent marin régulier sur les falaises et plateformes hautes.
+- Brouillard léger au lever du jour autour des docks.
+- Pluie urbaine occasionnelle produisant des reflets sur le verre et le métal.
+- Orages électriques rares autour des installations énergétiques.
+- Nuits très lumineuses grâce aux bâtiments et routes éclairés.
 
-La météo doit influencer les déplacements en hauteur, les appareils électroniques et certaines capacités.
+La météo doit modifier certains comportements : vents plus forts en hauteur, plateformes plus glissantes sous la pluie et visibilité réduite autour du port en cas de brouillard.
 
-## Flore et faune
+## Flore
 
-### Flore
+La capitale est très urbanisée mais doit conserver de vraies zones naturelles.
 
-- Grands parcs urbains et jardins suspendus.
-- Forêt protégée autour du sanctuaire.
-- Plantes expérimentales dans les laboratoires.
-- Toits végétalisés servant de refuges et de raccourcis.
+- Jardins suspendus sur certains bâtiments.
+- Parcs urbains.
+- Palmiers et végétation côtière près du port.
+- Petites forêts conservées sur les reliefs périphériques.
+- Toits végétalisés.
+- Jardins expérimentaux dans le quartier scientifique.
+- Plantes bioluminescentes utilisées comme décoration dans certains secteurs nocturnes.
 
-### Faune
+## Faune
 
-- Oiseaux urbains, chats, chiens et petits animaux vivant auprès des habitants.
-- Faucons utilisés pour la surveillance.
-- Créatures mutées ou énergétiques dans les zones interdites.
-- Drones autonomes se comportant comme une faune artificielle.
-- Animaux sauvages préservés dans la montagne.
+La faune doit rester cohérente avec une grande île maritime moderne.
 
-La ville doit conserver une vie animale crédible malgré sa forte urbanisation.
+- Mouettes et oiseaux marins.
+- Faucons vivant autour des tours.
+- Dauphins visibles près des côtes.
+- Poissons et bancs de poissons dans le port et les récifs.
+- Tortues marines dans les secteurs calmes.
+- Chats et chiens dans les quartiers résidentiels.
+- Petits animaux sauvages dans les zones naturelles.
+- Drones autonomes pouvant se comporter comme une faune artificielle de surveillance.
 
-## Population et architecture
+Les animaux doivent avoir des comportements simples mais vivants : déplacement, fuite, repos, recherche de nourriture et réaction aux combats.
 
-La capitale, **Nova-Cité**, est divisée en quartiers très différents.
+## Population et vie du royaume
 
-- Quartier héroïque avec centre de commandement.
-- Quartier scientifique et médical.
-- Quartier ninja autour du sanctuaire.
-- Marché populaire et rues commerçantes.
-- Zone industrielle et docks.
-- Quartiers résidentiels avec écoles et hôpitaux.
-- Prison spéciale pour combattants puissants.
-- Bases secrètes sous la ville.
+L’île doit paraître fortement peuplée.
 
-Les habitants doivent circuler, travailler, utiliser les transports, fuir lors des attaques et revenir progressivement après le danger.
+Types de PNJ :
 
-## Ennemis, commandante et boss
+- habitants ;
+- commerçants ;
+- scientifiques ;
+- ingénieurs ;
+- mécaniciens ;
+- dockers ;
+- pêcheurs ;
+- soldats ;
+- ninjas modernes ;
+- pilotes ;
+- médecins ;
+- techniciens ;
+- gardes d’élite ;
+- voyageurs et marchands étrangers.
 
-La première commandante est représentée par `himawarie 1 er commedan .glb`. Elle protège les accès aux zones supérieures et utilise rapidité, techniques de précision et attaques énergétiques.
+Les PNJ doivent suivre des routines : travailler, marcher, discuter, utiliser les transports, se rendre au port, rentrer chez eux, fuir lors des combats et revenir progressivement après la fin du danger.
 
-Types d’ennemis recommandés :
+## Architecture
+
+L’architecture doit suivre le visuel `visuel ile 5.png`.
+
+- Grandes surfaces vitrées sombres.
+- Structures métalliques.
+- Silhouettes courbes et verticales.
+- Passerelles suspendues.
+- Routes sur plusieurs niveaux.
+- Terrasses et plateformes aériennes.
+- Dômes et bâtiments scientifiques.
+- Éclairages intégrés dans les façades.
+- Mélange de bâtiments très modernes et de quelques structures plus anciennes conservées dans certains quartiers.
+
+La ville doit être praticable au sol et en hauteur.
+
+## Circulation et monde vivant
+
+Prévoir :
+
+- véhicules terrestres ;
+- petits transports publics ;
+- drones ;
+- appareils aériens ;
+- cargos ;
+- patrouilles militaires ;
+- bateaux arrivant et quittant réellement le port.
+
+Tous les véhicules n’ont pas besoin d’être interactifs, mais le monde doit donner l’impression qu’ils ont une destination et une fonction.
+
+## Ennemis
+
+Types recommandés :
 
 - soldats technologiques ;
 - ninjas mercenaires ;
+- drones armés ;
 - robots de sécurité piratés ;
-- criminels dotés de pouvoirs ;
-- créatures sorties des failles cosmiques ;
-- scientifiques corrompus utilisant des armes expérimentales.
+- unités lourdes avec bouclier ;
+- tireurs positionnés sur les toits ;
+- gardes d’élite ;
+- pirates infiltrés dans le port ;
+- créatures ou expériences échappées des laboratoires.
 
-Le boss `boss ultime Boruto.glb` doit affronter le joueur au sommet de la tour orbitale. Le combat alterne corps-à-corps, déplacements rapides, attaques d’énergie, téléportations courtes et destruction progressive des plateformes. La ville visible en arrière-plan doit réagir aux phases du combat.
+## Première commandante
 
-## Gameplay, quêtes et exploration
+`himawarie 1 er commedan .glb` représente la première commandante importante du royaume.
 
-- Secourir des civils pendant des événements dynamiques.
-- Poursuivre des ennemis sur les toits.
-- Infiltrer un laboratoire ou une base secrète.
-- Restaurer l’électricité d’un quartier.
-- Participer à des entraînements dans l’arène.
-- Enquêter sur l’origine des failles cosmiques.
-- Aider différentes factions de héros, scientifiques ou ninjas.
-- Débloquer des moyens de déplacement vertical.
-- Protéger le port contre une attaque aérienne et maritime.
+Elle doit être rapide et précise, utiliser des attaques rapprochées, des déplacements rapides et des techniques énergétiques. Son combat peut avoir lieu dans un secteur intermédiaire de la tour centrale ou dans une grande arène d’entraînement.
 
-Les événements doivent continuer à apparaître même en dehors de la quête principale : incendies, braquages, créatures échappées, attaques de drones et appels de secours.
+## Boss principal
+
+`boss ultime Boruto.glb` représente le boss principal actuellement prévu pour l’île.
+
+Le combat final de l’Île 5 doit se dérouler dans les niveaux supérieurs de la tour centrale.
+
+### Phases recommandées
+
+1. Combat rapproché dans une grande salle panoramique.
+2. Déplacement vers plusieurs plateformes extérieures en hauteur.
+3. Activation d’un système énergétique perturbant l’arène.
+4. Phase finale sur la plateforme la plus haute avec vue sur toute l’île et la mer.
+
+Pendant le combat, la ville doit rester visible en arrière-plan et les alarmes du royaume doivent être actives.
+
+## Dangers environnementaux
+
+- Chutes depuis les passerelles et toits.
+- Tourelles automatiques.
+- Zones électriques.
+- Portes de sécurité.
+- Drones d’alerte.
+- Lasers ou barrières énergétiques dans les installations sensibles.
+- Vent violent sur les plateformes les plus hautes.
+- Secteurs de laboratoire contaminés ou instables.
+
+## Gameplay et quêtes
+
+Exemples de missions :
+
+- entrer dans la capitale par le port ;
+- défendre des civils pendant une attaque ;
+- infiltrer un laboratoire ;
+- désactiver plusieurs tours de surveillance ;
+- aider des ingénieurs à remettre un quartier sous tension ;
+- poursuivre un ennemi sur les toits ;
+- protéger un convoi entre le port et la tour centrale ;
+- libérer des prisonniers ;
+- enquêter sur des expériences interdites ;
+- détruire ou pirater des drones ;
+- trouver des passages secrets dans les falaises ;
+- affronter plusieurs mini-boss avant d’accéder aux niveaux supérieurs de la tour.
+
+## Exploration verticale
+
+L’Île 5 doit exploiter fortement la verticalité.
+
+Moyens possibles :
+
+- ascenseurs ;
+- escaliers extérieurs ;
+- passerelles ;
+- plateformes mobiles ;
+- tyroliennes ;
+- grappins ou capacités spéciales ;
+- transports internes à la tour.
+
+Le joueur doit pouvoir observer le royaume depuis plusieurs points élevés.
 
 ## Approche maritime
 
-Le port est moderne, défendu par des tourelles et survolé par des appareils. L’arrivée doit montrer la verticalité de la capitale. Des cargos, navires militaires, ferries et bateaux civils circulent en permanence.
+La tour centrale doit être visible longtemps avant l’arrivée au port.
+
+Autour de l’île doivent circuler :
+
+- navires marchands ;
+- bateaux de pêche ;
+- patrouilleurs militaires ;
+- pirates ;
+- les équipages indépendants du monde ;
+- petits appareils aériens surveillant la côte.
+
+Des checkpoints maritimes peuvent contrôler l’accès à certaines zones du port.
 
 ## Ambiance sonore
 
-Mélanger musique héroïque, percussions modernes, synthétiseurs et sonorités ninja. Le bruit urbain doit varier selon les quartiers et l’heure. En combat, les alertes et impacts doivent rester lisibles malgré l’activité de la ville.
+- Bruit permanent mais modéré de grande ville.
+- Vent en hauteur.
+- Vagues et mouettes près du port.
+- Moteurs, drones et appareils aériens.
+- Communications radio dans les secteurs militaires.
+- Alarmes pendant les attaques.
+- Musique mélangeant ambiance héroïque, percussions modernes, synthétiseurs et sonorités ninja.
 
-## Règles de réalisation
+## Règles techniques et artistiques
 
-- Conserver une ville praticable, pas seulement un décor de gratte-ciel.
-- Prévoir plusieurs niveaux de circulation et des raccourcis verticaux.
-- Optimiser les foules, véhicules et lumières dynamiques pour Android.
-- Les civils doivent réagir de manière crédible aux dangers.
-- Pour une publication commerciale, remplacer les noms, costumes, symboles et personnages protégés par des créations originales.
+- `visuel ile 5.png` est la référence visuelle principale.
+- La tour centrale doit conserver une silhouette spectaculaire et reconnaissable.
+- Ne pas transformer la capitale en décor inaccessible : rues, bâtiments clés, toits et plateformes doivent être réellement explorables.
+- Alterner zones très denses et zones plus naturelles pour éviter la monotonie.
+- Utiliser LOD, occlusion culling, instances et chargement par secteurs pour Android.
+- Limiter le nombre de lumières dynamiques simultanées.
+- Les foules lointaines peuvent utiliser des modèles simplifiés.
+- Les appareils aériens lointains peuvent suivre des trajectoires simples.
+- Préserver une bonne visibilité du gameplay malgré la richesse du décor.
+
+## Objectif final de l’Île 5
+
+Le joueur doit avoir l’impression d’avoir découvert une véritable capitale insulaire futuriste : immense, verticale, vivante, protégée, technologiquement avancée et dominée par une tour monumentale. L’exploration doit passer naturellement de la mer au port, puis aux rues, aux toits et enfin au sommet de la tour pour le combat principal.
