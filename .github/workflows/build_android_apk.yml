@@ -78,9 +78,6 @@ jobs:
           cp 'joueur 1 cheikh anime.glb' ci_export/
           cp 'player_3_Nelvyn_Godot_anime (1).glb' ci_export/
 
-          # Yvane est actuellement compressé avec Draco. On tente une conversion
-          # sans compression afin que Godot 4.4 puisse l'importer. Si la conversion
-          # échoue, le contrôleur affiche automatiquement un modèle de secours.
           mkdir -p /tmp/gltf-convert
           cd /tmp/gltf-convert
           npm init -y >/dev/null 2>&1
@@ -117,10 +114,6 @@ jobs:
       - name: Exporter le jeu avec Godot 4.4
         id: export
         uses: firebelley/godot-export@v8.0.0
-        env:
-          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /home/runner/.android/debug.keystore
-          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
-          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         with:
           godot_executable_download_url: https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
           godot_export_templates_download_url: https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz
@@ -131,19 +124,36 @@ jobs:
           presets_to_export: Android
           verbose: true
 
-      - name: Récupérer et vérifier le véritable APK
+      - name: Signer et vérifier le véritable APK
         shell: bash
         run: |
           echo "Dossier d'export: ${{ steps.export.outputs.build_directory }}"
           find "${{ steps.export.outputs.build_directory }}" -type f -name '*.apk' -print
-          APK="$(find "${{ steps.export.outputs.build_directory }}" -type f -name '*.apk' | head -n 1)"
-          test -n "$APK"
-          test -s "$APK"
+          UNSIGNED_APK="$(find "${{ steps.export.outputs.build_directory }}" -type f -name '*.apk' | head -n 1)"
+          test -n "$UNSIGNED_APK"
+          test -s "$UNSIGNED_APK"
+
+          ZIPALIGN="$ANDROID_HOME/build-tools/34.0.0/zipalign"
+          APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
+          test -x "$ZIPALIGN"
+          test -x "$APKSIGNER"
+
           mkdir -p artifact
-          cp "$APK" artifact/CHK_Pirate_Warrior_2_V0.1.apk
+          "$ZIPALIGN" -f -p 4 "$UNSIGNED_APK" artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk
+          "$APKSIGNER" sign \
+            --ks "$HOME/.android/debug.keystore" \
+            --ks-key-alias androiddebugkey \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            --out artifact/CHK_Pirate_Warrior_2_V0.1.apk \
+            artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk
+          rm artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk
+
+          "$APKSIGNER" verify --verbose --print-certs artifact/CHK_Pirate_Warrior_2_V0.1.apk
+          unzip -t artifact/CHK_Pirate_Warrior_2_V0.1.apk >/dev/null
+          test -s artifact/CHK_Pirate_Warrior_2_V0.1.apk
           ls -lh artifact/CHK_Pirate_Warrior_2_V0.1.apk
           file artifact/CHK_Pirate_Warrior_2_V0.1.apk
-          unzip -t artifact/CHK_Pirate_Warrior_2_V0.1.apk >/dev/null
 
       - name: Publier l'APK
         uses: actions/upload-artifact@v4
