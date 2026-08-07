@@ -1,0 +1,138 @@
+name: Importer les assets CC0 GLB
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/import_cc0_assets.yml'
+      - 'tools/cc0_assets_manifest.json'
+      - 'tools/blender_optimize_asset.py'
+
+permissions:
+  contents: write
+
+jobs:
+  convert-and-optimize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Installer Blender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender
+          blender --version
+
+      - name: Télécharger, vérifier et convertir les assets CC0
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import subprocess
+          import urllib.parse
+          import urllib.request
+
+          root = pathlib.Path.cwd()
+          manifest = json.loads((root / 'tools/cc0_assets_manifest.json').read_text(encoding='utf-8'))
+          base = manifest['source']['mirror_raw_base']
+          temp = pathlib.Path('/tmp/chk_cc0_assets')
+          temp.mkdir(parents=True, exist_ok=True)
+
+          reports = {'decor': [], 'boat': []}
+
+          for asset in manifest['assets']:
+              source_name = asset['source_file']
+              encoded_name = urllib.parse.quote(source_name)
+              url = base + encoded_name
+              source_path = temp / source_name
+
+              print(f'Téléchargement CC0 : {url}')
+              request = urllib.request.Request(url, headers={'User-Agent': 'CHK-Pirate-Warrior-2-Asset-Importer'})
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  data = response.read()
+              source_path.write_bytes(data)
+
+              # Vérification exacte du blob Git afin d'éviter toute modification silencieuse du miroir.
+              git_sha = hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest()
+              expected = asset['source_blob_sha']
+              if git_sha != expected:
+                  raise RuntimeError(f'SHA invalide pour {source_name}: {git_sha} != {expected}')
+
+              if asset['category'] == 'decor':
+                  base_dir = root / 'assets/decors_glb'
+              else:
+                  base_dir = root / 'assets/bateaux_glb'
+
+              glb_path = base_dir / 'glb' / f"{asset['output']}.glb"
+              png_path = base_dir / 'png' / f"{asset['output']}.png"
+              glb_path.parent.mkdir(parents=True, exist_ok=True)
+              png_path.parent.mkdir(parents=True, exist_ok=True)
+
+              subprocess.run([
+                  'blender', '--background',
+                  '--python', str(root / 'tools/blender_optimize_asset.py'),
+                  '--', str(source_path), str(glb_path), str(png_path), asset['category']
+              ], check=True)
+
+              source_size = source_path.stat().st_size
+              glb_size = glb_path.stat().st_size
+              reduction = 0.0 if source_size == 0 else (1.0 - glb_size / source_size) * 100.0
+              reports[asset['category']].append({
+                  'name': asset['output'],
+                  'source': source_name,
+                  'source_size': source_size,
+                  'glb_size': glb_size,
+                  'reduction': reduction,
+              })
+
+          for category, rows in reports.items():
+              if category == 'decor':
+                  report_path = root / 'assets/decors_glb/IMPORT_REPORT.md'
+                  title = 'Rapport import — Décors GLB CC0'
+              else:
+                  report_path = root / 'assets/bateaux_glb/IMPORT_REPORT.md'
+                  title = 'Rapport import — Bateaux GLB CC0'
+
+              lines = [
+                  f'# {title}', '',
+                  'Fichiers générés automatiquement à partir du **Kenney Pirate Kit — CC0 1.0**.', '',
+                  '| Asset | Source FBX | FBX source | GLB optimisé | Évolution |',
+                  '|---|---|---:|---:|---:|',
+              ]
+              for row in rows:
+                  lines.append(
+                      f"| `{row['name']}` | `{row['source']}` | "
+                      f"{row['source_size']/1024:.1f} Ko | {row['glb_size']/1024:.1f} Ko | "
+                      f"{row['reduction']:+.1f}% |"
+                  )
+              lines += ['', 'Un aperçu PNG 512×512 est également généré pour chaque modèle.']
+              report_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          PY
+
+      - name: Vérifier les fichiers générés
+        run: |
+          find assets/decors_glb assets/bateaux_glb -maxdepth 2 -type f -print -exec du -h {} \;
+          test "$(find assets/decors_glb/glb -name '*.glb' | wc -l)" -eq 8
+          test "$(find assets/decors_glb/png -name '*.png' | wc -l)" -eq 8
+          test "$(find assets/bateaux_glb/glb -name '*.glb' | wc -l)" -eq 5
+          test "$(find assets/bateaux_glb/png -name '*.png' | wc -l)" -eq 5
+
+      - name: Enregistrer les GLB et PNG générés dans le dépôt
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/decors_glb assets/bateaux_glb
+          if git diff --cached --quiet; then
+            echo "Aucun changement à enregistrer."
+            exit 0
+          fi
+          git commit -m "Ajouter les décors et bateaux CC0 optimisés [skip ci]"
+          git push origin HEAD:main
