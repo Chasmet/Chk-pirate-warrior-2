@@ -2,6 +2,7 @@ import bpy
 import math
 import os
 import sys
+from pathlib import Path
 from mathutils import Vector
 
 
@@ -30,13 +31,23 @@ def look_at(obj, target):
     obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
 
 
+def import_source(source_path):
+    suffix = Path(source_path).suffix.lower()
+    if suffix in {".glb", ".gltf"}:
+        bpy.ops.import_scene.gltf(filepath=source_path)
+    elif suffix == ".fbx":
+        bpy.ops.import_scene.fbx(filepath=source_path)
+    else:
+        raise RuntimeError(f"Format source non pris en charge : {suffix}")
+
+
 def import_and_optimize(source_path, category):
     clear_scene()
-    bpy.ops.import_scene.fbx(filepath=source_path)
+    import_source(source_path)
 
     # Nous ne gardons que les meshes statiques du pack de décor.
     for obj in list(bpy.context.scene.objects):
-        if obj.type not in {"MESH"}:
+        if obj.type != "MESH":
             bpy.data.objects.remove(obj, do_unlink=True)
 
     meshes = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
@@ -56,7 +67,7 @@ def import_and_optimize(source_path, category):
     select_only(meshes)
     bpy.ops.object.join()
     obj = bpy.context.view_layer.objects.active
-    obj.name = os.path.splitext(os.path.basename(source_path))[0]
+    obj.name = Path(source_path).stem
 
     # Nettoyage géométrique léger.
     select_only([obj])
@@ -108,9 +119,16 @@ def import_and_optimize(source_path, category):
     obj.location -= center
     bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
 
-    # Kenney Pirate Kit utilise principalement des matériaux couleur unie.
-    # Les UV inutiles peuvent être supprimés afin d'alléger les modèles statiques.
-    if obj.data.uv_layers:
+    # Le Pirate Kit utilise surtout des matériaux couleur unie.
+    # On ne supprime les UV que si aucune texture d'image n'est réellement utilisée.
+    uses_image_texture = False
+    for material in obj.data.materials:
+        if not material or not material.use_nodes or not material.node_tree:
+            continue
+        if any(node.type == "TEX_IMAGE" and getattr(node, "image", None) for node in material.node_tree.nodes):
+            uses_image_texture = True
+            break
+    if not uses_image_texture and obj.data.uv_layers:
         while obj.data.uv_layers:
             obj.data.uv_layers.remove(obj.data.uv_layers[0])
 
@@ -125,7 +143,7 @@ def export_glb(obj, output_path):
         export_format="GLB",
         use_selection=True,
         export_apply=True,
-        export_texcoords=False,
+        export_texcoords=bool(obj.data.uv_layers),
         export_normals=True,
         export_materials="EXPORT",
         export_cameras=False,
@@ -139,7 +157,6 @@ def render_preview(obj, output_path):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     scene = bpy.context.scene
 
-    # Calcul de la taille du modèle après optimisation.
     corners = [obj.matrix_world @ Vector(corner) for corner in obj.bound_box]
     min_x = min(v.x for v in corners)
     max_x = max(v.x for v in corners)
@@ -153,7 +170,6 @@ def render_preview(obj, output_path):
     radius = max(width, depth, height, 0.1)
     target = Vector((0.0, 0.0, height * 0.38))
 
-    # Caméra isométrique douce.
     camera_data = bpy.data.cameras.new("PreviewCamera")
     camera = bpy.data.objects.new("PreviewCamera", camera_data)
     scene.collection.objects.link(camera)
@@ -163,7 +179,6 @@ def render_preview(obj, output_path):
     look_at(camera, target)
     scene.camera = camera
 
-    # Éclairage léger pour bien lire les formes sans texture.
     key_data = bpy.data.lights.new(name="Key", type="AREA")
     key_data.energy = 900
     key_data.size = radius * 2.0
@@ -202,7 +217,6 @@ def render_preview(obj, output_path):
     scene.render.film_transparent = True
     scene.render.filepath = output_path
 
-    # Color management stable entre versions de Blender.
     try:
         scene.view_settings.view_transform = "Standard"
         scene.view_settings.look = "Medium High Contrast"
@@ -217,7 +231,7 @@ def render_preview(obj, output_path):
 def main():
     args = arg_after_double_dash()
     if len(args) != 4:
-        raise RuntimeError("Usage: blender --background --python script.py -- source.fbx sortie.glb aperçu.png catégorie")
+        raise RuntimeError("Usage: blender --background --python script.py -- source.glb sortie.glb aperçu.png catégorie")
 
     source_path, output_glb, output_png, category = args
     obj, before_faces, after_faces = import_and_optimize(source_path, category)
