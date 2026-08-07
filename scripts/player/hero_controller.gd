@@ -101,17 +101,26 @@ func _on_hero_changed(_hero_id: String) -> void:
 func _clear_visuals() -> void:
     if hero_model != null and is_instance_valid(hero_model):
         hero_model.queue_free()
+    if backpack_node != null and is_instance_valid(backpack_node) and backpack_node.get_parent() == self:
+        backpack_node.queue_free()
+    if weapon_node != null and is_instance_valid(weapon_node) and weapon_node.get_parent() == self:
+        weapon_node.queue_free()
     hero_model = null
     backpack_node = null
     weapon_node = null
 
 func _load_visuals() -> void:
+    var model_loaded := false
     var model_path := str(hero_data.get("model", ""))
     if ResourceLoader.exists(model_path):
         var packed = load(model_path)
         if packed is PackedScene:
             hero_model = packed.instantiate()
             add_child(hero_model)
+            model_loaded = true
+
+    if not model_loaded:
+        _create_fallback_hero()
 
     var backpack_path := str(hero_data.get("backpack", ""))
     if ResourceLoader.exists(backpack_path):
@@ -136,6 +145,39 @@ func _load_visuals() -> void:
                 Vector3.ZERO,
                 Vector3(0.0, 0.0, 90.0)
             )
+
+func _create_fallback_hero() -> void:
+    hero_model = Node3D.new()
+    hero_model.name = "FallbackHero"
+    add_child(hero_model)
+
+    var body := MeshInstance3D.new()
+    var capsule := CapsuleMesh.new()
+    capsule.radius = 0.34
+    capsule.height = 1.35
+    body.mesh = capsule
+    body.position = Vector3(0.0, 1.0, 0.0)
+
+    var material := StandardMaterial3D.new()
+    match GameState.selected_hero:
+        "yvane":
+            material.albedo_color = Color(0.08, 0.28, 0.65)
+        "nelvyn":
+            material.albedo_color = Color(0.08, 0.08, 0.10)
+        _:
+            material.albedo_color = Color(0.86, 0.32, 0.08)
+    material.roughness = 0.72
+    body.material_override = material
+    hero_model.add_child(body)
+
+    var head := MeshInstance3D.new()
+    var sphere := SphereMesh.new()
+    sphere.radius = 0.23
+    sphere.height = 0.46
+    head.mesh = sphere
+    head.position = Vector3(0.0, 1.92, 0.0)
+    head.material_override = material
+    hero_model.add_child(head)
 
 func _attach_to_bone_or_fallback(node: Node3D, bone_candidates: Array, local_pos: Vector3, local_rot_deg: Vector3) -> void:
     var skeleton := _find_skeleton(hero_model)
