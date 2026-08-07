@@ -22,6 +22,7 @@ var cooldowns := [0.0, 0.0]
 
 func _ready() -> void:
     add_to_group("player")
+    GameState.hero_changed.connect(_on_hero_changed)
     hero_data = GameState.get_hero_data()
     _load_visuals()
     health_changed.emit(health, max_health)
@@ -88,6 +89,24 @@ func _apply_ability_effect(index: int, ability: Dictionary) -> void:
         if enemy is Node3D and global_position.distance_to(enemy.global_position) <= radius:
             if enemy.has_method("receive_damage"):
                 enemy.receive_damage(damage)
+
+func _on_hero_changed(_hero_id: String) -> void:
+    hero_data = GameState.get_hero_data()
+    _clear_visuals()
+    cooldowns = [0.0, 0.0]
+    energy = max_energy
+    _load_visuals()
+    energy_changed.emit(energy, max_energy)
+
+func _clear_visuals() -> void:
+    if hero_model != null and is_instance_valid(hero_model):
+        hero_model.queue_free()
+    hero_model = null
+    backpack_node = null
+    weapon_node = null
+    for child in get_children():
+        if child is BoneAttachment3D:
+            child.queue_free()
 
 func _load_visuals() -> void:
     var model_path := str(hero_data.get("model", ""))
