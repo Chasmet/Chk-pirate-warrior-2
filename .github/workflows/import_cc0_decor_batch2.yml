@@ -150,4 +150,6 @@ jobs:
             exit 0
           fi
           git commit -m "Ajouter le lot 2 de décors CC0 optimisés [skip ci]"
+          git fetch origin main
+          git rebase origin/main
           git push origin HEAD:main
