@@ -12,11 +12,23 @@ var subtitle_label: Label
 var ability_1_button: Button
 var ability_2_button: Button
 var subtitle_timer: Timer
+var inventory_panel: PanelContainer
+var inventory_text: RichTextLabel
 
 func _ready() -> void:
+    process_mode = Node.PROCESS_MODE_ALWAYS
     add_to_group("hud")
     _build_hud()
+    GameState.hero_changed.connect(_on_hero_changed)
+    GameState.inventory_changed.connect(_on_inventory_changed)
     _connect_player.call_deferred()
+
+func _process(_delta: float) -> void:
+    if Input.is_action_just_pressed("open_inventory"):
+        toggle_inventory()
+    if Input.is_action_just_pressed("pause_game"):
+        get_tree().paused = not get_tree().paused
+        show_subtitle("Jeu en pause" if get_tree().paused else "Reprise", 1.2)
 
 func _build_hud() -> void:
     var root := Control.new()
@@ -69,7 +81,8 @@ func _build_hud() -> void:
     var camera_stick := _joystick_visual(Vector2(255, 805), 110.0, "CAMÉRA 360°")
     root.add_child(camera_stick)
 
-    root.add_child(_action_button("HÉROS", "open_inventory", Vector2(425, 900), Vector2(112, 90)))
+    root.add_child(_action_button("SAC", "open_inventory", Vector2(425, 830), Vector2(112, 62)))
+    root.add_child(_action_button("HÉROS", "switch_hero", Vector2(425, 900), Vector2(112, 90)))
     root.add_child(_action_button("EMBARQUER", "embark", Vector2(548, 900), Vector2(150, 90)))
 
     root.add_child(_action_button("ESQUIVE", "dodge", Vector2(1210, 900), Vector2(118, 90)))
@@ -89,23 +102,64 @@ func _build_hud() -> void:
     subtitle_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     subtitle_panel.add_child(subtitle_label)
 
+    inventory_panel = _panel(Vector2(650, 210), Vector2(620, 560))
+    inventory_panel.visible = false
+    root.add_child(inventory_panel)
+    var inventory_title := _label("SAC À DOS", 30)
+    inventory_title.position = Vector2(24, 20)
+    inventory_title.size = Vector2(450, 45)
+    inventory_panel.add_child(inventory_title)
+    var close_button := Button.new()
+    close_button.text = "FERMER"
+    close_button.position = Vector2(485, 18)
+    close_button.size = Vector2(110, 48)
+    close_button.pressed.connect(toggle_inventory)
+    inventory_panel.add_child(close_button)
+    inventory_text = RichTextLabel.new()
+    inventory_text.position = Vector2(24, 80)
+    inventory_text.size = Vector2(570, 450)
+    inventory_text.bbcode_enabled = true
+    inventory_text.fit_content = false
+    inventory_text.add_theme_font_size_override("normal_font_size", 22)
+    inventory_panel.add_child(inventory_text)
+
     subtitle_timer = Timer.new()
     subtitle_timer.one_shot = true
-    subtitle_timer.timeout.connect(func(): subtitle_panel.visible = false)
+    subtitle_timer.timeout.connect(_hide_subtitle)
     add_child(subtitle_timer)
 
     _refresh_hero_labels()
+    _refresh_inventory()
 
 func _connect_player() -> void:
     var player = get_tree().get_first_node_in_group("player")
     if player == null:
         return
     if player.has_signal("health_changed"):
-        player.health_changed.connect(func(v, m): health_bar.max_value = m; health_bar.value = v)
+        player.health_changed.connect(_on_health_changed)
     if player.has_signal("energy_changed"):
-        player.energy_changed.connect(func(v, m): energy_bar.max_value = m; energy_bar.value = v)
+        player.energy_changed.connect(_on_energy_changed)
     if player.has_signal("aura_changed"):
-        player.aura_changed.connect(func(v): aura_bar.value = v)
+        player.aura_changed.connect(_on_aura_changed)
+
+func _on_health_changed(value: float, maximum: float) -> void:
+    health_bar.max_value = maximum
+    health_bar.value = value
+
+func _on_energy_changed(value: float, maximum: float) -> void:
+    energy_bar.max_value = maximum
+    energy_bar.value = value
+
+func _on_aura_changed(value: float) -> void:
+    aura_bar.value = value
+
+func _on_hero_changed(_hero_id: String) -> void:
+    _refresh_hero_labels()
+    _refresh_inventory()
+    show_subtitle("Héros contrôlé : %s" % GameState.get_hero_data().get("display_name", "Héros"), 1.8)
+
+func _on_inventory_changed(_items: Dictionary) -> void:
+    _refresh_inventory()
 
 func _refresh_hero_labels() -> void:
     var hero := GameState.get_hero_data()
@@ -116,10 +170,34 @@ func _refresh_hero_labels() -> void:
     if abilities.size() > 1:
         ability_2_button.text = str(abilities[1].get("name", "POUVOIR 2")).to_upper()
 
+func toggle_inventory() -> void:
+    inventory_panel.visible = not inventory_panel.visible
+    if inventory_panel.visible:
+        _refresh_inventory()
+
+func _refresh_inventory() -> void:
+    if inventory_text == null:
+        return
+    var hero := GameState.get_hero_data()
+    var lines := PackedStringArray()
+    lines.append("[b]%s[/b] — capacité : %d emplacements" % [hero.get("display_name", "Héros"), GameState.max_slots])
+    lines.append("")
+    if GameState.inventory.is_empty():
+        lines.append("Le sac est vide.")
+    else:
+        for item_id in GameState.inventory.keys():
+            lines.append("• %s × %d" % [str(item_id).replace("_", " ").capitalize(), int(GameState.inventory[item_id])])
+    lines.append("")
+    lines.append("Objets possibles : pièces, boussoles, coffres, cartes, clés, potions, matériaux et objets rares.")
+    inventory_text.text = "\n".join(lines)
+
 func show_subtitle(text: String, seconds: float = 3.5) -> void:
     subtitle_label.text = text
     subtitle_panel.visible = true
     subtitle_timer.start(seconds)
+
+func _hide_subtitle() -> void:
+    subtitle_panel.visible = false
 
 func set_mission(title: String, description: String) -> void:
     mission_title.text = title.to_upper()
