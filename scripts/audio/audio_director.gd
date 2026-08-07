@@ -32,7 +32,7 @@ func _play_if_exists(player: AudioStreamPlayer, path: String, looped: bool) -> v
     var stream = load(path)
     if stream == null:
         return
-    if "loop" in stream:
+    if stream is AudioStreamOggVorbis:
         stream.loop = looped
     player.stop()
     player.stream = stream
