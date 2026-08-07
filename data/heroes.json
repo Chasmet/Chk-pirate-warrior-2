@@ -1,0 +1,44 @@
+{
+  "cheikh": {
+    "display_name": "Cheikh",
+    "model": "res://joueur 1 cheikh anime.glb",
+    "backpack": "res://assets/equipements/sacs_a_dos/glb/sac_cheikh_orange.glb",
+    "backpack_color": "orange",
+    "weapon_name": "Batte de baseball",
+    "weapon": "res://assets/equipements/armes/glb/batte_cheikh.glb",
+    "base_attack": "Frappe de batte",
+    "abilities": [
+      {"id": "impact_capitaine", "name": "Impact du Capitaine", "damage": 42, "energy": 22, "cooldown": 4.0, "description": "Coup lourd de batte qui projette les ennemis proches."},
+      {"id": "onde_fracas", "name": "Onde de Fracas", "damage": 65, "energy": 38, "cooldown": 8.0, "description": "Frappe le sol et crée une onde circulaire autour de Cheikh."}
+    ],
+    "backpack_capacity": 30
+  },
+  "yvane": {
+    "display_name": "Yvane",
+    "model": "res://Yvane_anime_Godot_Draco.glb",
+    "backpack": "res://assets/equipements/sacs_a_dos/glb/sac_yvane_bleu.glb",
+    "backpack_color": "bleu",
+    "weapon_name": "Poings",
+    "weapon": "",
+    "base_attack": "Combo de poings",
+    "abilities": [
+      {"id": "poing_eclair", "name": "Poing Éclair", "damage": 36, "energy": 18, "cooldown": 3.0, "description": "Dash ninja très rapide terminé par un puissant coup de poing."},
+      {"id": "rafale_ombres", "name": "Rafale des Ombres", "damage": 58, "energy": 34, "cooldown": 7.0, "description": "Enchaînement ninja de plusieurs frappes rapides autour de la cible."}
+    ],
+    "backpack_capacity": 24
+  },
+  "nelvyn": {
+    "display_name": "Nelvyn",
+    "model": "res://player_3_Nelvyn_Godot_anime (1).glb",
+    "backpack": "res://assets/equipements/sacs_a_dos/glb/sac_nelvyn_noir.glb",
+    "backpack_color": "noir",
+    "weapon_name": "Épée",
+    "weapon": "res://assets/equipements/armes/glb/epee_nelvyn.glb",
+    "base_attack": "Combo d'épée",
+    "abilities": [
+      {"id": "lame_vent", "name": "Lame du Vent", "damage": 40, "energy": 20, "cooldown": 3.5, "description": "Entaille rapide qui projette une courte lame d'air."},
+      {"id": "croissant_fulgurant", "name": "Croissant Fulgurant", "damage": 62, "energy": 36, "cooldown": 7.5, "description": "Grand arc d'épée chargé d'énergie qui frappe plusieurs ennemis."}
+    ],
+    "backpack_capacity": 26
+  }
+}
