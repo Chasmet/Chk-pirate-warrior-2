@@ -3,6 +3,7 @@ extends Control
 @export_enum("movement", "camera") var mode := "movement"
 @export var deadzone := 0.14
 @export var camera_speed := 2.4
+@export var draw_visuals := true
 
 var _touch_id := -1
 var _mouse_active := false
@@ -67,10 +68,22 @@ func _reset() -> void:
     queue_redraw()
 
 func _apply_movement_actions(value: Vector2) -> void:
-    Input.action_press("move_left", maxf(0.0, -value.x)) if value.x < -deadzone else Input.action_release("move_left")
-    Input.action_press("move_right", maxf(0.0, value.x)) if value.x > deadzone else Input.action_release("move_right")
-    Input.action_press("move_forward", maxf(0.0, -value.y)) if value.y < -deadzone else Input.action_release("move_forward")
-    Input.action_press("move_back", maxf(0.0, value.y)) if value.y > deadzone else Input.action_release("move_back")
+    if value.x < -deadzone:
+        Input.action_press("move_left", -value.x)
+    else:
+        Input.action_release("move_left")
+    if value.x > deadzone:
+        Input.action_press("move_right", value.x)
+    else:
+        Input.action_release("move_right")
+    if value.y < -deadzone:
+        Input.action_press("move_forward", -value.y)
+    else:
+        Input.action_release("move_forward")
+    if value.y > deadzone:
+        Input.action_press("move_back", value.y)
+    else:
+        Input.action_release("move_back")
 
 func _release_movement_actions() -> void:
     Input.action_release("move_left")
@@ -86,6 +99,8 @@ func _radius() -> float:
     return maxf(20.0, minf(size.x, size.y - 28.0) * 0.46)
 
 func _draw() -> void:
+    if not draw_visuals:
+        return
     var center := _center()
     var radius := _radius()
     draw_circle(center, radius, Color(0.015, 0.04, 0.06, 0.62))
