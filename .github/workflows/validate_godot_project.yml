@@ -14,7 +14,7 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Récupérer le dépôt
         uses: actions/checkout@v4
@@ -27,7 +27,15 @@ jobs:
           sudo ln -s /tmp/godot/Godot_v4.4-stable_linux.x86_64 /usr/local/bin/godot
           godot --version
 
-      - name: Importer et vérifier le projet
+      - name: Ignorer les assets lourds pendant le contrôle de syntaxe
+        run: |
+          mkdir -p /tmp/chk_heavy_assets
+          find . -maxdepth 1 -type f -name '*.glb' -exec mv {} /tmp/chk_heavy_assets/ \;
+          for d in assets/royaumes assets/vrac assets/bateaux_glb assets/decors_glb assets/interface assets/audio assets/equipements; do
+            if [ -d "$d" ]; then touch "$d/.gdignore"; fi
+          done
+
+      - name: Importer et vérifier code et scènes
         run: |
           godot --headless --path . --editor --quit
 
@@ -38,4 +46,8 @@ jobs:
           test -f scenes/ui/hud_mobile.tscn
           test -f scripts/player/hero_controller.gd
           test -f scripts/npc/greeting_agent.gd
+          test -f scripts/audio/audio_director.gd
           test -f data/heroes.json
+          python3 -m json.tool data/heroes.json >/dev/null
+          python3 -m json.tool data/items.json >/dev/null
+          python3 -m json.tool data/islands.json >/dev/null
