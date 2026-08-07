@@ -1,0 +1,13 @@
+{
+  "1": {"folder":"01_royaume_musical","display_name":"Royaume Musical"},
+  "2": {"folder":"02_royaume_sucrerie","display_name":"Royaume Sucrerie"},
+  "3": {"folder":"03_royaume_nourriture","display_name":"Royaume de la Nourriture"},
+  "4": {"folder":"04_royaume_fantastique","display_name":"Royaume Fantastique"},
+  "5": {"folder":"05_royaume_marvel","display_name":"Royaume des Héros Futuristes"},
+  "6": {"folder":"06_royaume_pokemon","display_name":"Royaume des Créatures"},
+  "7": {"folder":"07_ile_des_pirates","display_name":"Île des Pirates"},
+  "8": {"folder":"08_royaume_des_neiges","display_name":"Royaume des Neiges"},
+  "9": {"folder":"09_royaume_de_feu","display_name":"Royaume de Feu"},
+  "10": {"folder":"10_royaume_de_la_terre","display_name":"Royaume de la Terre"},
+  "11": {"folder":"11_royaume_trouble_final","display_name":"Royaume Troublé"}
+}
