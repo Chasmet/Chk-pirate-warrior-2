@@ -1,9 +1,10 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/hero_controller.gd" id="1_hero"]
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera.gd" id="2_camera"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud_mobile.tscn" id="3_hud"]
 [ext_resource type="Script" path="res://scripts/npc/greeting_agent.gd" id="4_greet"]
+[ext_resource type="PackedScene" path="res://scenes/ui/mobile_input_overlay.tscn" id="5_touch"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.38
@@ -59,3 +60,4 @@ island_id = 1
 shape = SubResource("SphereShape_agent")
 
 [node name="HUDMobile" parent="." instance=ExtResource("3_hud")]
+[node name="MobileInputOverlay" parent="." instance=ExtResource("5_touch")]
