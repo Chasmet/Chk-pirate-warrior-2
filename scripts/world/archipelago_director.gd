@@ -65,10 +65,10 @@ func request_boat_interaction() -> bool:
     var best_distance := INF
     for boat in get_tree().get_nodes_in_group("boat"):
         if boat is Node3D:
-            var d := boat.global_position.distance_to(_player.global_position)
+            var d: float = (boat as Node3D).global_position.distance_to(_player.global_position)
             if d < best_distance:
                 best_distance = d
-                best_boat = boat
+                best_boat = boat as Node3D
     if best_boat != null and best_distance <= 9.0 and best_boat.has_method("try_interact"):
         return bool(best_boat.try_interact(_player))
     _notify("Approche-toi d'un bateau pour embarquer.")
@@ -210,7 +210,6 @@ func _terrain_vertex(ix: int, iz: int, resolution: int, size: Vector2, noise: Fa
     var height := (raw * 28.0 + ridge * 16.0) * coast
     if radial > 0.94:
         height -= (radial - 0.94) * 145.0
-    # Zone portuaire et départ volontairement praticables.
     if absf(x) < 115.0 and z > size.y * 0.18:
         height *= 0.12
     return Vector3(x, height, z)
@@ -250,7 +249,6 @@ func _scatter_real_props(info: Dictionary) -> void:
     var rng := RandomNumberGenerator.new()
     rng.seed = 5000 + int(info["id"]) * 101
     var prop_paths := Array(WorldCatalog.COMMON_PROPS)
-    # Les canons renforcent surtout l'île pirate, les rochers restent communs à toutes les îles.
     if int(info["id"]) == 7:
         prop_paths.append("res://assets/decors_glb/glb/canon_pirate.glb")
         prop_paths.append("res://assets/decors_glb/glb/canon_lourd.glb")
@@ -330,9 +328,9 @@ func _instantiate_asset(path: String) -> Node3D:
         return null
     var resource := load(path)
     if resource is PackedScene:
-        var node := resource.instantiate()
+        var node: Node = resource.instantiate()
         if node is Node3D:
-            return node
+            return node as Node3D
         node.queue_free()
     return null
 
