@@ -67,12 +67,15 @@ func _load_visual() -> void:
         _visual.queue_free()
     _visual = null
     if model_path != "" and ResourceLoader.exists(model_path):
-        var resource := load(model_path)
+        var resource: Resource = load(model_path)
         if resource is PackedScene:
-            _visual = resource.instantiate()
-            add_child(_visual)
-            _normalize_model(_visual, 3.4 if boss else 1.9)
-            return
+            var instance: Node = (resource as PackedScene).instantiate()
+            if instance is Node3D:
+                _visual = instance as Node3D
+                add_child(_visual)
+                _normalize_model(_visual, 3.4 if boss else 1.9)
+                return
+            instance.queue_free()
     _fallback_visual()
 
 func _normalize_model(root: Node3D, target_height: float) -> void:
@@ -90,8 +93,16 @@ func _normalize_model(root: Node3D, target_height: float) -> void:
         var xf := inverse * mesh_instance.global_transform
         for i in range(8):
             var p: Vector3 = xf * box.get_endpoint(i)
-            min_corner = min_corner.min(p)
-            max_corner = max_corner.max(p)
+            min_corner = Vector3(
+                minf(min_corner.x, p.x),
+                minf(min_corner.y, p.y),
+                minf(min_corner.z, p.z)
+            )
+            max_corner = Vector3(
+                maxf(max_corner.x, p.x),
+                maxf(max_corner.y, p.y),
+                maxf(max_corner.z, p.z)
+            )
     var height := max_corner.y - min_corner.y
     if height <= 0.01:
         return
@@ -101,7 +112,7 @@ func _normalize_model(root: Node3D, target_height: float) -> void:
 
 func _collect_meshes(node: Node, output: Array[MeshInstance3D]) -> void:
     if node is MeshInstance3D:
-        output.append(node)
+        output.append(node as MeshInstance3D)
     for child in node.get_children():
         _collect_meshes(child, output)
 
