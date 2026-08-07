@@ -3,38 +3,18 @@
 [ext_resource type="Script" path="res://scripts/player/hero_controller.gd" id="1_hero"]
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera.gd" id="2_camera"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud_mobile.tscn" id="3_hud"]
-[ext_resource type="Script" path="res://scripts/npc/greeting_agent.gd" id="4_greet"]
-[ext_resource type="PackedScene" path="res://scenes/ui/mobile_input_overlay.tscn" id="5_touch"]
+[ext_resource type="PackedScene" path="res://scenes/ui/mobile_input_overlay.tscn" id="4_touch"]
+[ext_resource type="Script" path="res://scripts/world/archipelago_director.gd" id="5_world"]
+[ext_resource type="Script" path="res://scripts/ui/main_menu_runtime.gd" id="6_menu"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.38
 height = 1.8
 
-[sub_resource type="BoxShape3D" id="BoxShape_ground"]
-size = Vector3(50, 0.3, 50)
-
-[sub_resource type="BoxMesh" id="BoxMesh_ground"]
-size = Vector3(50, 0.3, 50)
-
-[sub_resource type="SphereShape3D" id="SphereShape_agent"]
-radius = 2.5
-
 [node name="Main" type="Node3D"]
 
-[node name="Sun" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-48, -30, 0)
-shadow_enabled = true
-
-[node name="Ground" type="StaticBody3D" parent="."]
-
-[node name="Mesh" type="MeshInstance3D" parent="Ground"]
-mesh = SubResource("BoxMesh_ground")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
-shape = SubResource("BoxShape_ground")
-
 [node name="Hero" type="CharacterBody3D" parent="."]
-position = Vector3(0, 1.1, 0)
+position = Vector3(0, 14, 0)
 script = ExtResource("1_hero")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Hero"]
@@ -45,19 +25,19 @@ shape = SubResource("CapsuleShape_player")
 script = ExtResource("2_camera")
 
 [node name="SpringArm3D" type="SpringArm3D" parent="Hero/CameraRig"]
-spring_length = 5.2
+spring_length = 6.4
 collision_mask = 1
 
 [node name="Camera3D" type="Camera3D" parent="Hero/CameraRig/SpringArm3D"]
 current = true
+fov = 68.0
 
-[node name="AgentAccueil" type="Area3D" parent="."]
-position = Vector3(3, 1.0, -4)
-script = ExtResource("4_greet")
-island_id = 1
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="AgentAccueil"]
-shape = SubResource("SphereShape_agent")
+[node name="ArchipelagoDirector" type="Node3D" parent="."]
+script = ExtResource("5_world")
 
 [node name="HUDMobile" parent="." instance=ExtResource("3_hud")]
-[node name="MobileInputOverlay" parent="." instance=ExtResource("5_touch")]
+
+[node name="MobileInputOverlay" parent="." instance=ExtResource("4_touch")]
+
+[node name="MainMenu" type="CanvasLayer" parent="."]
+script = ExtResource("6_menu")
