@@ -1,0 +1,24 @@
+{
+  "source": {
+    "name": "Kenney Pirate Kit",
+    "license": "CC0 1.0 Universal",
+    "official_page": "https://kenney.nl/assets/pirate-kit",
+    "mirror_raw_base": "https://raw.githubusercontent.com/lnestor/SevenSeasSmackdown/master/Assets/Kenney%20Assets/Pirate%20Kit/Models/FBX%20format/"
+  },
+  "assets": [
+    {"source_file":"palm_detailed_long.fbx","source_blob_sha":"d4cd9a6a8794c1872b355672a9bb736e43ccdb8f","output":"palmier_detaille_long"},
+    {"source_file":"palm_detailed_short.fbx","source_blob_sha":"f4ebab7f138c22d1976972a83d05339c8091fe99","output":"palmier_detaille_court"},
+    {"source_file":"formationLarge_stone.fbx","source_blob_sha":"e05d61780602aad6ed48a80239797073065183c4","output":"formation_pierre_grande"},
+    {"source_file":"formation_stone.fbx","source_blob_sha":"9beb16c62961c3ec66fdb166a59f7a94d6677552","output":"formation_pierre_moyenne"},
+    {"source_file":"bottle.fbx","source_blob_sha":"da8e5273a50c8372e279d0161095f57cb22614f5","output":"bouteille_pirate"},
+    {"source_file":"bottleLarge.fbx","source_blob_sha":"9b6e7398621317376919b1064ea5562d2f6cb71c","output":"grande_bouteille_pirate"},
+    {"source_file":"cannonLarge.fbx","source_blob_sha":"9d8cc956e962265089c4ad05cdd71c71fe1ff324","output":"canon_lourd"},
+    {"source_file":"cannonMobile.fbx","source_blob_sha":"47a697d4c8a76e34f564e976b22bc53925f20bb1","output":"canon_mobile"},
+    {"source_file":"cannonBall.fbx","source_blob_sha":"0cc988df571ea8066008c519c064ea4eee233aaa","output":"boulet_de_canon"},
+    {"source_file":"hole.fbx","source_blob_sha":"3d9d1612cae906bab28a5627dad4deefaac54600","output":"trou_de_sable"},
+    {"source_file":"paddle.fbx","source_blob_sha":"06b127dc54e0b8179c00538243544b0c58f0aca3","output":"rame_en_bois"},
+    {"source_file":"shovel.fbx","source_blob_sha":"294503b2db945eb5eaa063142501bbd836ea83e0","output":"pelle_tresor"},
+    {"source_file":"sword.fbx","source_blob_sha":"7b6fe287c4a15ea7e81b82b3d0182ba65c090c81","output":"epee_pirate_decor"},
+    {"source_file":"sword_scimitar.fbx","source_blob_sha":"f1b1f20adb3dd4bdf18e708065a2b5b4613d7fe6","output":"cimeterre_decor"}
+  ]
+}
