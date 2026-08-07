@@ -1,0 +1,88 @@
+{
+  "source": {
+    "name": "Kenney Pirate Kit",
+    "license": "CC0-1.0",
+    "official_url": "https://kenney.nl/assets/pirate-kit",
+    "mirror_raw_base": "https://raw.githubusercontent.com/lnestor/SevenSeasSmackdown/master/Assets/Kenney%20Assets/Pirate%20Kit/Models/FBX%20format/"
+  },
+  "assets": [
+    {
+      "category": "decor",
+      "source_file": "formationLarge_rock.fbx",
+      "source_blob_sha": "5b1ce55aa7f6cd9622fe7c074d4d464c42305dd3",
+      "output": "rocher_large"
+    },
+    {
+      "category": "decor",
+      "source_file": "formation_rock.fbx",
+      "source_blob_sha": "a516d34ebcc1d9a0e200e433f7270ad39ff2a9c5",
+      "output": "rocher_moyen"
+    },
+    {
+      "category": "decor",
+      "source_file": "palm_long.fbx",
+      "source_blob_sha": "8edde2af99fe383b766fc579392e367bec16ee53",
+      "output": "palmier_long"
+    },
+    {
+      "category": "decor",
+      "source_file": "palm_short.fbx",
+      "source_blob_sha": "e5cd4a729dfdf77d56a7ec8b91acf0214ee64857",
+      "output": "palmier_court"
+    },
+    {
+      "category": "decor",
+      "source_file": "plant.fbx",
+      "source_blob_sha": "eb5f8a96a5b203a1ce29ff7f464db3d4166198a5",
+      "output": "plante_tropicale"
+    },
+    {
+      "category": "decor",
+      "source_file": "chest.fbx",
+      "source_blob_sha": "e1da67da5d3183b8ed3b7f555faebf8acf22645c",
+      "output": "coffre_pirate"
+    },
+    {
+      "category": "decor",
+      "source_file": "cannon.fbx",
+      "source_blob_sha": "179a04ad5a4dff46f6ea016f68b76e03b578c728",
+      "output": "canon_pirate"
+    },
+    {
+      "category": "decor",
+      "source_file": "tower.fbx",
+      "source_blob_sha": "f9eaae4fd88145ba2c345fd83c6f1f981b80633a",
+      "output": "tour_pirate"
+    },
+    {
+      "category": "boat",
+      "source_file": "boat_large.fbx",
+      "source_blob_sha": "a450a73ea538ce807f570529f99678f1df6bd393",
+      "output": "barque_grande"
+    },
+    {
+      "category": "boat",
+      "source_file": "boat_small.fbx",
+      "source_blob_sha": "5be89945e5abfbade58632fe10b9c50460ed3a46",
+      "output": "barque_petite"
+    },
+    {
+      "category": "boat",
+      "source_file": "ship_dark.fbx",
+      "source_blob_sha": "df9cdb4642c89a830f1835d90592750a1dd8d071",
+      "output": "navire_pirate_sombre"
+    },
+    {
+      "category": "boat",
+      "source_file": "ship_light.fbx",
+      "source_blob_sha": "5c597eac54bc60c74444248cc57b5ba4f6d79265",
+      "output": "navire_pirate_clair"
+    },
+    {
+      "category": "boat",
+      "source_file": "ship_wreck.fbx",
+      "source_blob_sha": "1330d77769a944da9860d09cafc6ad1e9aa35a5e",
+      "output": "epave_navire"
+    }
+  ]
+}
