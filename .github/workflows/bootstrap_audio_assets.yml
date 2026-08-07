@@ -1,0 +1,58 @@
+name: Initialiser les audios du jeu
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/bootstrap_audio_assets.py'
+      - '.github/workflows/bootstrap_audio_assets.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap-audio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Installer synthèse vocale française et encodeur OGG
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y espeak-ng ffmpeg
+
+      - name: Créer dossiers et salutations vocales
+        run: |
+          python3 tools/bootstrap_audio_assets.py "$GITHUB_WORKSPACE"
+
+      - name: Vérifier la structure audio
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          root = pathlib.Path('assets/audio')
+          assert len(list((root / 'bandes_son').glob('ile_*'))) == 11
+          assert len(list((root / 'pnj_accueil').glob('ile_*'))) == 11
+          oggs = list((root / 'pnj_accueil').glob('ile_*/*.ogg'))
+          assert len(oggs) == 33, len(oggs)
+          for hero in ('cheikh','yvane','nelvyn'):
+              assert (root / 'personnages_principaux' / hero / 'README.md').exists()
+          print('Structure audio validée :', len(oggs), 'salutations OGG')
+          PY
+
+      - name: Commit et push robuste
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/audio
+          if git diff --cached --quiet; then
+            echo "Aucun changement à enregistrer."
+            exit 0
+          fi
+          git commit -m "Ajouter la structure audio et les salutations françaises [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
