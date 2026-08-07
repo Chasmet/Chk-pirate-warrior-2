@@ -57,8 +57,8 @@ func board(player: CharacterBody3D) -> void:
 func disembark() -> void:
     if not is_boarded():
         return
-    var player := _driver
-    var target_parent := _driver_parent if _driver_parent != null and is_instance_valid(_driver_parent) else get_parent()
+    var player: CharacterBody3D = _driver
+    var target_parent: Node = _driver_parent if _driver_parent != null and is_instance_valid(_driver_parent) else get_parent()
     player.reparent(target_parent, true)
     var right := global_transform.basis.x.normalized()
     player.global_position = global_position + right * 4.2 + Vector3.UP * 1.5
@@ -102,11 +102,16 @@ func _load_visual() -> void:
     if not ResourceLoader.exists(model_path):
         _create_fallback_visual()
         return
-    var resource := load(model_path)
+    var resource: Resource = load(model_path)
     if resource is PackedScene:
-        _visual = resource.instantiate()
-        add_child(_visual)
-        _normalize_visual(_visual)
+        var instance: Node = (resource as PackedScene).instantiate()
+        if instance is Node3D:
+            _visual = instance as Node3D
+            add_child(_visual)
+            _normalize_visual(_visual)
+        else:
+            instance.queue_free()
+            _create_fallback_visual()
     else:
         _create_fallback_visual()
 
@@ -124,8 +129,16 @@ func _normalize_visual(root: Node3D) -> void:
         var xf := root.global_transform.affine_inverse() * mesh_instance.global_transform
         for i in range(8):
             var p: Vector3 = xf * box.get_endpoint(i)
-            min_corner = min_corner.min(p)
-            max_corner = max_corner.max(p)
+            min_corner = Vector3(
+                minf(min_corner.x, p.x),
+                minf(min_corner.y, p.y),
+                minf(min_corner.z, p.z)
+            )
+            max_corner = Vector3(
+                maxf(max_corner.x, p.x),
+                maxf(max_corner.y, p.y),
+                maxf(max_corner.z, p.z)
+            )
     var size := max_corner - min_corner
     if size.length() <= 0.01:
         return
@@ -136,7 +149,7 @@ func _normalize_visual(root: Node3D) -> void:
 
 func _collect_meshes(node: Node, output: Array[MeshInstance3D]) -> void:
     if node is MeshInstance3D:
-        output.append(node)
+        output.append(node as MeshInstance3D)
     for child in node.get_children():
         _collect_meshes(child, output)
 
