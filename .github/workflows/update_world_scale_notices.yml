@@ -1,0 +1,54 @@
+name: Mettre à jour l'échelle des 11 royaumes
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/update_world_scale_notices.py'
+      - '.github/workflows/update_world_scale_notices.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update-notices:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mettre à jour la notice générale et les 11 notices
+        run: python3 tools/update_world_scale_notices.py
+
+      - name: Vérifier les règles d'échelle
+        run: |
+          grep -q "700 m à 1,5 km" NOTICE_EXPLICATIVE_PIRATE_2.md
+          for f in assets/royaumes/*/README.md; do
+            grep -q "Échelle officielle, dimensions et navigation maritime" "$f"
+            grep -q "250 × 250 m" "$f"
+          done
+
+      - name: Commit et push robuste
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add NOTICE_EXPLICATIVE_PIRATE_2.md assets/royaumes/*/README.md
+          if git diff --cached --quiet; then
+            echo "Aucun changement à publier."
+            exit 0
+          fi
+          git commit -m "Mettre à l'échelle les 11 royaumes et leurs distances maritimes"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push concurrent détecté, tentative $attempt/5"
+            git fetch origin main
+            git rebase origin/main
+            sleep 2
+          done
+          echo "Échec du push après plusieurs tentatives."
+          exit 1
