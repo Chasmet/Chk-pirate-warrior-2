@@ -24,10 +24,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Installer Blender et ses dépendances Python
+      - name: Installer Assimp et Blender
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender python3-numpy
+          sudo apt-get install -y assimp-utils blender python3-numpy
+          assimp version
           blender --version
 
       - name: Télécharger, vérifier et convertir les assets CC0
@@ -60,7 +61,7 @@ jobs:
                   data = response.read()
               source_path.write_bytes(data)
 
-              # Vérification exacte du blob Git afin d'éviter toute modification silencieuse du miroir.
+              # Empreinte Git exacte : garantit que le miroir n'a pas modifié silencieusement l'asset.
               git_sha = hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest()
               expected = asset['source_blob_sha']
               if git_sha != expected:
@@ -76,10 +77,20 @@ jobs:
               glb_path.parent.mkdir(parents=True, exist_ok=True)
               png_path.parent.mkdir(parents=True, exist_ok=True)
 
+              # Les FBX du pack historique sont en ASCII : Blender 4 ne les ouvre plus.
+              # Assimp les convertit d'abord en GLB standard en conservant géométrie et matériaux.
+              intermediate_glb = temp / f"{asset['output']}_assimp.glb"
+              subprocess.run([
+                  'assimp', 'export', str(source_path), str(intermediate_glb), '-f', 'glb2'
+              ], check=True)
+              if not intermediate_glb.exists() or intermediate_glb.stat().st_size == 0:
+                  raise RuntimeError(f'Assimp n’a pas généré {intermediate_glb}')
+
+              # Blender nettoie, optimise pour mobile et génère l'aperçu PNG.
               subprocess.run([
                   'blender', '--background',
                   '--python', str(root / 'tools/blender_optimize_asset.py'),
-                  '--', str(source_path), str(glb_path), str(png_path), asset['category']
+                  '--', str(intermediate_glb), str(glb_path), str(png_path), asset['category']
               ], check=True)
 
               source_size = source_path.stat().st_size
@@ -104,7 +115,8 @@ jobs:
               lines = [
                   f'# {title}', '',
                   'Fichiers générés automatiquement à partir du **Kenney Pirate Kit — CC0 1.0**.', '',
-                  '| Asset | Source FBX | FBX source | GLB optimisé | Évolution |',
+                  'Chaîne : **FBX ASCII CC0 → Assimp GLB → Blender optimisation → GLB + PNG**.', '',
+                  '| Asset | Source FBX | FBX source | GLB final | Évolution |',
                   '|---|---|---:|---:|---:|',
               ]
               for row in rows:
@@ -113,7 +125,7 @@ jobs:
                       f"{row['source_size']/1024:.1f} Ko | {row['glb_size']/1024:.1f} Ko | "
                       f"{row['reduction']:+.1f}% |"
                   )
-              lines += ['', 'Un aperçu PNG 512×512 est également généré pour chaque modèle.']
+              lines += ['', 'Un aperçu PNG transparent 512×512 est généré pour chaque modèle.']
               report_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
           PY
 
