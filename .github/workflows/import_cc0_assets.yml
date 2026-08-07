@@ -24,10 +24,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Installer Blender
+      - name: Installer Blender et ses dépendances Python
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender
+          sudo apt-get install -y blender python3-numpy
           blender --version
 
       - name: Télécharger, vérifier et convertir les assets CC0
