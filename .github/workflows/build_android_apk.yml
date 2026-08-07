@@ -68,19 +68,6 @@ jobs:
           godot --version
           test -f "$HOME/.local/share/godot/export_templates/4.4.stable/android_debug.apk"
 
-      - name: Configurer les chemins Android réellement lus par Godot 4.4
-        shell: bash
-        run: |
-          mkdir -p "$HOME/.config/godot"
-          cat > "$HOME/.config/godot/editor_settings-4.4.tres" <<EOF
-          [gd_resource type="EditorSettings" format=3]
-
-          [resource]
-          export/android/java_sdk_path = "$JAVA_HOME"
-          export/android/android_sdk_path = "$ANDROID_HOME"
-          EOF
-          cat "$HOME/.config/godot/editor_settings-4.4.tres"
-
       - name: Créer la clé Android debug
         shell: bash
         run: |
@@ -94,6 +81,21 @@ jobs:
             -keysize 2048 \
             -validity 10000 \
             -dname 'CN=Android Debug,O=Android,C=US'
+          test -f "$HOME/.android/debug.keystore"
+
+      - name: Configurer les chemins Android et le keystore lus par Godot 4.4
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-4.4.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/debug_keystore = "$HOME/.android/debug.keystore"
+          EOF
+          cat "$HOME/.config/godot/editor_settings-4.4.tres"
           test -f "$HOME/.android/debug.keystore"
 
       - name: Construire un projet d'export propre
@@ -146,6 +148,10 @@ jobs:
 
       - name: Exporter le véritable APK Android
         shell: bash
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /home/runner/.android/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
           mkdir -p "$GITHUB_WORKSPACE/ci_export/build/android"
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
