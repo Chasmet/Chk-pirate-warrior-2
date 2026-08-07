@@ -68,4 +68,6 @@ jobs:
             exit 0
           fi
           git commit -m "Ajouter les 11 navires pirates animés [skip ci]"
+          git fetch origin main
+          git rebase origin/main
           git push origin HEAD:main
