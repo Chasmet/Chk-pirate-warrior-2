@@ -1,0 +1,71 @@
+name: Générer les 11 navires animés
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/generate_island_ships.yml'
+      - 'tools/generate_island_ships.py'
+      - 'assets/bateaux_glb/glb/navire_pirate_sombre.glb'
+      - 'assets/bateaux_glb/glb/navire_pirate_clair.glb'
+
+permissions:
+  contents: write
+
+jobs:
+  generate-island-ships:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      LIBGL_ALWAYS_SOFTWARE: '1'
+      MESA_LOADER_DRIVER_OVERRIDE: llvmpipe
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Installer Blender et le rendu logiciel
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y blender python3-numpy libegl1 libegl-mesa0 libgl1-mesa-dri
+          blender --version
+
+      - name: Générer les 11 navires GLB animés et leurs PNG
+        run: |
+          blender --background \
+            --python tools/generate_island_ships.py \
+            -- "$GITHUB_WORKSPACE"
+
+      - name: Vérifier les 11 navires
+        run: |
+          test "$(find assets/bateaux_glb/iles_animes/glb -name '*.glb' | wc -l)" -eq 11
+          test "$(find assets/bateaux_glb/iles_animes/png -name '*.png' | wc -l)" -eq 11
+          python3 - <<'PY'
+          import pathlib
+          glbs = sorted(pathlib.Path('assets/bateaux_glb/iles_animes/glb').glob('*.glb'))
+          pngs = sorted(pathlib.Path('assets/bateaux_glb/iles_animes/png').glob('*.png'))
+          assert len(glbs) == 11
+          assert len(pngs) == 11
+          for glb in glbs:
+              data = glb.read_bytes()
+              assert data[:4] == b'glTF', f'GLB invalide: {glb}'
+              assert glb.stat().st_size > 50000, f'GLB trop petit/suspect: {glb}'
+              assert glb.stat().st_size < 800000, f'GLB trop lourd pour mobile: {glb}'
+              print(glb.name, f'{glb.stat().st_size/1024:.1f} Ko')
+          PY
+
+      - name: Enregistrer les navires générés dans main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/bateaux_glb/iles_animes
+          if git diff --cached --quiet; then
+            echo "Aucun changement à enregistrer."
+            exit 0
+          fi
+          git commit -m "Ajouter les 11 navires pirates animés [skip ci]"
+          git push origin HEAD:main
