@@ -42,57 +42,65 @@ jobs:
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install \
+          sdkmanager --sdk_root="$ANDROID_HOME" --install \
             'platform-tools' \
             'build-tools;34.0.0' \
             'platforms;android-34' \
-            'cmdline-tools;latest' \
             'cmake;3.10.2.4988404' \
             'ndk;23.2.8568313'
-
-      - name: Créer la clé de signature debug Android
-        shell: bash
-        run: |
-          mkdir -p "$HOME/.android"
-          if [ ! -f "$HOME/.android/debug.keystore" ]; then
-            keytool -genkeypair -v \
-              -keystore "$HOME/.android/debug.keystore" \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname 'CN=Android Debug,O=Android,C=US'
-          fi
-          test -f "$HOME/.android/debug.keystore"
-
-      - name: Configurer Java Android et la clé dans Godot
-        shell: bash
-        run: |
-          mkdir -p "$HOME/.config/godot"
-          cat > "$HOME/.config/godot/editor_settings-4.tres" <<EOF
-          [gd_resource type="EditorSettings" format=3]
-
-          [resource]
-          export/android/java_sdk_path = "$JAVA_HOME"
-          export/android/android_sdk_path = "$ANDROID_HOME"
-          export/android/debug_keystore = "$HOME/.android/debug.keystore"
-          export/android/debug_keystore_user = "androiddebugkey"
-          export/android/debug_keystore_pass = "android"
-          EOF
-          cat "$HOME/.config/godot/editor_settings-4.tres"
           test -x "$JAVA_HOME/bin/java"
           test -x "$ANDROID_HOME/platform-tools/adb"
           test -x "$ANDROID_HOME/build-tools/34.0.0/apksigner"
           test -d "$ANDROID_HOME/ndk/23.2.8568313"
           test -d "$ANDROID_HOME/cmake/3.10.2.4988404"
 
+      - name: Installer Godot 4.4 et ses modèles Android
+        shell: bash
+        run: |
+          mkdir -p /tmp/godot "$HOME/.local/share/godot/export_templates/4.4.stable"
+          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip -O /tmp/godot/godot.zip
+          unzip -q /tmp/godot/godot.zip -d /tmp/godot/bin
+          chmod +x /tmp/godot/bin/Godot_v4.4-stable_linux.x86_64
+          sudo ln -sf /tmp/godot/bin/Godot_v4.4-stable_linux.x86_64 /usr/local/bin/godot
+
+          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz -O /tmp/godot/templates.tpz
+          unzip -q -j /tmp/godot/templates.tpz -d "$HOME/.local/share/godot/export_templates/4.4.stable"
+          godot --version
+          test -f "$HOME/.local/share/godot/export_templates/4.4.stable/android_debug.apk"
+
+      - name: Configurer les chemins Android réellement lus par Godot 4.4
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-4.4.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          EOF
+          cat "$HOME/.config/godot/editor_settings-4.4.tres"
+
+      - name: Créer la clé Android debug
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -v \
+            -keystore "$HOME/.android/debug.keystore" \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname 'CN=Android Debug,O=Android,C=US'
+          test -f "$HOME/.android/debug.keystore"
+
       - name: Construire un projet d'export propre
         shell: bash
         run: |
-          rm -rf ci_export
-          mkdir -p ci_export/assets
+          rm -rf ci_export artifact
+          mkdir -p ci_export/assets artifact
           cp project.godot ci_export/
           cp export_presets.cfg ci_export/
           cp -R scenes ci_export/
@@ -121,66 +129,54 @@ jobs:
             .registerDependencies({'draco3d.decoder': decoder});
           const document = await io.read(input);
           for (const extension of document.getRoot().listExtensionsUsed()) {
-            if (extension.extensionName === 'KHR_draco_mesh_compression') {
-              extension.dispose();
-            }
+            if (extension.extensionName === 'KHR_draco_mesh_compression') extension.dispose();
           }
           await io.write(output, document);
           NODE
           node decode_draco.mjs \
             "$GITHUB_WORKSPACE/Yvane_anime_Godot_Draco.glb" \
             "$GITHUB_WORKSPACE/ci_export/Yvane_anime_Godot_Draco.glb" \
-            || echo 'Conversion Yvane impossible : utilisation du visuel de secours.'
+            || echo 'Conversion Yvane impossible : visuel de secours disponible.'
           cd "$GITHUB_WORKSPACE"
 
-          echo 'Contenu du projet exportable :'
-          find ci_export -maxdepth 3 -type f | sort
-
-      - name: Exporter le jeu avec Godot 4.4
-        id: export
-        uses: firebelley/godot-export@v8.0.0
-        env:
-          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /home/runner/.android/debug.keystore
-          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
-          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
-        with:
-          godot_executable_download_url: https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip
-          godot_export_templates_download_url: https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz
-          relative_project_path: ./ci_export/
-          cache: true
-          export_debug: true
-          archive_output: false
-          presets_to_export: Android
-          verbose: true
-
-      - name: Signer et vérifier le véritable APK
+      - name: Importer le projet avec Godot
         shell: bash
         run: |
-          echo "Dossier d'export: ${{ steps.export.outputs.build_directory }}"
-          find "${{ steps.export.outputs.build_directory }}" -type f -name '*.apk' -print
-          SOURCE_APK="$(find "${{ steps.export.outputs.build_directory }}" -type f -name '*.apk' | head -n 1)"
-          test -n "$SOURCE_APK"
-          test -s "$SOURCE_APK"
+          godot --headless --path "$GITHUB_WORKSPACE/ci_export" --import
 
+      - name: Exporter le véritable APK Android
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/ci_export/build/android"
+          godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
+            --export-debug Android \
+            "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V0.1_unsigned.apk" \
+            --verbose
+          test -s "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V0.1_unsigned.apk"
+
+      - name: Aligner, signer et vérifier l'APK
+        shell: bash
+        run: |
+          SOURCE_APK="$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V0.1_unsigned.apk"
           ZIPALIGN="$ANDROID_HOME/build-tools/34.0.0/zipalign"
           APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
-          mkdir -p artifact
 
-          "$ZIPALIGN" -f -p 4 "$SOURCE_APK" artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk
+          "$ZIPALIGN" -f -p 4 "$SOURCE_APK" "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk"
           "$APKSIGNER" sign \
             --ks "$HOME/.android/debug.keystore" \
             --ks-key-alias androiddebugkey \
             --ks-pass pass:android \
             --key-pass pass:android \
-            --out artifact/CHK_Pirate_Warrior_2_V0.1.apk \
-            artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk
-          rm artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk
+            --out "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk" \
+            "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk"
+          rm "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1_aligned.apk"
 
-          "$APKSIGNER" verify --verbose --print-certs artifact/CHK_Pirate_Warrior_2_V0.1.apk
-          unzip -t artifact/CHK_Pirate_Warrior_2_V0.1.apk >/dev/null
-          test -s artifact/CHK_Pirate_Warrior_2_V0.1.apk
-          ls -lh artifact/CHK_Pirate_Warrior_2_V0.1.apk
-          file artifact/CHK_Pirate_Warrior_2_V0.1.apk
+          "$APKSIGNER" verify --verbose --print-certs "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk"
+          unzip -t "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk" >/dev/null
+          test -s "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk"
+          ls -lh "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk"
+          file "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk"
+          sha256sum "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V0.1.apk"
 
       - name: Publier l'APK
         uses: actions/upload-artifact@v4
