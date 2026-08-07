@@ -18,7 +18,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
     if mode == "movement":
-        _send_move_to_player(Vector2.ZERO)
+        _send_move_to_controller(Vector2.ZERO)
         _release_movement_actions()
 
 func _gui_input(event: InputEvent) -> void:
@@ -51,7 +51,7 @@ func _process(_delta: float) -> void:
         if rig != null and rig.has_method("apply_joystick_look"):
             rig.apply_joystick_look(_value * camera_speed)
     elif mode == "movement" and _value.length() >= deadzone:
-        _send_move_to_player(_value)
+        _send_move_to_controller(_value)
 
 func _update_from_position(local_position: Vector2) -> void:
     var center := _center()
@@ -64,7 +64,7 @@ func _update_from_position(local_position: Vector2) -> void:
     if _value.length() < deadzone:
         _value = Vector2.ZERO
     if mode == "movement":
-        _send_move_to_player(_value)
+        _send_move_to_controller(_value)
         _apply_movement_actions(_value)
     queue_redraw()
 
@@ -72,14 +72,16 @@ func _reset() -> void:
     _value = Vector2.ZERO
     _knob = _center()
     if mode == "movement":
-        _send_move_to_player(Vector2.ZERO)
+        _send_move_to_controller(Vector2.ZERO)
         _release_movement_actions()
     queue_redraw()
 
-func _send_move_to_player(value: Vector2) -> void:
-    var player := get_tree().get_first_node_in_group("player")
-    if player != null and player.has_method("set_virtual_move"):
-        player.set_virtual_move(value)
+func _send_move_to_controller(value: Vector2) -> void:
+    var controller := get_tree().get_first_node_in_group("active_controller")
+    if controller == null:
+        controller = get_tree().get_first_node_in_group("player")
+    if controller != null and controller.has_method("set_virtual_move"):
+        controller.set_virtual_move(value)
 
 func _apply_movement_actions(value: Vector2) -> void:
     if value.x < -deadzone:
