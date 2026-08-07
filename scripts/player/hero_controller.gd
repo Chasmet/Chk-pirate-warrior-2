@@ -104,9 +104,6 @@ func _clear_visuals() -> void:
     hero_model = null
     backpack_node = null
     weapon_node = null
-    for child in get_children():
-        if child is BoneAttachment3D:
-            child.queue_free()
 
 func _load_visuals() -> void:
     var model_path := str(hero_data.get("model", ""))
@@ -121,14 +118,24 @@ func _load_visuals() -> void:
         var backpack_scene = load(backpack_path)
         if backpack_scene is PackedScene:
             backpack_node = backpack_scene.instantiate()
-            _attach_to_bone_or_fallback(backpack_node, ["Spine2", "Spine_02", "UpperChest", "Chest", "Spine1"], Vector3(0.0, 0.05, 0.20), Vector3(0.0, 180.0, 0.0))
+            _attach_to_bone_or_fallback(
+                backpack_node,
+                ["chest", "spine", "Spine2", "Spine_02", "UpperChest", "Chest", "Spine1"],
+                Vector3(0.0, 0.03, 0.18),
+                Vector3(0.0, 180.0, 0.0)
+            )
 
     var weapon_path := str(hero_data.get("weapon", ""))
     if weapon_path != "" and ResourceLoader.exists(weapon_path):
         var weapon_scene = load(weapon_path)
         if weapon_scene is PackedScene:
             weapon_node = weapon_scene.instantiate()
-            _attach_to_bone_or_fallback(weapon_node, ["RightHand", "Hand.R", "mixamorig_RightHand", "hand_r"], Vector3.ZERO, Vector3(0.0, 0.0, 90.0))
+            _attach_to_bone_or_fallback(
+                weapon_node,
+                ["hand.R", "RightHand", "Hand.R", "mixamorig_RightHand", "hand_r"],
+                Vector3.ZERO,
+                Vector3(0.0, 0.0, 90.0)
+            )
 
 func _attach_to_bone_or_fallback(node: Node3D, bone_candidates: Array, local_pos: Vector3, local_rot_deg: Vector3) -> void:
     var skeleton := _find_skeleton(hero_model)
