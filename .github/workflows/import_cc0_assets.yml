@@ -24,14 +24,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Installer Assimp et Blender
+      - name: Installer Assimp, Blender et le rendu logiciel
         run: |
           sudo apt-get update
-          sudo apt-get install -y assimp-utils blender python3-numpy
+          sudo apt-get install -y assimp-utils blender python3-numpy libegl1 libgl1-mesa-dri mesa-utils
           assimp version
           blender --version
+          ldconfig -p | grep -E 'libEGL.so.1|libGL.so.1' || true
 
       - name: Télécharger, vérifier et convertir les assets CC0
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          EGL_PLATFORM: "surfaceless"
         run: |
           python3 - <<'PY'
           import hashlib
@@ -61,7 +65,6 @@ jobs:
                   data = response.read()
               source_path.write_bytes(data)
 
-              # Empreinte Git exacte : garantit que le miroir n'a pas modifié silencieusement l'asset.
               git_sha = hashlib.sha1(b'blob ' + str(len(data)).encode('ascii') + b'\0' + data).hexdigest()
               expected = asset['source_blob_sha']
               if git_sha != expected:
@@ -77,8 +80,6 @@ jobs:
               glb_path.parent.mkdir(parents=True, exist_ok=True)
               png_path.parent.mkdir(parents=True, exist_ok=True)
 
-              # Les FBX du pack historique sont en ASCII : Blender 4 ne les ouvre plus.
-              # Assimp les convertit d'abord en GLB standard en conservant géométrie et matériaux.
               intermediate_glb = temp / f"{asset['output']}_assimp.glb"
               subprocess.run([
                   'assimp', 'export', str(source_path), str(intermediate_glb), '-f', 'glb2'
@@ -86,9 +87,8 @@ jobs:
               if not intermediate_glb.exists() or intermediate_glb.stat().st_size == 0:
                   raise RuntimeError(f'Assimp n’a pas généré {intermediate_glb}')
 
-              # Blender nettoie, optimise pour mobile et génère l'aperçu PNG.
               subprocess.run([
-                  'blender', '--background',
+                  'blender', '--background', '--factory-startup',
                   '--python', str(root / 'tools/blender_optimize_asset.py'),
                   '--', str(intermediate_glb), str(glb_path), str(png_path), asset['category']
               ], check=True)
