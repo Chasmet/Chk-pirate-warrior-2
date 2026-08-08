@@ -78,7 +78,6 @@ func _physics_process(delta: float) -> void:
         jumped_this_frame = true
         _play_animation_by_keywords(["jump"], false)
         jumped.emit()
-        Input.vibrate_handheld(16)
 
     if Input.is_action_just_pressed("dodge") and _dodge_cooldown <= 0.0:
         _start_dodge(direction)
