@@ -185,7 +185,7 @@ jobs:
       - name: Importer toutes les ressources Godot
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           cd "$GITHUB_WORKSPACE"
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" --import 2>&1 | tee godot-import.log
           if grep -E "SCRIPT ERROR:|Parse Error:" godot-import.log; then
@@ -202,6 +202,7 @@ jobs:
       - name: Audit V4 des fondations gameplay et notices
         shell: bash
         run: |
+          set -euo pipefail
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
             --script res://scripts/tests/v2_complete_audit.gd 2>&1 | tee v4-foundation-audit.log
           grep -q 'CHK_PIRATE_WARRIOR_2_V4_FOUNDATION_AUDIT_OK' v4-foundation-audit.log
@@ -228,6 +229,7 @@ jobs:
           GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
           GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
+          set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/ci_export/build/android"
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
             --export-debug Android \
