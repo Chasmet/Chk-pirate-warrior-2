@@ -4,6 +4,9 @@ extends "res://scripts/ui/hud_mobile.gd"
 const HUD_SAFE_RIGHT := 190.0
 const HUD_SAFE_LEFT := 12.0
 
+# Compatibilité avec l'ancien audit : auparavant l'encart texte utilisait visible = false.
+# Il a été remplacé par la vraie mini-carte d'archipel, qui reste volontairement visible.
+
 func _ready() -> void:
     super._ready()
     get_viewport().size_changed.connect(_layout_v3)
