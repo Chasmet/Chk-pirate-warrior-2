@@ -3,9 +3,11 @@ extends ArchipelagoDirector
 
 const SOLDIERS_REQUIRED := 6
 const FINAL_PICKUP_RADIUS := 5.0
+const SAFE_LAND_MIN_Y := -1.15
 
 var _final_gate_notice_cooldown := 0.0
 var _boss_spawned_for_island := -1
+var _ocean_rescue_cooldown := 0.0
 
 func _ready() -> void:
     _day_clock = clampf(GameState.world_time, 0.0, 1.0)
@@ -13,9 +15,11 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
     _final_gate_notice_cooldown = maxf(0.0, _final_gate_notice_cooldown - delta)
+    _ocean_rescue_cooldown = maxf(0.0, _ocean_rescue_cooldown - delta)
     super._process(delta)
     GameState.world_time = _day_clock
     _update_final_reward_collection()
+    _rescue_player_from_ocean()
 
 func restore_loaded_game() -> void:
     _day_clock = clampf(GameState.world_time, 0.0, 1.0)
@@ -38,6 +42,7 @@ func _load_island(index: int, place_player: bool) -> void:
     _update_hud_mission(resolved)
     _restore_exact_position_if_needed(resolved, place_player)
     _restore_boat_mode_if_needed(resolved, place_player)
+    _ensure_safe_spawn(resolved, place_player)
     if resolved == 10 and GameState.is_boss_defeated(11) and not GameState.final_reward_collected:
         _ensure_final_reward()
 
@@ -155,12 +160,62 @@ func respawn_player() -> void:
     var active := get_tree().get_first_node_in_group("active_controller")
     if active is BoatController and active.is_boarded():
         active.disembark()
-    var info := WorldCatalog.island(_current_index)
+    _place_player_at_safe_port(_current_index, true)
+    _notify("Retour au port de l’île %02d." % (_current_index + 1))
+
+func _ensure_safe_spawn(index: int, place_player: bool) -> void:
+    if not place_player or _player == null or not is_instance_valid(_player):
+        return
+    if GameState.exact_boat_mode:
+        return
+    var active := get_tree().get_first_node_in_group("active_controller")
+    if active is BoatController and active.is_boarded():
+        return
+    var saved := GameState.exact_position_vector()
+    if saved.is_finite() and _is_saved_land_position_safe(index, saved):
+        return
+    _place_player_at_safe_port(index, false)
+
+func _is_saved_land_position_safe(index: int, position: Vector3) -> bool:
+    if index < 0 or index >= _positions.size() or position.y < SAFE_LAND_MIN_Y:
+        return false
+    var info := WorldCatalog.island(index)
     var size: Vector2 = info["size"]
-    _player.global_position = _positions[_current_index] + Vector3(0.0, 10.0, size.y * 0.30)
+    var center := _positions[index]
+    var nx := (position.x - center.x) / maxf(1.0, size.x * 0.5)
+    var nz := (position.z - center.z) / maxf(1.0, size.y * 0.5)
+    return sqrt(nx * nx + nz * nz) <= 0.72
+
+func _safe_port_spawn(index: int) -> Vector3:
+    var resolved := clampi(index, 0, WorldCatalog.island_count() - 1)
+    var info := WorldCatalog.island(resolved)
+    var size: Vector2 = info["size"]
+    return _positions[resolved] + Vector3(0.0, 3.4, size.y * 0.45 + 12.0)
+
+func _place_player_at_safe_port(index: int, save_now: bool) -> void:
+    if _player == null or not is_instance_valid(_player):
+        return
+    var safe := _safe_port_spawn(index)
+    _player.global_position = safe
+    _player.global_rotation = Vector3.ZERO
     _player.velocity = Vector3.ZERO
-    GameState.set_exact_snapshot(_player.global_position, _player.global_rotation.y, false)
-    _notify("Retour au camp de l’île %02d." % (_current_index + 1))
+    GameState.set_exact_snapshot(safe, 0.0, false)
+    if save_now:
+        GameState.quick_save()
+
+func _rescue_player_from_ocean() -> void:
+    if _ocean_rescue_cooldown > 0.0 or _current_index < 0:
+        return
+    if _player == null or not is_instance_valid(_player):
+        return
+    var active := get_tree().get_first_node_in_group("active_controller")
+    if active is BoatController and active.is_boarded():
+        return
+    if _player.global_position.y >= SAFE_LAND_MIN_Y:
+        return
+    _ocean_rescue_cooldown = 2.0
+    _place_player_at_safe_port(_current_index, true)
+    _notify("EAU TROP PROFONDE • retour automatique au port")
 
 func _reject_final_kingdom() -> void:
     if _final_gate_notice_cooldown <= 0.0:
@@ -267,11 +322,7 @@ func _restore_exact_position_if_needed(index: int, place_player: bool) -> void:
     var saved := GameState.exact_position_vector()
     if not saved.is_finite() or _player == null or not is_instance_valid(_player):
         return
-    var center := _positions[index]
-    var info := WorldCatalog.island(index)
-    var size: Vector2 = info["size"]
-    var flat := Vector2(saved.x - center.x, saved.z - center.z)
-    if flat.length() <= maxf(size.x, size.y) * 0.75:
+    if _is_saved_land_position_safe(index, saved):
         _player.global_position = saved
         _player.global_rotation = Vector3(0.0, GameState.exact_rotation_y, 0.0)
 
