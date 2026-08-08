@@ -33,19 +33,24 @@ uniform vec4 coast_color : source_color = vec4(0.76, 0.62, 0.38, 1.0);
 uniform vec4 rock_color : source_color = vec4(0.30, 0.29, 0.27, 1.0);
 uniform vec2 island_half_size = vec2(600.0, 500.0);
 varying vec3 local_pos;
+varying vec3 local_normal;
 void vertex() {
     local_pos = VERTEX;
+    local_normal = NORMAL;
 }
 void fragment() {
     vec2 normalized_xz = local_pos.xz / max(island_half_size, vec2(1.0));
     float radial = length(normalized_xz);
     float coast = smoothstep(0.68, 0.94, radial);
-    float ridge = smoothstep(12.0, 32.0, local_pos.y);
-    vec3 col = mix(core_color.rgb, coast_color.rgb, coast);
-    col = mix(col, rock_color.rgb, ridge * (1.0 - coast * 0.55));
-    float variation = sin(local_pos.x * 0.032) * cos(local_pos.z * 0.027) * 0.035;
+    float altitude_rock = smoothstep(15.0, 40.0, local_pos.y);
+    float slope_rock = smoothstep(0.30, 0.78, 1.0 - abs(normalize(local_normal).y));
+    float rock_mix = clamp(altitude_rock * 0.48 + slope_rock * 0.92, 0.0, 1.0);
+    vec3 col = mix(core_color.rgb, coast_color.rgb, coast * (1.0 - rock_mix * 0.82));
+    col = mix(col, rock_color.rgb, rock_mix);
+    float variation = sin(local_pos.x * 0.032) * cos(local_pos.z * 0.027) * 0.045;
+    variation += sin((local_pos.x + local_pos.z) * 0.091) * 0.018;
     ALBEDO = clamp(col + vec3(variation), vec3(0.0), vec3(1.0));
-    ROUGHNESS = 0.90;
+    ROUGHNESS = mix(0.84, 0.98, rock_mix);
     METALLIC = 0.0;
 }
 """
@@ -68,9 +73,6 @@ func _build_arrival_plaza(info: Dictionary) -> void:
     var plaza_z := size.y * 0.34
     var plaza_y := _terrain_height_at(info, 0.0, plaza_z)
 
-    # Une surface large, visible et collisionnée garantit un vrai départ sur
-    # terre. Le terrain procédural reste en dessous, mais le joueur n'apparaît
-    # plus au-dessus d'une pente invisible ou d'une couture du maillage.
     _add_static_box(
         _island_root,
         "PlaceArrivee",
@@ -79,7 +81,6 @@ func _build_arrival_plaza(info: Dictionary) -> void:
         Color("d7c58b")
     )
 
-    # Promenade continue entre la place d'arrivée et le quai principal.
     for i in range(7):
         var road_z := plaza_z + 40.0 + float(i) * 12.0
         var road_y := _terrain_height_at(info, 0.0, road_z)
@@ -113,49 +114,58 @@ func _add_static_box(parent: Node3D, node_name: String, center: Vector3, box_siz
     body.add_child(collision)
     parent.add_child(body)
 
-# Le générateur de mesh parent appelle cette méthode virtuellement. On garde donc
-# le fond de toute eau située à l'intérieur du contour de l'île à -0,98 m minimum.
-# La surface de mer est à -0,65 m : profondeur intérieure maximale ~33 cm.
-# À partir du littoral (radial > 0,94), le relief redescend normalement vers la
-# haute mer et le bateau reste nécessaire pour voyager entre les royaumes.
 func _terrain_vertex(ix: int, iz: int, resolution: int, size: Vector2, noise: FastNoiseLite) -> Vector3:
     var u := float(ix) / float(resolution)
     var v := float(iz) / float(resolution)
     var x := (u - 0.5) * size.x
     var z := (v - 0.5) * size.y
-    var nx := x / maxf(1.0, size.x * 0.5)
-    var nz := z / maxf(1.0, size.y * 0.5)
-    var radial := sqrt(nx * nx + nz * nz)
-    var coast := smoothstep(1.0, 0.72, radial)
-    var raw := noise.get_noise_2d(x, z)
-    var ridge := absf(noise.get_noise_2d(x * 0.42 + 913.0, z * 0.42 - 441.0))
-    var height := (raw * 28.0 + ridge * 16.0) * coast
-    if radial > 0.94:
-        height -= (radial - 0.94) * 145.0
-    if absf(x) < 115.0 and z > size.y * 0.18:
-        height *= 0.12
-    height = _clamp_inland_water_depth(height, radial)
+    var island_id := maxi(1, GameState.current_island)
+    var height := _terrain_height_formula(island_id, size, x, z, noise)
     return Vector3(x, height, z)
 
 func _terrain_height_at(info: Dictionary, x: float, z: float) -> float:
     var size: Vector2 = info["size"]
-    var nx := x / maxf(1.0, size.x * 0.5)
-    var nz := z / maxf(1.0, size.y * 0.5)
-    var radial := sqrt(nx * nx + nz * nz)
-    var coast := smoothstep(1.0, 0.72, radial)
     var noise := FastNoiseLite.new()
     noise.seed = 731 + int(info["id"]) * 97
     noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
     noise.frequency = 0.0065
     noise.fractal_octaves = 4
     noise.fractal_gain = 0.52
+    return _terrain_height_formula(int(info["id"]), size, x, z, noise)
+
+func _terrain_height_formula(island_id: int, size: Vector2, x: float, z: float, noise: FastNoiseLite) -> float:
+    var nx := x / maxf(1.0, size.x * 0.5)
+    var nz := z / maxf(1.0, size.y * 0.5)
+    var radial := sqrt(nx * nx + nz * nz)
+    var coast := smoothstep(1.0, 0.70, radial)
+
+    # Trois fréquences donnent une silhouette d'île lisible de loin et un sol
+    # moins uniforme de près : grandes collines + crêtes + détails locaux.
+    var macro := noise.get_noise_2d(x * 0.24 + 2100.0, z * 0.24 - 1700.0)
     var raw := noise.get_noise_2d(x, z)
-    var ridge := absf(noise.get_noise_2d(x * 0.42 + 913.0, z * 0.42 - 441.0))
-    var height := (raw * 28.0 + ridge * 16.0) * coast
+    var ridge := absf(noise.get_noise_2d(x * 0.46 + 913.0, z * 0.46 - 441.0))
+    var detail := noise.get_noise_2d(x * 1.85 - 511.0, z * 1.85 + 827.0)
+
+    var center_lift := pow(maxf(0.0, 1.0 - radial), 1.15) * 13.0
+    var macro_hills := maxf(0.0, macro + 0.18) * 28.0
+    var height := (raw * 20.0 + ridge * 24.0 + detail * 4.0 + macro_hills + center_lift) * coast
+
+    # Les falaises n'occupent que certains secteurs. Les autres restent ouverts
+    # aux petites plages. Le port (+Z au centre) est exclu de ces parois.
+    var angle := atan2(nz, nx)
+    var cliff_sector := pow(absf(sin(angle * 2.5 + float(island_id) * 0.71)), 3.0)
+    var cliff_band := smoothstep(0.70, 0.80, radial) * (1.0 - smoothstep(0.88, 0.94, radial))
+    var cliff_noise := 0.55 + ridge * 0.75
+    var port_clear := 0.0 if absf(x) < 125.0 and z > size.y * 0.12 else 1.0
+    height += cliff_band * cliff_sector * cliff_noise * 18.0 * port_clear
+
     if radial > 0.94:
-        height -= (radial - 0.94) * 145.0
+        height -= (radial - 0.94) * 155.0
+
+    # Grande zone d'arrivée volontairement douce et praticable.
     if absf(x) < 115.0 and z > size.y * 0.18:
         height *= 0.12
+
     return _clamp_inland_water_depth(height, radial)
 
 func _clamp_inland_water_depth(height: float, radial: float) -> float:
@@ -186,8 +196,6 @@ func _terrain_palette(island_id: int, base_color: Color) -> Dictionary:
         _:
             return {"core": base_color, "coast": Color("c8ad72"), "rock": Color("55514a")}
 
-# Le bateau reste clairement dans l'eau mais suffisamment près du bout du quai
-# pour que l'embarquement tactile ne dépende jamais de quelques centimètres de houle.
 func _spawn_boat(info: Dictionary) -> void:
     super._spawn_boat(info)
     if _island_root == null or not is_instance_valid(_island_root):
@@ -200,8 +208,6 @@ func _spawn_boat(info: Dictionary) -> void:
     boat.position = Vector3(5.0, boat.water_height, size.y * 0.45 + 38.0)
     boat.velocity = Vector3.ZERO
 
-# Le joueur ne démarre plus au bout étroit du quai entouré d'eau.
-# Il arrive à l'entrée du port, sur une zone large, dégagée et orientée vers l'île.
 func _safe_port_spawn(index: int) -> Vector3:
     var resolved: int = clampi(index, 0, WorldCatalog.island_count() - 1)
     var info: Dictionary = WorldCatalog.island(resolved)
