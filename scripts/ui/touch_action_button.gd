@@ -92,7 +92,8 @@ func _press_button() -> void:
     if not action_name.is_empty():
         Input.action_press(action_name)
     activated.emit()
-    Input.vibrate_handheld(10)
+    # Pas de vibration système ici : toutes les actions passent par ce contrôle.
+    # Le feedback visuel suffit et évite toute dépendance Android supplémentaire.
     queue_redraw()
 
 func _release_button() -> void:
