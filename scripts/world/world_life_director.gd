@@ -38,11 +38,13 @@ var _crew_ships: Array[Node3D] = []
 var _current_island := -1
 var _time := 0.0
 var _player: Node3D
+var _merchant: Node3D
 var _treasure: Node3D
 var _wreck: Node3D
 var _pickup_scan := 0.0
 var _crew_attack_cooldowns: Dictionary = {}
 var _crew_relations_ready := false
+var _rebuild_serial := 0
 
 func _ready() -> void:
     add_to_group("world_life")
@@ -59,6 +61,8 @@ func _process(delta: float) -> void:
         _player = get_tree().get_first_node_in_group("player") as Node3D
     if not _crew_relations_ready:
         _initialize_crew_relations()
+    if Input.is_action_just_pressed("interact"):
+        _try_merchant_interaction()
     _animate_citizens(delta)
     _animate_fauna(delta)
     _animate_crews(delta)
@@ -89,6 +93,13 @@ func _on_island_changed(island_id: int) -> void:
     if resolved == _current_island:
         return
     _current_island = resolved
+    _rebuild_serial += 1
+    _deferred_rebuild.call_deferred(_rebuild_serial)
+
+func _deferred_rebuild(serial: int) -> void:
+    await get_tree().physics_frame
+    if serial != _rebuild_serial:
+        return
     _rebuild_local_life()
 
 func _rebuild_local_life() -> void:
@@ -100,6 +111,7 @@ func _rebuild_local_life() -> void:
     _fauna.clear()
     _crew_ships.clear()
     _crew_attack_cooldowns.clear()
+    _merchant = null
     _treasure = null
     _wreck = null
 
@@ -120,11 +132,12 @@ func _spawn_citizens(center: Vector3, island_size: Vector2) -> void:
         var path := MERCHANT_MODEL if i == 0 else CIVILIAN_MODEL
         var citizen := Node3D.new()
         citizen.name = "Marchand" if i == 0 else "Habitant_%02d" % i
-        citizen.global_position = center + Vector3(
+        var candidate := center + Vector3(
             sin(float(i) * 2.31) * island_size.x * 0.14,
             6.0,
             cos(float(i) * 1.77) * island_size.y * 0.13
         )
+        citizen.global_position = _snap_to_ground(candidate, 0.08)
         citizen.set_meta("home", citizen.global_position)
         citizen.set_meta("phase", float(i) * 0.73)
         citizen.set_meta("radius", 8.0 + float(i % 4) * 4.5)
@@ -136,17 +149,20 @@ func _spawn_citizens(center: Vector3, island_size: Vector2) -> void:
             citizen.add_child(_humanoid_fallback(Color("536b78") if i > 0 else Color("b58a42")))
         _root.add_child(citizen)
         _citizens.append(citizen)
+        if i == 0:
+            _merchant = citizen
 
 func _spawn_fauna(center: Vector3, island_size: Vector2) -> void:
     var count := clampi(active_fauna_budget, 0, 8)
     for i in range(count):
         var animal := Node3D.new()
         animal.name = "Faune_%02d" % i
-        animal.global_position = center + Vector3(
+        var candidate := center + Vector3(
             cos(float(i) * 1.91) * island_size.x * 0.22,
             4.5,
             sin(float(i) * 2.17) * island_size.y * 0.20
         )
+        animal.global_position = _snap_to_ground(candidate, 0.05)
         animal.set_meta("home", animal.global_position)
         animal.set_meta("phase", float(i) * 1.21)
         animal.set_meta("radius", 10.0 + float(i % 3) * 5.0)
@@ -206,6 +222,23 @@ func _spawn_crews(center: Vector3, island_size: Vector2) -> void:
         _root.add_child(ship_root)
         _crew_ships.append(ship_root)
         _crew_attack_cooldowns[str(spec["id"])] = 0.0
+
+func _try_merchant_interaction() -> bool:
+    if _merchant == null or not is_instance_valid(_merchant) or _player == null or not is_instance_valid(_player):
+        return false
+    if _player.global_position.distance_to(_merchant.global_position) > 4.5:
+        return false
+    if GameState.boat_level >= 5:
+        _notify("MARCHAND • Ton navire est déjà au niveau maximum 5.")
+        return true
+    var cost := 450 * GameState.boat_level
+    if GameState.coins < cost:
+        _notify("MARCHAND • Amélioration niveau %d : %d pièces nécessaires." % [GameState.boat_level + 1, cost])
+        return true
+    if GameState.upgrade_boat():
+        _notify("NAVIRE AMÉLIORÉ • niveau %d/5 • vitesse et accélération augmentées" % GameState.boat_level)
+        return true
+    return false
 
 func _animate_citizens(_delta: float) -> void:
     for i in range(_citizens.size()):
@@ -315,6 +348,20 @@ func _update_maritime_pickups() -> void:
         _wreck.queue_free()
         _wreck = null
         _notify("ÉPAVE FOUILLÉE • matériaux de bateau récupérés")
+
+func _snap_to_ground(world_position: Vector3, offset: float) -> Vector3:
+    if get_world_3d() == null:
+        return world_position
+    var from := Vector3(world_position.x, 140.0, world_position.z)
+    var to := Vector3(world_position.x, -80.0, world_position.z)
+    var query := PhysicsRayQueryParameters3D.create(from, to, 1)
+    query.collide_with_areas = false
+    var hit := get_world_3d().direct_space_state.intersect_ray(query)
+    if hit.has("position"):
+        var result: Vector3 = hit["position"]
+        result.y += offset
+        return result
+    return world_position
 
 func _notify(text: String) -> void:
     var world := get_tree().get_first_node_in_group("world_director")
