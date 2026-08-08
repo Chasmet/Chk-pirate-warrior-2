@@ -1,13 +1,14 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/hero_controller_v2.gd" id="1_hero"]
-[ext_resource type="Script" path="res://scripts/camera/third_person_camera_v2.gd" id="2_camera"]
+[ext_resource type="Script" path="res://scripts/camera/third_person_camera_v3.gd" id="2_camera"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud_mobile.tscn" id="3_hud"]
 [ext_resource type="PackedScene" path="res://scenes/ui/mobile_input_overlay.tscn" id="4_touch"]
-[ext_resource type="Script" path="res://scripts/world/archipelago_director_v2.gd" id="5_world"]
+[ext_resource type="Script" path="res://scripts/world/archipelago_director_v3.gd" id="5_world"]
 [ext_resource type="Script" path="res://scripts/ui/main_menu_runtime.gd" id="6_menu"]
 [ext_resource type="Script" path="res://scripts/world/world_life_director.gd" id="7_life"]
 [ext_resource type="Script" path="res://scripts/ui/world_map_runtime.gd" id="8_map"]
+[ext_resource type="Script" path="res://scripts/world/glb_scenery_director.gd" id="9_scenery"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.38
@@ -18,6 +19,9 @@ height = 1.8
 [node name="Hero" type="CharacterBody3D" parent="."]
 position = Vector3(0, 14, 0)
 script = ExtResource("1_hero")
+move_speed = 8.2
+run_speed = 11.0
+rotation_speed = 16.0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Hero"]
 position = Vector3(0, 0.9, 0)
@@ -36,6 +40,9 @@ fov = 68.0
 
 [node name="ArchipelagoDirector" type="Node3D" parent="."]
 script = ExtResource("5_world")
+
+[node name="GLBSceneryDirector" type="Node3D" parent="."]
+script = ExtResource("9_scenery")
 
 [node name="WorldLifeDirector" type="Node3D" parent="."]
 script = ExtResource("7_life")
