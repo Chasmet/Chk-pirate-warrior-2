@@ -49,6 +49,9 @@ func _run() -> void:
 
     var director_v3_text := FileAccess.get_file_as_string("res://scripts/world/archipelago_director_v3.gd")
     _check(director_v3_text.contains("func _scatter_real_props"), "ancienne dispersion GLB non normalisée désactivée")
+    _check(director_v3_text.contains("terrain_resolution = 56"), "relief V3 plus fin que l'ancien terrain polygonal")
+    _check(director_v3_text.contains("ShaderMaterial"), "terrain V3 possède un matériau côte/coeur/roche")
+    _check(director_v3_text.contains("func _terrain_palette"), "chaque famille de royaumes possède une palette de terrain")
 
     var scenery_text := FileAccess.get_file_as_string("res://scripts/world/glb_scenery_director.gd")
     _check(scenery_text.contains("MAX_DECOR_PER_ISLAND := 34"), "budget décor GLB Android plafonné")
@@ -66,6 +69,8 @@ func _run() -> void:
     _check(hero_v3_text.contains("func _normalize_weapon_visual"), "armes GLB normalisées à l'échelle du héros")
     _check(hero_v3_text.contains("target_length := 1.05"), "taille réaliste des armes appliquée")
 
+    var camera_v2_text := FileAccess.get_file_as_string("res://scripts/camera/third_person_camera_v2.gd")
+    _check(camera_v2_text.contains("LAND_ARM := 3.5"), "caméra terrestre rapprochée du héros")
     var camera_v3_text := FileAccess.get_file_as_string("res://scripts/camera/third_person_camera_v3.gd")
     _check(camera_v3_text.contains("sensitivity = 0.0095"), "caméra tactile plus réactive")
     _check(camera_v3_text.contains("func recenter_behind_target"), "recentrage caméra disponible")
@@ -75,6 +80,10 @@ func _run() -> void:
     _check(touch_text.contains("Vector2(180, 180)"), "gros bouton attaque")
     _check(touch_text.contains("RECENTRER\\nCAMÉRA"), "bouton recentrer caméra visible")
     _check(not touch_text.contains("CameraJoystickInput"), "petit joystick caméra supprimé")
+
+    var joystick_text := FileAccess.get_file_as_string("res://scripts/ui/virtual_joystick.gd")
+    _check(joystick_text.contains("make_canvas_position_local"), "coordonnées tactiles du joystick converties du viewport vers le local")
+    _check(joystick_text.contains("_send_move_to_controller(_value)"), "vecteur joystick envoyé en continu au contrôleur")
 
     var hud_v3_text := FileAccess.get_file_as_string("res://scripts/ui/hud_mobile_v3.gd")
     _check(hud_v3_text.contains("func _layout_v3"), "HUD recalculé selon la taille d'écran")
@@ -116,6 +125,8 @@ func _run() -> void:
     _check(main_scene_text.contains("third_person_camera_v3.gd"), "scène principale sur caméra V3")
     _check(main_scene_text.contains("archipelago_director_v3.gd"), "scène principale sur archipel V3")
     _check(main_scene_text.contains("glb_scenery_director.gd"), "scène principale charge les décors GLB")
+    _check(main_scene_text.contains("spring_length = 3.5"), "SpringArm V3 rapproché")
+    _check(main_scene_text.contains("fov = 62.0"), "FOV V3 resserré pour mieux voir le héros")
     _check(main_scene_text.contains("world_life_director.gd"), "monde vivant actif")
 
     if failures == 0:
