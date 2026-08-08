@@ -3,11 +3,13 @@ extends CanvasLayer
 const VirtualJoystickScript = preload("res://scripts/ui/virtual_joystick.gd")
 
 var _movement: Control
-var _camera: Control
-var _buttons: Array[Button] = []
+var _attack_button: Button
 var _ability_1_button: Button
 var _ability_2_button: Button
+var _dodge_button: Button
+var _interact_button: Button
 var _hero_switch_button: Button
+var _camera_reset_button: Button
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
@@ -16,23 +18,18 @@ func _ready() -> void:
     _movement = VirtualJoystickScript.new()
     _movement.name = "MovementJoystickInput"
     _movement.mode = "movement"
+    _movement.deadzone = 0.10
     _movement.draw_visuals = true
-    _movement.size = Vector2(190, 190)
+    _movement.size = Vector2(320, 320)
     add_child(_movement)
 
-    _camera = VirtualJoystickScript.new()
-    _camera.name = "CameraJoystickInput"
-    _camera.mode = "camera"
-    _camera.draw_visuals = true
-    _camera.size = Vector2(145, 145)
-    add_child(_camera)
-
-    _create_action_button("ATTAQUE", "attack", Vector2(112, 112))
-    _ability_1_button = _create_action_button("POUVOIR 1", "ability_1", Vector2(100, 100))
-    _ability_2_button = _create_action_button("POUVOIR 2", "ability_2", Vector2(100, 100))
-    _create_action_button("ESQUIVE", "dodge", Vector2(92, 92))
+    _attack_button = _create_action_button("ATTAQUE", "attack", Vector2(180, 180), 26)
+    _ability_1_button = _create_action_button("POUVOIR 1", "ability_1", Vector2(150, 150), 21)
+    _ability_2_button = _create_action_button("POUVOIR 2", "ability_2", Vector2(150, 150), 21)
+    _dodge_button = _create_action_button("ESQUIVE", "dodge", Vector2(155, 112), 21)
     _create_interact_button()
     _create_switch_button()
+    _create_camera_reset_button()
 
     GameState.hero_changed.connect(_on_hero_changed)
     _refresh_ability_labels()
@@ -40,52 +37,67 @@ func _ready() -> void:
     get_viewport().size_changed.connect(_layout_controls)
     _layout_controls.call_deferred()
 
-func _create_action_button(label: String, action: StringName, button_size: Vector2) -> Button:
+func _create_action_button(label: String, action: StringName, button_size: Vector2, font_size: int) -> Button:
     var button := Button.new()
     button.text = label
     button.custom_minimum_size = button_size
     button.size = button_size
-    button.add_theme_font_size_override("font_size", 14)
-    button.modulate = Color(1.0, 1.0, 1.0, 0.86)
+    button.add_theme_font_size_override("font_size", font_size)
+    _apply_button_style(button, true)
     button.button_down.connect(func(): Input.action_press(action))
     button.button_up.connect(func(): Input.action_release(action))
     add_child(button)
-    _buttons.append(button)
     return button
 
 func _create_interact_button() -> void:
-    var button := Button.new()
-    button.text = "EMBARQUER\nINTERAGIR"
-    button.custom_minimum_size = Vector2(118, 70)
-    button.size = Vector2(118, 70)
-    button.add_theme_font_size_override("font_size", 13)
-    button.pressed.connect(_interact)
-    add_child(button)
-    _buttons.append(button)
+    _interact_button = Button.new()
+    _interact_button.text = "INTERAGIR / EMBARQUER"
+    _interact_button.custom_minimum_size = Vector2(225, 96)
+    _interact_button.size = Vector2(225, 96)
+    _interact_button.add_theme_font_size_override("font_size", 19)
+    _apply_button_style(_interact_button, false)
+    _interact_button.pressed.connect(_interact)
+    add_child(_interact_button)
 
 func _create_switch_button() -> void:
     _hero_switch_button = Button.new()
-    _hero_switch_button.text = "CHANGER\nHÉROS"
-    _hero_switch_button.custom_minimum_size = Vector2(210, 88)
-    _hero_switch_button.size = Vector2(210, 88)
-    _hero_switch_button.add_theme_font_size_override("font_size", 18)
-    _hero_switch_button.add_theme_color_override("font_color", Color("f6dc82"))
-    _hero_switch_button.add_theme_color_override("font_hover_color", Color.WHITE)
-
-    var normal := StyleBoxFlat.new()
-    normal.bg_color = Color(0.025, 0.055, 0.075, 0.94)
-    normal.border_color = Color(0.90, 0.67, 0.20, 1.0)
-    normal.set_border_width_all(3)
-    normal.set_corner_radius_all(14)
-    _hero_switch_button.add_theme_stylebox_override("normal", normal)
-
-    var pressed := normal.duplicate() as StyleBoxFlat
-    pressed.bg_color = Color(0.14, 0.10, 0.03, 0.98)
-    _hero_switch_button.add_theme_stylebox_override("pressed", pressed)
-
+    _hero_switch_button.custom_minimum_size = Vector2(250, 88)
+    _hero_switch_button.size = Vector2(250, 88)
+    _hero_switch_button.add_theme_font_size_override("font_size", 20)
+    _apply_button_style(_hero_switch_button, false)
     _hero_switch_button.pressed.connect(func(): GameState.cycle_hero())
     add_child(_hero_switch_button)
-    _buttons.append(_hero_switch_button)
+
+func _create_camera_reset_button() -> void:
+    _camera_reset_button = Button.new()
+    _camera_reset_button.text = "RECENTRER\nCAMÉRA"
+    _camera_reset_button.custom_minimum_size = Vector2(175, 82)
+    _camera_reset_button.size = Vector2(175, 82)
+    _camera_reset_button.add_theme_font_size_override("font_size", 18)
+    _apply_button_style(_camera_reset_button, false)
+    _camera_reset_button.pressed.connect(_recenter_camera)
+    add_child(_camera_reset_button)
+
+func _apply_button_style(button: Button, round_button: bool) -> void:
+    button.add_theme_color_override("font_color", Color("f9e6a5"))
+    button.add_theme_color_override("font_hover_color", Color.WHITE)
+    button.add_theme_color_override("font_pressed_color", Color.WHITE)
+
+    var normal := StyleBoxFlat.new()
+    normal.bg_color = Color(0.02, 0.055, 0.075, 0.86)
+    normal.border_color = Color(0.91, 0.68, 0.20, 0.96)
+    normal.set_border_width_all(4)
+    normal.set_corner_radius_all(80 if round_button else 18)
+    button.add_theme_stylebox_override("normal", normal)
+
+    var hover := normal.duplicate() as StyleBoxFlat
+    hover.bg_color = Color(0.055, 0.12, 0.15, 0.94)
+    button.add_theme_stylebox_override("hover", hover)
+
+    var pressed := normal.duplicate() as StyleBoxFlat
+    pressed.bg_color = Color(0.23, 0.15, 0.025, 0.98)
+    pressed.border_color = Color("ffe08a")
+    button.add_theme_stylebox_override("pressed", pressed)
 
 func _on_hero_changed(_hero_id: String) -> void:
     _refresh_ability_labels()
@@ -107,12 +119,12 @@ func _refresh_ability_labels() -> void:
 
 func _short_ability_name(value: String) -> String:
     var cleaned := value.to_upper()
-    if cleaned.length() <= 14:
+    if cleaned.length() <= 16:
         return cleaned
     var words := cleaned.split(" ")
     if words.size() >= 2:
         return "%s\n%s" % [words[0], words[1]]
-    return cleaned.left(14)
+    return cleaned.left(16)
 
 func _interact() -> void:
     var world := get_tree().get_first_node_in_group("world_director")
@@ -123,17 +135,30 @@ func _interact() -> void:
     await get_tree().process_frame
     Input.action_release("interact")
 
+func _recenter_camera() -> void:
+    var rig := get_tree().get_first_node_in_group("camera_rig")
+    if rig != null and rig.has_method("recenter_behind_target"):
+        rig.recenter_behind_target()
+
 func _layout_controls() -> void:
     var viewport_size := get_viewport().get_visible_rect().size
+    var w := viewport_size.x
+    var h := viewport_size.y
+
     if _movement != null:
-        _movement.position = Vector2(42.0, maxf(20.0, viewport_size.y - 232.0))
-    if _camera != null:
-        _camera.position = Vector2(maxf(520.0, viewport_size.x - 610.0), maxf(20.0, viewport_size.y - 210.0))
-    if _buttons.size() < 6:
-        return
-    _buttons[0].position = Vector2(viewport_size.x - 145.0, viewport_size.y - 150.0)
-    _buttons[1].position = Vector2(viewport_size.x - 270.0, viewport_size.y - 245.0)
-    _buttons[2].position = Vector2(viewport_size.x - 150.0, viewport_size.y - 285.0)
-    _buttons[3].position = Vector2(viewport_size.x - 385.0, viewport_size.y - 150.0)
-    _buttons[4].position = Vector2(viewport_size.x - 410.0, viewport_size.y - 270.0)
-    _buttons[5].position = Vector2(viewport_size.x - 238.0, 92.0)
+        _movement.position = Vector2(46.0, maxf(28.0, h - 366.0))
+
+    if _attack_button != null:
+        _attack_button.position = Vector2(w - 218.0, h - 218.0)
+    if _ability_1_button != null:
+        _ability_1_button.position = Vector2(w - 410.0, h - 338.0)
+    if _ability_2_button != null:
+        _ability_2_button.position = Vector2(w - 228.0, h - 410.0)
+    if _dodge_button != null:
+        _dodge_button.position = Vector2(w - 425.0, h - 158.0)
+    if _interact_button != null:
+        _interact_button.position = Vector2(w - 675.0, h - 150.0)
+    if _hero_switch_button != null:
+        _hero_switch_button.position = Vector2(w - 278.0, 96.0)
+    if _camera_reset_button != null:
+        _camera_reset_button.position = Vector2(w - 470.0, 98.0)
