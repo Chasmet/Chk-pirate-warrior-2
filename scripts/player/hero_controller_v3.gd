@@ -17,20 +17,24 @@ func _align_loaded_hero_visual() -> void:
         return
 
     # Le GLB de Cheikh regarde vers +Z alors que le contrôleur Godot avance vers -Z.
-    # Sans cette correction le personnage avance visuellement à reculons et le sac,
-    # pourtant placé derrière le CharacterBody (+Z), apparaît devant son torse.
+    # Yvane et Nelvyn sont déjà orientés correctement et ne doivent surtout pas
+    # recevoir cette rotation supplémentaire.
     var model_path := str(hero_data.get("model", "")).to_lower()
     if model_path.contains("joueur 1 cheikh"):
         hero_model.rotation_degrees.y += 180.0
 
 func _attach_backpack(backpack_visual: Node3D) -> void:
-    # Ancrage stable dans l'espace du CharacterBody : derrière le héros (+Z),
-    # suffisamment haut pour rester sur le dos et volontairement plus petit.
+    # Les trois sacs utilisent le même point d'attache dans le dos, mais leurs GLB
+    # n'ont pas tous le même axe avant. Cheikh reste à 180° (validé sur téléphone),
+    # tandis que les sacs Yvane/Nelvyn doivent rester à 0° pour ne plus être à l'envers.
     var anchor := Node3D.new()
     anchor.name = "BackpackAnchor"
     add_child(anchor)
     anchor.position = Vector3(0.0, 1.28, 0.30)
-    anchor.rotation_degrees = Vector3(0.0, 180.0, 0.0)
+
+    var hero_id := str(GameState.selected_hero).to_lower()
+    var bag_yaw := 180.0 if hero_id == "cheikh" else 0.0
+    anchor.rotation_degrees = Vector3(0.0, bag_yaw, 0.0)
     anchor.add_child(backpack_visual)
 
     var result := _calculate_visual_bounds(anchor)
@@ -38,7 +42,8 @@ func _attach_backpack(backpack_visual: Node3D) -> void:
         var bounds: AABB = result.get("bounds", AABB())
         var longest := maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
         if longest > 0.001:
-            var factor := clampf(0.36 / longest, 0.001, 100.0)
+            var target_size := 0.36 if hero_id == "cheikh" else 0.34
+            var factor := clampf(target_size / longest, 0.001, 100.0)
             backpack_visual.scale *= Vector3.ONE * factor
             var centered_result := _calculate_visual_bounds(anchor)
             if bool(centered_result.get("valid", false)):
