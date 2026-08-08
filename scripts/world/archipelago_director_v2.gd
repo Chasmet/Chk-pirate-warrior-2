@@ -17,6 +17,16 @@ func _process(delta: float) -> void:
     GameState.world_time = _day_clock
     _update_final_reward_collection()
 
+func restore_loaded_game() -> void:
+    _day_clock = clampf(GameState.world_time, 0.0, 1.0)
+    var target_index: int = clampi(GameState.current_island - 1, 0, WorldCatalog.island_count() - 1)
+    if target_index == 10 and not GameState.can_enter_island(11):
+        target_index = 9
+        GameState.exact_position.clear()
+        GameState.exact_boat_mode = false
+    _current_index = -1
+    _load_island(target_index, true)
+
 func _load_island(index: int, place_player: bool) -> void:
     var resolved := clampi(index, 0, WorldCatalog.island_count() - 1)
     if resolved == 10 and not GameState.can_enter_island(11):
@@ -274,13 +284,16 @@ func _restore_boat_mode_if_needed(index: int, place_player: bool) -> void:
     if not saved.is_finite():
         return
     var best_boat: BoatController
-    var best_distance := INF
+    var best_distance: float = INF
     for node in get_tree().get_nodes_in_group("boat"):
-        if node is BoatController and not node.is_boarded():
-            var distance := node.global_position.distance_to(saved)
+        if node is BoatController:
+            var boat := node as BoatController
+            if boat.is_boarded():
+                continue
+            var distance: float = boat.global_position.distance_to(saved)
             if distance < best_distance:
                 best_distance = distance
-                best_boat = node
+                best_boat = boat
     if best_boat == null:
         return
     best_boat.force_reposition(saved, GameState.exact_rotation_y)
