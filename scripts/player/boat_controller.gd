@@ -21,6 +21,23 @@ func _ready() -> void:
     add_to_group("boat")
     _load_visual()
 
+func _exit_tree() -> void:
+    if not is_boarded():
+        return
+    var player: CharacterBody3D = _driver
+    if _driver_collision != null and is_instance_valid(_driver_collision):
+        _driver_collision.set_deferred("disabled", false)
+    if player != null and is_instance_valid(player):
+        player.set_physics_process(true)
+        player.velocity = Vector3.ZERO
+        if player.is_inside_tree():
+            player.global_position = global_position + Vector3.UP * 2.0
+            player.global_rotation = Vector3(0.0, global_rotation.y, 0.0)
+            GameState.set_exact_snapshot(player.global_position, player.global_rotation.y, false)
+    _driver = null
+    _driver_collision = null
+    _virtual_move = Vector2.ZERO
+
 func setup(path: String) -> void:
     model_path = path
     if is_inside_tree():
