@@ -23,9 +23,23 @@ func _run() -> void:
     _check(ResourceLoader.exists("res://scripts/world/archipelago_director_v2.gd"), "directeur archipel V2 présent")
     _check(ResourceLoader.exists("res://scripts/world/world_life_director.gd"), "monde vivant mobile présent")
     _check(ResourceLoader.exists("res://scripts/ui/world_map_runtime.gd"), "carte des onze royaumes présente")
+    _check(ResourceLoader.exists("res://scripts/player/hero_controller_v2.gd"), "contrôleur héros final présent")
+    _check(ResourceLoader.exists("res://scripts/camera/third_person_camera_v2.gd"), "caméra troisième personne finale présente")
 
     var project_text := FileAccess.get_file_as_string("res://project.godot")
     _check(project_text.contains("config/icon=\"res://assets/interface/logo_chk_pirate_warrior_2.png\""), "logo configuré comme icône de projet")
+
+    var director_text := FileAccess.get_file_as_string("res://scripts/world/archipelago_director_v2.gd")
+    _check(director_text.contains("SOLDIERS_REQUIRED := 6"), "six forces locales sont requises avant chaque boss")
+    _check(director_text.contains("func on_enemy_defeated"), "les ennemis ordinaires alimentent la progression locale")
+    _check(director_text.contains("func _update_final_reward_collection"), "le trophée final doit réellement être ramassé")
+    _check(director_text.contains("func respawn_player"), "le respawn est géré par l'île active")
+
+    var enemy_text := FileAccess.get_file_as_string("res://scripts/world/world_enemy.gd")
+    _check(enemy_text.contains("on_enemy_defeated"), "la mort d'un soldat est signalée au directeur du monde")
+
+    var camera_text := FileAccess.get_file_as_string("res://scripts/camera/third_person_camera_v2.gd")
+    _check(camera_text.contains("BOAT_ARM := 11.5"), "la caméra bateau cadre le navire en troisième personne")
 
     var game_state := GameStateScript.new()
     game_state._heroes = game_state._load_json("res://data/heroes.json")
@@ -59,6 +73,13 @@ func _run() -> void:
         if not ResourceLoader.exists(str(path)):
             missing.append(str(path))
     _check(missing.is_empty(), "tous les assets obligatoires du catalogue sont importables : " + ", ".join(missing))
+
+    var main_scene_text := FileAccess.get_file_as_string("res://scenes/main/main.tscn")
+    _check(main_scene_text.contains("hero_controller_v2.gd"), "la scène principale active le contrôleur héros final")
+    _check(main_scene_text.contains("third_person_camera_v2.gd"), "la scène principale active la caméra finale")
+    _check(main_scene_text.contains("archipelago_director_v2.gd"), "la scène principale active l'archipel V2")
+    _check(main_scene_text.contains("world_life_director.gd"), "la scène principale active le monde vivant")
+    _check(main_scene_text.contains("world_map_runtime.gd"), "la scène principale active la carte V2")
 
     var main_scene_resource: Resource = load("res://scenes/main/main.tscn")
     _check(main_scene_resource is PackedScene, "scène principale V2 chargeable")
