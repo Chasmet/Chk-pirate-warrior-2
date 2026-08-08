@@ -1,6 +1,8 @@
 class_name HUDMobileV3
 extends "res://scripts/ui/hud_mobile.gd"
 
+const HUD_SAFE_RIGHT := 96.0
+
 func _ready() -> void:
     super._ready()
     get_viewport().size_changed.connect(_layout_v3)
@@ -36,15 +38,25 @@ func _layout_v3() -> void:
         mission_text.size = Vector2(mission_width - 20.0, 51.0)
         mission_text.add_theme_font_size_override("font_size", 14)
 
-    _place_hud_button("CARTE", Vector2(w - 430.0, 14.0), Vector2(92.0, 58.0))
-    _place_hud_button("SAC", Vector2(w - 330.0, 14.0), Vector2(82.0, 58.0))
-    _place_hud_button("SAUVEG.", Vector2(w - 240.0, 14.0), Vector2(108.0, 58.0))
-    _place_hud_button("PAUSE", Vector2(w - 124.0, 14.0), Vector2(110.0, 58.0))
+    # Les boutons du haut restent eux aussi hors de la zone de geste Retour Android.
+    var right_x := w - HUD_SAFE_RIGHT
+    _place_hud_button("PAUSE", Vector2(right_x - 110.0, 14.0), Vector2(110.0, 58.0))
+    right_x -= 118.0
+    _place_hud_button("SAUVEG.", Vector2(right_x - 108.0, 14.0), Vector2(108.0, 58.0))
+    right_x -= 116.0
+    _place_hud_button("SAC", Vector2(right_x - 82.0, 14.0), Vector2(82.0, 58.0))
+    right_x -= 90.0
+    _place_hud_button("CARTE", Vector2(right_x - 92.0, 14.0), Vector2(92.0, 58.0))
 
     var map_title := _find_label_by_text(self, "GRAND ARCHIPEL")
     if map_title != null and map_title.get_parent() is Control:
         # La carte complète reste accessible via CARTE ; on libère l'écran de jeu.
         (map_title.get_parent() as Control).visible = false
+
+    # V3/V4 utilise désormais MobileInputOverlay pour toutes les actions de gameplay.
+    # Les anciens boutons du HUD de base étaient encore présents derrière les nouveaux,
+    # ce qui créait des doublons visuels et des zones tactiles concurrentes.
+    _hide_legacy_gameplay_controls()
 
     if subtitle_panel != null:
         var subtitle_width := minf(520.0, w * 0.46)
@@ -61,6 +73,30 @@ func _layout_v3() -> void:
         inventory_panel.size = Vector2(inv_w, inv_h)
         if inventory_text != null:
             inventory_text.size = Vector2(inv_w - 50.0, inv_h - 110.0)
+
+func _hide_legacy_gameplay_controls() -> void:
+    for legacy_text in ["HÉROS", "EMBARQUER", "ESQUIVE", "ATTAQUE"]:
+        var button := _find_button_by_text(self, legacy_text)
+        if button != null:
+            button.visible = false
+            button.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+    if ability_1_button != null:
+        ability_1_button.visible = false
+        ability_1_button.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    if ability_2_button != null:
+        ability_2_button.visible = false
+        ability_2_button.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+    _hide_legacy_joystick_holder("DÉPLACEMENT")
+    _hide_legacy_joystick_holder("CAMÉRA 360°")
+
+func _hide_legacy_joystick_holder(caption: String) -> void:
+    var label := _find_label_by_text(self, caption)
+    if label != null and label.get_parent() is Control:
+        var holder := label.get_parent() as Control
+        holder.visible = false
+        holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 func _place_hud_button(text_value: String, pos: Vector2, button_size: Vector2) -> void:
     var button := _find_button_by_text(self, text_value)
