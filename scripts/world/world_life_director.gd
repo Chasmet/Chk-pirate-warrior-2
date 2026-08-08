@@ -42,6 +42,7 @@ var _treasure: Node3D
 var _wreck: Node3D
 var _pickup_scan := 0.0
 var _crew_attack_cooldowns: Dictionary = {}
+var _crew_relations_ready := false
 
 func _ready() -> void:
     add_to_group("world_life")
@@ -49,7 +50,6 @@ func _ready() -> void:
     _root.name = "MondeVivantMobile"
     add_child(_root)
     _player = get_tree().get_first_node_in_group("player") as Node3D
-    _initialize_crew_relations()
     GameState.island_changed.connect(_on_island_changed)
     _on_island_changed(GameState.current_island)
 
@@ -57,6 +57,8 @@ func _process(delta: float) -> void:
     _time += delta
     if _player == null or not is_instance_valid(_player):
         _player = get_tree().get_first_node_in_group("player") as Node3D
+    if not _crew_relations_ready:
+        _initialize_crew_relations()
     _animate_citizens(delta)
     _animate_fauna(delta)
     _animate_crews(delta)
@@ -68,6 +70,7 @@ func _process(delta: float) -> void:
 
 func _initialize_crew_relations() -> void:
     if bool(GameState.get_quest_value("crew_relations_initialized", false)):
+        _crew_relations_ready = true
         return
     var all_neutral := true
     for spec in CREWS:
@@ -79,6 +82,7 @@ func _initialize_crew_relations() -> void:
         GameState.adjust_crew_reputation("equipage_3", -40)
     GameState.set_quest_value("crew_relations_initialized", true)
     GameState.quick_save()
+    _crew_relations_ready = true
 
 func _on_island_changed(island_id: int) -> void:
     var resolved := clampi(island_id, 1, WorldCatalog.island_count())
