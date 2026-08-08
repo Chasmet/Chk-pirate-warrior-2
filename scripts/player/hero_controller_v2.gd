@@ -2,6 +2,7 @@ extends "res://scripts/player/hero_controller.gd"
 
 var _v2_invulnerability := 0.0
 var _energy_emit_accumulator := 0.0
+var _position_snapshot_accumulator := 0.0
 
 func _physics_process(delta: float) -> void:
     _v2_invulnerability = maxf(0.0, _v2_invulnerability - delta)
@@ -14,6 +15,14 @@ func _physics_process(delta: float) -> void:
         if _energy_emit_accumulator >= 0.8 or is_equal_approx(energy, max_energy):
             _energy_emit_accumulator = 0.0
             energy_changed.emit(energy, max_energy)
+
+    if get_tree().get_first_node_in_group("active_controller") == null:
+        _position_snapshot_accumulator += delta
+        if _position_snapshot_accumulator >= 0.20:
+            _position_snapshot_accumulator = 0.0
+            GameState.set_exact_snapshot(global_position, global_rotation.y, false)
+    else:
+        _position_snapshot_accumulator = 0.0
 
 func _start_dodge(direction: Vector3) -> void:
     super._start_dodge(direction)
