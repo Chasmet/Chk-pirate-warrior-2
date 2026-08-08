@@ -13,6 +13,19 @@ func _check(condition: bool, message: String) -> void:
         _failures += 1
         push_error("ÉCHEC RUNTIME  " + message)
 
+func _tap_button(button: Control, touch_index: int) -> void:
+    if button == null:
+        return
+    var touch := InputEventScreenTouch.new()
+    touch.index = touch_index
+    touch.pressed = true
+    touch.position = button.global_position + button.size * 0.5
+    button.call("_gui_input", touch)
+    await get_tree().physics_frame
+    touch.pressed = false
+    button.call("_gui_input", touch)
+    await get_tree().physics_frame
+
 func _run() -> void:
     GameState.new_game("cheikh", "aventure")
     var packed := load("res://scenes/main/main.tscn") as PackedScene
@@ -73,9 +86,29 @@ func _run() -> void:
 
     var movement := get_tree().root.find_child("MovementJoystickInput", true, false) as Control
     var jump_button := get_tree().root.find_child("JumpButton", true, false) as Control
+    var attack_button := get_tree().root.find_child("AttackButton", true, false) as Control
+    var ability_1_button := get_tree().root.find_child("Ability1Button", true, false) as Control
+    var ability_2_button := get_tree().root.find_child("Ability2Button", true, false) as Control
+    var dodge_button := get_tree().root.find_child("DodgeButton", true, false) as Control
+    var interact_button := get_tree().root.find_child("InteractButton", true, false) as Control
+    var hero_switch_button := get_tree().root.find_child("HeroSwitchButton", true, false) as Control
+    var camera_reset_button := get_tree().root.find_child("CameraResetButton", true, false) as Control
+
     _check(InputMap.has_action("jump"), "l'action de saut est enregistrée")
     _check(movement != null, "le joystick tactile est visible dans la scène jouée")
     _check(jump_button != null, "le bouton SAUT est visible dans la scène jouée")
+    _check(attack_button != null, "le bouton ATTAQUE est instancié")
+    _check(ability_1_button != null, "le bouton POUVOIR 1 est instancié")
+    _check(ability_2_button != null, "le bouton POUVOIR 2 est instancié")
+    _check(dodge_button != null, "le bouton ESQUIVE est instancié")
+    _check(interact_button != null, "le bouton INTERAGIR est instancié")
+    _check(hero_switch_button != null, "le bouton CHANGER HÉROS est instancié")
+    _check(camera_reset_button != null, "le bouton RECENTRER CAMÉRA est instancié")
+
+    var viewport_width := get_viewport().get_visible_rect().size.x
+    for button in [attack_button, ability_1_button, ability_2_button, dodge_button, jump_button, interact_button, hero_switch_button, camera_reset_button]:
+        if button != null:
+            _check(button.position.x + button.size.x <= viewport_width - 180.0, "%s reste hors de la bande système Android" % button.name)
 
     var start_position := player.global_position
     var jump_start_y := player.global_position.y
@@ -90,14 +123,7 @@ func _run() -> void:
         await get_tree().physics_frame
 
     if jump_button != null:
-        var jump_touch := InputEventScreenTouch.new()
-        jump_touch.index = 7
-        jump_touch.pressed = true
-        jump_touch.position = jump_button.global_position + jump_button.size * 0.5
-        jump_button.call("_gui_input", jump_touch)
-        await get_tree().physics_frame
-        jump_touch.pressed = false
-        jump_button.call("_gui_input", jump_touch)
+        await _tap_button(jump_button, 7)
 
     for _frame in range(47):
         await get_tree().physics_frame
@@ -119,6 +145,33 @@ func _run() -> void:
             break
         await get_tree().physics_frame
     _check(player.is_on_floor(), "Cheikh retombe sur l'île après le saut")
+
+    # Régression téléphone : chaque commande d'action doit accepter un vrai appui
+    # tactile et rendre la main au jeu sans erreur ni action bloquée.
+    if attack_button != null:
+        await _tap_button(attack_button, 20)
+        _check(not Input.is_action_pressed("attack"), "ATTAQUE se presse et se relâche sans rester bloquée")
+    if ability_1_button != null:
+        await _tap_button(ability_1_button, 21)
+        _check(not Input.is_action_pressed("ability_1"), "POUVOIR 1 se presse et se relâche")
+    if ability_2_button != null:
+        await _tap_button(ability_2_button, 22)
+        _check(not Input.is_action_pressed("ability_2"), "POUVOIR 2 se presse et se relâche")
+    if dodge_button != null:
+        await _tap_button(dodge_button, 23)
+        _check(not Input.is_action_pressed("dodge"), "ESQUIVE se presse et se relâche")
+    if interact_button != null:
+        await _tap_button(interact_button, 24)
+        _check(not Input.is_action_pressed("interact"), "INTERAGIR ne laisse aucune action bloquée")
+    if camera_reset_button != null:
+        await _tap_button(camera_reset_button, 25)
+        _check(is_instance_valid(player), "RECENTRER CAMÉRA garde le jeu actif")
+    if hero_switch_button != null:
+        await _tap_button(hero_switch_button, 26)
+        _check(GameState.selected_hero == "yvane", "CHANGER HÉROS fonctionne par appui tactile")
+        await _tap_button(hero_switch_button, 27)
+        await _tap_button(hero_switch_button, 28)
+        _check(GameState.selected_hero == "cheikh", "cycle héros revient correctement à Cheikh")
 
     var boat := get_tree().root.find_child("Bateau_01", true, false) as BoatController
     var dock := get_tree().root.find_child("PortPrincipal", true, false) as Node3D
@@ -145,9 +198,6 @@ func _run() -> void:
             _check(not boat.is_boarded(), "Cheikh peut débarquer")
             _check(player.is_on_floor() and player.global_position.y > boat.water_height + 0.35, "le débarquement replace Cheikh sur le quai, pas dans l'eau")
 
-        # Régression V3 : une mort en pleine mer appelait le débarquement normal,
-        # qui refusait sans rive. Le bateau conservait alors le héros désactivé
-        # et annulait chaque tentative de retour au port.
         player.global_position = dock_tip
         player.velocity = Vector3.ZERO
         for _frame in range(8):
@@ -169,12 +219,12 @@ func _run() -> void:
             _check(player.is_on_floor(), "le héros respawn réellement sur le port après une mort en mer")
 
     if _failures == 0:
-        print("CHK_PIRATE_WARRIOR_2_V4_RUNTIME_GROUNDED_JUMP_OK")
+        print("CHK_PIRATE_WARRIOR_2_V4_RUNTIME_ALL_TOUCH_ACTIONS_OK")
     await _finish(main)
 
 func _finish(main: Node) -> void:
-    Input.action_release("jump")
-    Input.action_release("move_forward")
+    for action in ["jump", "attack", "ability_1", "ability_2", "dodge", "interact", "move_forward"]:
+        Input.action_release(action)
     if main != null and is_instance_valid(main):
         main.queue_free()
     await get_tree().process_frame
