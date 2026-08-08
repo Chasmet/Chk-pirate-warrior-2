@@ -1,7 +1,7 @@
 class_name HUDMobileV3
 extends "res://scripts/ui/hud_mobile.gd"
 
-const HUD_SAFE_RIGHT := 96.0
+const HUD_SAFE_RIGHT := 190.0
 
 func _ready() -> void:
     super._ready()
@@ -38,7 +38,7 @@ func _layout_v3() -> void:
         mission_text.size = Vector2(mission_width - 20.0, 51.0)
         mission_text.add_theme_font_size_override("font_size", 14)
 
-    # Les boutons du haut restent hors de la zone de geste Retour Android.
+    # Les boutons du haut restent largement hors de la bande de navigation Android.
     var right_x := w - HUD_SAFE_RIGHT
     _place_hud_button("PAUSE", Vector2(right_x - 110.0, 14.0), Vector2(110.0, 58.0))
     right_x -= 118.0
