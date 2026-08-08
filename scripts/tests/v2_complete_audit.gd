@@ -59,10 +59,15 @@ func _run() -> void:
 
     var required_assets := WorldCatalog.required_asset_paths()
     var missing := PackedStringArray()
-    for path in required_assets:
-        if not ResourceLoader.exists(str(path)):
-            missing.append(str(path))
-    _check(missing.is_empty(), "tous les assets obligatoires du catalogue sont importables : " + ", ".join(missing))
+    for raw_path in required_assets:
+        var path := str(raw_path)
+        var extension := path.get_extension().to_lower()
+        if extension in ["md", "txt", "json"]:
+            if not FileAccess.file_exists(path):
+                missing.append(path)
+        elif not ResourceLoader.exists(path):
+            missing.append(path)
+    _check(missing.is_empty(), "tous les assets obligatoires du catalogue sont présents/importables : " + ", ".join(missing))
 
     var main_scene_text := FileAccess.get_file_as_string("res://scenes/main/main.tscn")
     _check(main_scene_text.contains("hero_controller_v2.gd"), "la scène principale active le contrôleur héros final")
