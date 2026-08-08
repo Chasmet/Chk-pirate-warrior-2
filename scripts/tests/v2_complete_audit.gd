@@ -27,12 +27,19 @@ func _run() -> void:
     var project_text := FileAccess.get_file_as_string("res://project.godot")
     _check(project_text.contains("config/icon=\"res://assets/interface/logo_chk_pirate_warrior_2.png\""), "logo configuré comme icône de projet")
 
+    var export_text := FileAccess.get_file_as_string("res://export_presets.cfg")
+    var invalid_sdk_override := export_text.contains("gradle_build/use_gradle_build=false") and (export_text.contains("gradle_build/min_sdk=") or export_text.contains("gradle_build/target_sdk="))
+    _check(not invalid_sdk_override, "preset Android Godot 4.4 sans override SDK incompatible hors Gradle")
+    _check(export_text.contains("architectures/arm64-v8a=true"), "APK Android ARM64 activé")
+    _check(export_text.contains("version/name=\"2.0.0\""), "version Android 2.0.0 configurée")
+
     var state_text := FileAccess.get_file_as_string("res://scripts/systems/game_state.gd")
     _check(state_text.contains("\"decouverte\": {\"enemy\": 0.72"), "mode Découverte réellement configuré")
     _check(state_text.contains("func can_enter_island"), "garde d'accès au Royaume Troublé présente")
     _check(state_text.contains("for island_id in range(1, 11)"), "les dix boss majeurs sont requis")
     _check(state_text.contains("func crew_relation"), "relations allié neutre hostile persistantes")
     _check(state_text.contains("final_reward_collected"), "état du trophée final sauvegardé")
+    _check(state_text.contains("exact_boat_mode"), "mode bateau sauvegardé avec la position exacte")
 
     var director_text := FileAccess.get_file_as_string("res://scripts/world/archipelago_director_v2.gd")
     _check(director_text.contains("SOLDIERS_REQUIRED := 6"), "six forces locales sont requises avant chaque boss")
@@ -40,6 +47,15 @@ func _run() -> void:
     _check(director_text.contains("func _update_final_reward_collection"), "le trophée final doit réellement être ramassé")
     _check(director_text.contains("func respawn_player"), "le respawn est géré par l'île active")
     _check(director_text.contains("GameState.can_enter_island(11)"), "le Royaume Troublé est verrouillé par la progression")
+    _check(director_text.contains("func _preserve_active_boat_for_transition"), "le bateau actif survit au changement d'île")
+    _check(director_text.contains("func _restore_boat_mode_if_needed"), "une sauvegarde en mer restaure réellement le bateau")
+    _check(director_text.contains("active.force_reposition"), "le verrou de l'île 11 repousse aussi le bateau actif")
+
+    var boat_text := FileAccess.get_file_as_string("res://scripts/player/boat_controller.gd")
+    _check(boat_text.contains("func _sync_driver_to_deck"), "le héros reste synchronisé visuellement sur le pont")
+    _check(not boat_text.contains("player.reparent(self"), "le héros n'est plus enfant du bateau et ne peut plus être supprimé avec une île")
+    _check(boat_text.contains("GameState.set_exact_snapshot(global_position, rotation.y, true)"), "la position du bateau est mémorisée pendant la navigation")
+    _check(boat_text.contains("func force_reposition"), "le bateau peut être repositionné proprement par les garde-fous du monde")
 
     var enemy_text := FileAccess.get_file_as_string("res://scripts/world/world_enemy.gd")
     _check(enemy_text.contains("on_enemy_defeated"), "la mort d'un soldat est signalée au directeur du monde")
@@ -52,10 +68,12 @@ func _run() -> void:
 
     var camera_text := FileAccess.get_file_as_string("res://scripts/camera/third_person_camera_v2.gd")
     _check(camera_text.contains("BOAT_ARM := 11.5"), "la caméra bateau cadre le navire en troisième personne")
+    _check(camera_text.contains("active_controller"), "la caméra détecte le bateau sans dépendre du parent du héros")
 
     var hero_text := FileAccess.get_file_as_string("res://scripts/player/hero_controller_v2.gd")
     _check(hero_text.contains("_v2_invulnerability"), "l'esquive donne une courte invulnérabilité")
     _check(hero_text.contains("respawn_player"), "la défaite rappelle le respawn de l'île active")
+    _check(hero_text.contains("_position_snapshot_accumulator"), "la position exacte à pied est actualisée pour les sauvegardes")
 
     var required_assets := WorldCatalog.required_asset_paths()
     var missing := PackedStringArray()
