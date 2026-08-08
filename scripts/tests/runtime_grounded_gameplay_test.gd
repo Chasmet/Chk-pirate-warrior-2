@@ -146,8 +146,6 @@ func _run() -> void:
         await get_tree().physics_frame
     _check(player.is_on_floor(), "Cheikh retombe sur l'île après le saut")
 
-    # Régression téléphone : chaque commande d'action doit accepter un vrai appui
-    # tactile et rendre la main au jeu sans erreur ni action bloquée.
     if attack_button != null:
         await _tap_button(attack_button, 20)
         _check(not Input.is_action_pressed("attack"), "ATTAQUE se presse et se relâche sans rester bloquée")
@@ -174,14 +172,11 @@ func _run() -> void:
         _check(GameState.selected_hero == "cheikh", "cycle héros revient correctement à Cheikh")
 
     # L'esquive active volontairement 0,30 s d'invulnérabilité et une impulsion.
-    # L'ancien test enchaînait immédiatement dégâts + embarquement et créait donc
-    # deux faux échecs. On laisse maintenant l'état de combat revenir au repos.
+    # On laisse l'état revenir au repos avant dégâts et embarquement.
     for _frame in range(30):
         await get_tree().physics_frame
     player.velocity = Vector3.ZERO
 
-    # Régression téléphone signalée : le contact d'un ennemi ne doit jamais
-    # fermer l'application. On injecte plusieurs impacts consécutifs comme le ferait l'IA.
     var health_before_hit := float(player.get("health"))
     for _hit in range(3):
         player.call("receive_damage", 5.0)
@@ -237,6 +232,8 @@ func _run() -> void:
             _check(player.is_on_floor(), "le héros respawn réellement sur le port après une mort en mer")
 
     if _failures == 0:
+        # Marqueur historique conservé pour le workflow existant.
+        print("CHK_PIRATE_WARRIOR_2_V4_RUNTIME_GROUNDED_JUMP_OK")
         print("CHK_PIRATE_WARRIOR_2_V4_RUNTIME_ALL_TOUCH_AND_DAMAGE_OK")
     await _finish(main)
 
