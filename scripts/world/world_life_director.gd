@@ -38,6 +38,10 @@ var _crew_ships: Array[Node3D] = []
 var _current_island := -1
 var _time := 0.0
 var _player: Node3D
+var _treasure: Node3D
+var _wreck: Node3D
+var _pickup_scan := 0.0
+var _crew_attack_cooldowns: Dictionary = {}
 
 func _ready() -> void:
     add_to_group("world_life")
@@ -45,6 +49,7 @@ func _ready() -> void:
     _root.name = "MondeVivantMobile"
     add_child(_root)
     _player = get_tree().get_first_node_in_group("player") as Node3D
+    _initialize_crew_relations()
     GameState.island_changed.connect(_on_island_changed)
     _on_island_changed(GameState.current_island)
 
@@ -55,6 +60,25 @@ func _process(delta: float) -> void:
     _animate_citizens(delta)
     _animate_fauna(delta)
     _animate_crews(delta)
+    _update_crew_attack_cooldowns(delta)
+    _pickup_scan += delta
+    if _pickup_scan >= 0.20:
+        _pickup_scan = 0.0
+        _update_maritime_pickups()
+
+func _initialize_crew_relations() -> void:
+    if bool(GameState.get_quest_value("crew_relations_initialized", false)):
+        return
+    var all_neutral := true
+    for spec in CREWS:
+        if int(GameState.crew_reputation.get(str(spec["id"]), 0)) != 0:
+            all_neutral = false
+            break
+    if all_neutral:
+        GameState.adjust_crew_reputation("equipage_1", 40)
+        GameState.adjust_crew_reputation("equipage_3", -40)
+    GameState.set_quest_value("crew_relations_initialized", true)
+    GameState.quick_save()
 
 func _on_island_changed(island_id: int) -> void:
     var resolved := clampi(island_id, 1, WorldCatalog.island_count())
@@ -71,6 +95,9 @@ func _rebuild_local_life() -> void:
     _citizens.clear()
     _fauna.clear()
     _crew_ships.clear()
+    _crew_attack_cooldowns.clear()
+    _treasure = null
+    _wreck = null
 
     if _current_island == 11:
         return
@@ -124,19 +151,25 @@ func _spawn_fauna(center: Vector3, island_size: Vector2) -> void:
         _fauna.append(animal)
 
 func _spawn_maritime_events(center: Vector3, island_size: Vector2) -> void:
-    var wreck := _instantiate_asset(WRECK_MODEL)
-    if wreck != null:
-        wreck.name = "ÉpaveExplorable"
-        wreck.global_position = center + Vector3(island_size.x * 0.36, -1.1, island_size.y * 0.58)
-        wreck.rotation.y = 0.55
-        _root.add_child(wreck)
+    var wreck_key := "wreck_salvaged_%02d" % _current_island
+    if not bool(GameState.get_quest_value(wreck_key, false)):
+        var wreck := _instantiate_asset(WRECK_MODEL)
+        if wreck != null:
+            wreck.name = "ÉpaveExplorable"
+            wreck.global_position = center + Vector3(island_size.x * 0.36, -1.1, island_size.y * 0.58)
+            wreck.rotation.y = 0.55
+            _root.add_child(wreck)
+            _wreck = wreck
 
-    var treasure := _instantiate_asset(TREASURE_MODEL)
-    if treasure != null:
-        treasure.name = "TrésorFlottant"
-        treasure.global_position = center + Vector3(-island_size.x * 0.42, -0.8, island_size.y * 0.56)
-        treasure.scale *= Vector3.ONE * 1.15
-        _root.add_child(treasure)
+    var treasure_key := "floating_treasure_%02d" % _current_island
+    if not bool(GameState.get_quest_value(treasure_key, false)):
+        var treasure := _instantiate_asset(TREASURE_MODEL)
+        if treasure != null:
+            treasure.name = "TrésorFlottant"
+            treasure.global_position = center + Vector3(-island_size.x * 0.42, -0.8, island_size.y * 0.56)
+            treasure.scale *= Vector3.ONE * 1.15
+            _root.add_child(treasure)
+            _treasure = treasure
 
 func _spawn_crews(center: Vector3, island_size: Vector2) -> void:
     var count := mini(active_crew_budget, CREWS.size())
@@ -168,6 +201,7 @@ func _spawn_crews(center: Vector3, island_size: Vector2) -> void:
 
         _root.add_child(ship_root)
         _crew_ships.append(ship_root)
+        _crew_attack_cooldowns[str(spec["id"])] = 0.0
 
 func _animate_citizens(_delta: float) -> void:
     for i in range(_citizens.size()):
@@ -201,23 +235,87 @@ func _animate_fauna(_delta: float) -> void:
             animal.global_position += direction.normalized() * minf(direction.length(), 1.8 * get_process_delta_time())
             animal.rotation.y = lerp_angle(animal.rotation.y, atan2(-direction.x, -direction.z), 0.10)
 
-func _animate_crews(_delta: float) -> void:
+func _animate_crews(delta: float) -> void:
+    var active_boat := get_tree().get_first_node_in_group("active_controller")
+    var player_is_sailing := active_boat is BoatController and active_boat.is_boarded()
     for i in range(_crew_ships.size()):
         var ship := _crew_ships[i]
         if not is_instance_valid(ship):
             continue
+        var crew_id := str(ship.get_meta("crew_id", ""))
+        var relation := GameState.crew_relation(crew_id)
         var center: Vector3 = ship.get_meta("center", ship.global_position)
         var radius := float(ship.get_meta("radius", 900.0))
         var phase := float(ship.get_meta("phase", 0.0))
-        var speed := 0.018 + float(i) * 0.004
-        var angle := _time * speed + phase
-        var target := center + Vector3(cos(angle) * radius, -0.62, sin(angle) * radius)
+        var target := center
+        var movement_speed := 7.0
+
+        if player_is_sailing and _player != null and is_instance_valid(_player):
+            var distance_to_player := ship.global_position.distance_to(_player.global_position)
+            if relation == "hostile" and distance_to_player <= 520.0:
+                target = _player.global_position
+                target.y = -0.62
+                movement_speed = 10.5
+                if distance_to_player <= 32.0 and float(_crew_attack_cooldowns.get(crew_id, 0.0)) <= 0.0:
+                    _crew_attack_cooldowns[crew_id] = 2.4
+                    if _player.has_method("receive_damage"):
+                        _player.receive_damage(7.0 + float(_current_island) * 0.65)
+                    _notify("CANON ENNEMI • %s attaque ton navire" % str(ship.get_meta("crew_name", "Équipage hostile")))
+            elif relation == "allie" and distance_to_player <= 360.0:
+                var escort_offset := Vector3(28.0 + float(i) * 8.0, 0.0, 22.0)
+                if active_boat is Node3D:
+                    escort_offset = (active_boat as Node3D).global_transform.basis * escort_offset
+                target = _player.global_position + escort_offset
+                target.y = -0.62
+                movement_speed = 8.5
+            else:
+                var angle := _time * (0.018 + float(i) * 0.004) + phase
+                target = center + Vector3(cos(angle) * radius, -0.62, sin(angle) * radius)
+        else:
+            var angle := _time * (0.018 + float(i) * 0.004) + phase
+            target = center + Vector3(cos(angle) * radius, -0.62, sin(angle) * radius)
+
         var direction := target - ship.global_position
         direction.y = 0.0
-        ship.global_position = ship.global_position.lerp(target, minf(1.0, get_process_delta_time() * 0.8))
-        if direction.length_squared() > 0.01:
-            ship.rotation.y = lerp_angle(ship.rotation.y, atan2(-direction.x, -direction.z), 0.05)
-        ship.position.y += sin(_time * 1.7 + float(i)) * 0.0015
+        if direction.length_squared() > 0.05:
+            var step := minf(direction.length(), movement_speed * delta)
+            ship.global_position += direction.normalized() * step
+            ship.global_position.y = -0.62 + sin(_time * 1.7 + float(i)) * 0.06
+            ship.rotation.y = lerp_angle(ship.rotation.y, atan2(-direction.x, -direction.z), minf(1.0, delta * 2.8))
+
+func _update_crew_attack_cooldowns(delta: float) -> void:
+    for key in _crew_attack_cooldowns.keys():
+        _crew_attack_cooldowns[key] = maxf(0.0, float(_crew_attack_cooldowns[key]) - delta)
+
+func _update_maritime_pickups() -> void:
+    if _current_island == 11 or _player == null or not is_instance_valid(_player):
+        return
+    if _treasure != null and is_instance_valid(_treasure) and _player.global_position.distance_to(_treasure.global_position) <= 5.5:
+        var treasure_key := "floating_treasure_%02d" % _current_island
+        GameState.set_quest_value(treasure_key, true)
+        GameState.add_coins(110 + _current_island * 20)
+        GameState.add_xp(90 + _current_island * 12)
+        GameState.add_item("coffre", 1)
+        GameState.quick_save()
+        _treasure.queue_free()
+        _treasure = null
+        _notify("TRÉSOR TROUVÉ • coffre + pièces + XP")
+
+    if _wreck != null and is_instance_valid(_wreck) and _player.global_position.distance_to(_wreck.global_position) <= 7.0:
+        var wreck_key := "wreck_salvaged_%02d" % _current_island
+        GameState.set_quest_value(wreck_key, true)
+        GameState.add_coins(55 + _current_island * 12)
+        GameState.add_xp(60 + _current_island * 9)
+        GameState.add_item("materiau_bateau", 2)
+        GameState.quick_save()
+        _wreck.queue_free()
+        _wreck = null
+        _notify("ÉPAVE FOUILLÉE • matériaux de bateau récupérés")
+
+func _notify(text: String) -> void:
+    var world := get_tree().get_first_node_in_group("world_director")
+    if world != null and world.has_method("_notify"):
+        world.call("_notify", text)
 
 func _island_center(island_id: int) -> Vector3:
     var positions := WorldCatalog.world_positions()
