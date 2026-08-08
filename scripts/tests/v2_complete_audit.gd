@@ -19,6 +19,9 @@ func _run() -> void:
     _check(ResourceLoader.exists("res://assets/interface/menu_principal_chk_pirate_warrior_2.png"), "interface menu principal présente")
     _check(ResourceLoader.exists("res://scripts/world/archipelago_director_v3.gd"), "directeur archipel V3 présent")
     _check(ResourceLoader.exists("res://scripts/world/glb_scenery_director.gd"), "directeur de décors GLB présent")
+    _check(ResourceLoader.exists("res://scripts/world/coastal_detail_director.gd"), "détails côtiers présents")
+    _check(ResourceLoader.exists("res://scripts/world/island_collectible_director.gd"), "collectibles insulaires présents")
+    _check(ResourceLoader.exists("res://scripts/world/ambient_fauna_director.gd"), "faune côtière présente")
     _check(ResourceLoader.exists("res://scripts/player/hero_controller_v3.gd"), "contrôleur héros V3 présent")
     _check(ResourceLoader.exists("res://scripts/camera/third_person_camera_v3.gd"), "caméra troisième personne V3 présente")
     _check(ResourceLoader.exists("res://scripts/ui/hud_mobile_v3.gd"), "HUD Android responsive présent")
@@ -39,6 +42,7 @@ func _run() -> void:
     _check(state_text.contains("func crew_relation"), "relations équipages persistantes")
     _check(state_text.contains("final_reward_collected"), "trophée final sauvegardé")
     _check(state_text.contains("exact_boat_mode"), "mode bateau sauvegardé")
+    _check(state_text.contains("func add_coins"), "compteur de pièces persistant")
 
     var director_text := FileAccess.get_file_as_string("res://scripts/world/archipelago_director_v2.gd")
     _check(director_text.contains("SOLDIERS_REQUIRED := 6"), "six forces locales sont requises avant chaque boss")
@@ -52,6 +56,8 @@ func _run() -> void:
     _check(director_v3_text.contains("terrain_resolution = 56"), "relief V3 plus fin que l'ancien terrain polygonal")
     _check(director_v3_text.contains("ShaderMaterial"), "terrain V3 possède un matériau côte/coeur/roche")
     _check(director_v3_text.contains("func _terrain_palette"), "chaque famille de royaumes possède une palette de terrain")
+    _check(director_v3_text.contains("func _terrain_height_formula"), "relief multi-échelle actif")
+    _check(director_v3_text.contains("cliff_band"), "falaises procédurales intégrées au vrai terrain")
     _check(director_v3_text.contains("func _build_arrival_plaza"), "place d'arrivée visible et collisionnée")
     _check(director_v3_text.contains("_terrain_height_at(info, 0.0, local_z)"), "apparition calculée sur la hauteur réelle du terrain")
 
@@ -77,9 +83,16 @@ func _run() -> void:
     _check(scenery_text.contains("GrandConservatoire"), "Grand Conservatoire d'Accordia présent")
     _check(scenery_text.contains("OrgueMontResonance"), "Mont de la Résonance possède sa silhouette d'orgues")
 
+    var coast_text := FileAccess.get_file_as_string("res://scripts/world/coastal_detail_director.gd")
+    _check(coast_text.contains("func _build_beach_arcs"), "petites plages par secteurs au lieu d'un anneau artificiel")
+    _check(coast_text.contains("func _build_cliff_multimesh"), "falaises côtières visuelles présentes")
+    _check(coast_text.contains("func _build_tree_multimesh"), "arbres légers MultiMesh présents")
+    _check(coast_text.contains("VegetationLegereMultiMesh"), "végétation légère répartie sur l'île")
+
     var hero_v3_text := FileAccess.get_file_as_string("res://scripts/player/hero_controller_v3.gd")
     _check(hero_v3_text.contains("move_speed = 8.2"), "héros plus rapide sur mobile")
     _check(hero_v3_text.contains("rotation_speed = 16.0"), "rotation du héros plus réactive")
+    _check(hero_v3_text.contains("bag_yaw := 180.0 if hero_id == \"cheikh\" else 0.0"), "sacs Yvane et Nelvyn orientés indépendamment de Cheikh")
     _check(hero_v3_text.contains("func _normalize_weapon_visual"), "armes GLB normalisées à l'échelle du héros")
     _check(hero_v3_text.contains("target_length := 1.05"), "taille réaliste des armes appliquée")
 
@@ -115,7 +128,7 @@ func _run() -> void:
     var hud_v3_text := FileAccess.get_file_as_string("res://scripts/ui/hud_mobile_v3.gd")
     _check(hud_v3_text.contains("func _layout_v3"), "HUD recalculé selon la taille d'écran")
     _check(hud_v3_text.contains("HUD_SAFE_RIGHT := 190.0"), "boutons HUD protégés du bord Android")
-    _check(hud_v3_text.contains("visible = false"), "ancien encart carte permanent masqué pour libérer l'écran")
+    _check(hud_v3_text.contains("map_panel.visible = true") and hud_v3_text.contains("ArchipelagoMinimap"), "mini-carte du grand archipel visible et assumée")
 
     var boat_text := FileAccess.get_file_as_string("res://scripts/player/boat_controller.gd")
     _check(boat_text.contains("func _sync_driver_to_deck"), "héros synchronisé sur le pont")
@@ -127,6 +140,15 @@ func _run() -> void:
     _check(life_text.contains("active_citizen_budget := 10"), "budget habitants mobile")
     _check(life_text.contains("active_fauna_budget := 6"), "budget faune mobile")
     _check(life_text.contains("active_crew_budget := 3"), "trois équipages autonomes")
+
+    var collectible_text := FileAccess.get_file_as_string("res://scripts/world/island_collectible_director.gd")
+    _check(collectible_text.contains("coin_count_per_island := 18"), "18 pièces légères prévues par île")
+    _check(collectible_text.contains("loot_count_per_island := 4"), "petits butins supplémentaires prévus")
+    _check(collectible_text.contains("GameState.add_coins"), "collectibles créditent réellement les pièces")
+
+    var fauna_text := FileAccess.get_file_as_string("res://scripts/world/ambient_fauna_director.gd")
+    _check(fauna_text.contains("crab_budget := 8"), "crabes de plage actifs")
+    _check(fauna_text.contains("bird_budget := 6"), "oiseaux côtiers actifs")
 
     var required_assets := WorldCatalog.required_asset_paths()
     var missing := PackedStringArray()
@@ -154,6 +176,9 @@ func _run() -> void:
     _check(main_scene_text.contains("third_person_camera_v3.gd"), "scène principale sur caméra V3")
     _check(main_scene_text.contains("archipelago_director_v3.gd"), "scène principale sur archipel V3")
     _check(main_scene_text.contains("glb_scenery_director.gd"), "scène principale charge les décors GLB")
+    _check(main_scene_text.contains("coastal_detail_director.gd"), "scène principale charge plages falaises et végétation")
+    _check(main_scene_text.contains("island_collectible_director.gd"), "scène principale charge pièces et butins")
+    _check(main_scene_text.contains("ambient_fauna_director.gd"), "scène principale charge la faune côtière")
     _check(main_scene_text.contains("spring_length = 3.65"), "SpringArm V4 rapproché")
     _check(main_scene_text.contains("fov = 64.0"), "FOV V4 légèrement resserré")
     _check(main_scene_text.contains("world_life_director.gd"), "monde vivant actif")
