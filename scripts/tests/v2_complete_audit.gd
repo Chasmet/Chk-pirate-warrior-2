@@ -51,6 +51,7 @@ func _run() -> void:
     _check(director_text.contains("func _restore_boat_mode_if_needed"), "une sauvegarde en mer restaure réellement le bateau")
     _check(director_text.contains("func restore_loaded_game"), "Continuer peut reconstruire le royaume sauvegardé même si le monde était déjà initialisé")
     _check(director_text.contains("_current_index = -1"), "la reprise force le rechargement même pour une sauvegarde sur l'île 1")
+    _check(director_text.contains("_island_root.is_ancestor_of(boat)"), "la reprise en mer n'embarque jamais dans le bateau d'une ancienne île en suppression")
     _check(director_text.contains("active.force_reposition"), "le verrou de l'île 11 repousse aussi le bateau actif")
 
     var boat_text := FileAccess.get_file_as_string("res://scripts/player/boat_controller.gd")
@@ -58,6 +59,7 @@ func _run() -> void:
     _check(not boat_text.contains("player.reparent(self"), "le héros n'est plus enfant du bateau et ne peut plus être supprimé avec une île")
     _check(boat_text.contains("GameState.set_exact_snapshot(global_position, rotation.y, true)"), "la position du bateau est mémorisée pendant la navigation")
     _check(boat_text.contains("func force_reposition"), "le bateau peut être repositionné proprement par les garde-fous du monde")
+    _check(boat_text.contains("func _exit_tree"), "un bateau supprimé libère le héros au lieu de le laisser avec la physique désactivée")
 
     var enemy_text := FileAccess.get_file_as_string("res://scripts/world/world_enemy.gd")
     _check(enemy_text.contains("on_enemy_defeated"), "la mort d'un soldat est signalée au directeur du monde")
