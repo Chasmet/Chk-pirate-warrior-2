@@ -7,6 +7,7 @@ var _camera: Control
 var _buttons: Array[Button] = []
 var _ability_1_button: Button
 var _ability_2_button: Button
+var _hero_switch_button: Button
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
@@ -35,6 +36,7 @@ func _ready() -> void:
 
     GameState.hero_changed.connect(_on_hero_changed)
     _refresh_ability_labels()
+    _refresh_hero_switch_label()
     get_viewport().size_changed.connect(_layout_controls)
     _layout_controls.call_deferred()
 
@@ -62,17 +64,38 @@ func _create_interact_button() -> void:
     _buttons.append(button)
 
 func _create_switch_button() -> void:
-    var button := Button.new()
-    button.text = "HÉROS"
-    button.custom_minimum_size = Vector2(86, 54)
-    button.size = Vector2(86, 54)
-    button.add_theme_font_size_override("font_size", 13)
-    button.pressed.connect(func(): GameState.cycle_hero())
-    add_child(button)
-    _buttons.append(button)
+    _hero_switch_button = Button.new()
+    _hero_switch_button.text = "CHANGER\nHÉROS"
+    _hero_switch_button.custom_minimum_size = Vector2(210, 88)
+    _hero_switch_button.size = Vector2(210, 88)
+    _hero_switch_button.add_theme_font_size_override("font_size", 18)
+    _hero_switch_button.add_theme_color_override("font_color", Color("f6dc82"))
+    _hero_switch_button.add_theme_color_override("font_hover_color", Color.WHITE)
+
+    var normal := StyleBoxFlat.new()
+    normal.bg_color = Color(0.025, 0.055, 0.075, 0.94)
+    normal.border_color = Color(0.90, 0.67, 0.20, 1.0)
+    normal.set_border_width_all(3)
+    normal.set_corner_radius_all(14)
+    _hero_switch_button.add_theme_stylebox_override("normal", normal)
+
+    var pressed := normal.duplicate() as StyleBoxFlat
+    pressed.bg_color = Color(0.14, 0.10, 0.03, 0.98)
+    _hero_switch_button.add_theme_stylebox_override("pressed", pressed)
+
+    _hero_switch_button.pressed.connect(func(): GameState.cycle_hero())
+    add_child(_hero_switch_button)
+    _buttons.append(_hero_switch_button)
 
 func _on_hero_changed(_hero_id: String) -> void:
     _refresh_ability_labels()
+    _refresh_hero_switch_label()
+
+func _refresh_hero_switch_label() -> void:
+    if _hero_switch_button == null:
+        return
+    var current_name := str(GameState.get_hero_data().get("display_name", "Héros")).to_upper()
+    _hero_switch_button.text = "CHANGER HÉROS\n%s" % current_name
 
 func _refresh_ability_labels() -> void:
     var hero := GameState.get_hero_data()
@@ -113,4 +136,4 @@ func _layout_controls() -> void:
     _buttons[2].position = Vector2(viewport_size.x - 150.0, viewport_size.y - 285.0)
     _buttons[3].position = Vector2(viewport_size.x - 385.0, viewport_size.y - 150.0)
     _buttons[4].position = Vector2(viewport_size.x - 410.0, viewport_size.y - 270.0)
-    _buttons[5].position = Vector2(viewport_size.x - 100.0, 22.0)
+    _buttons[5].position = Vector2(viewport_size.x - 238.0, 92.0)
