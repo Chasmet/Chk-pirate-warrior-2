@@ -89,7 +89,8 @@ func _run() -> void:
     _check(hero_text.contains("signal landed"), "retombée du saut détectée")
 
     var camera_v2_text := FileAccess.get_file_as_string("res://scripts/camera/third_person_camera_v2.gd")
-    _check(camera_v2_text.contains("LAND_ARM := 4.2"), "caméra terrestre cadre le héros et le sol")
+    _check(camera_v2_text.contains("LAND_ARM := 3.65"), "caméra terrestre légèrement rapprochée")
+    _check(camera_v2_text.contains("LAND_HEIGHT := 1.42"), "hauteur caméra terrestre ajustée")
     var camera_v3_text := FileAccess.get_file_as_string("res://scripts/camera/third_person_camera_v3.gd")
     _check(camera_v3_text.contains("sensitivity = 0.0048"), "caméra tactile stabilisée")
     _check(camera_v3_text.contains("func recenter_behind_target"), "recentrage caméra disponible")
@@ -99,8 +100,13 @@ func _run() -> void:
     _check(touch_text.contains("Vector2(174, 174)"), "gros bouton attaque")
     _check(touch_text.contains("\"SAUT\", &\"jump\""), "bouton SAUT tactile visible")
     _check(touch_text.contains("TouchActionButtonScript"), "boutons d'action réellement multitouch")
+    _check(touch_text.contains("SAFE_SIDE_MARGIN := 190.0"), "actions éloignées du bord de navigation Android")
+    _check(touch_text.contains("AttackButton") and touch_text.contains("Ability1Button") and touch_text.contains("Ability2Button"), "boutons d'action nommés pour les tests runtime")
     _check(touch_text.contains("RECENTRER\\nCAMÉRA"), "bouton recentrer caméra visible")
     _check(not touch_text.contains("CameraJoystickInput"), "petit joystick caméra supprimé")
+
+    var action_button_text := FileAccess.get_file_as_string("res://scripts/ui/touch_action_button.gd")
+    _check(not action_button_text.contains("Input.vibrate_handheld"), "aucun appel Android haptique commun pendant un appui d'action")
 
     var joystick_text := FileAccess.get_file_as_string("res://scripts/ui/virtual_joystick.gd")
     _check(joystick_text.contains("make_canvas_position_local"), "coordonnées tactiles du joystick converties du viewport vers le local")
@@ -108,6 +114,7 @@ func _run() -> void:
 
     var hud_v3_text := FileAccess.get_file_as_string("res://scripts/ui/hud_mobile_v3.gd")
     _check(hud_v3_text.contains("func _layout_v3"), "HUD recalculé selon la taille d'écran")
+    _check(hud_v3_text.contains("HUD_SAFE_RIGHT := 190.0"), "boutons HUD protégés du bord Android")
     _check(hud_v3_text.contains("visible = false"), "ancien encart carte permanent masqué pour libérer l'écran")
 
     var boat_text := FileAccess.get_file_as_string("res://scripts/player/boat_controller.gd")
@@ -147,8 +154,8 @@ func _run() -> void:
     _check(main_scene_text.contains("third_person_camera_v3.gd"), "scène principale sur caméra V3")
     _check(main_scene_text.contains("archipelago_director_v3.gd"), "scène principale sur archipel V3")
     _check(main_scene_text.contains("glb_scenery_director.gd"), "scène principale charge les décors GLB")
-    _check(main_scene_text.contains("spring_length = 4.2"), "SpringArm V4 montre le héros et le terrain")
-    _check(main_scene_text.contains("fov = 66.0"), "FOV V4 montre davantage le monde")
+    _check(main_scene_text.contains("spring_length = 3.65"), "SpringArm V4 rapproché")
+    _check(main_scene_text.contains("fov = 64.0"), "FOV V4 légèrement resserré")
     _check(main_scene_text.contains("world_life_director.gd"), "monde vivant actif")
 
     if failures == 0:
