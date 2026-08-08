@@ -1,18 +1,25 @@
-name: Compiler APK Android complet
+name: Compiler CHK Pirate Warrior 2 V3 gameplay
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - agent/full-game-rebuild-v1
+      - agent/full-game-v2-complete
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
 
+concurrency:
+  group: chk-pirate-warrior-2-v3-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-apk:
+  build-apk-v3:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
 
     steps:
       - name: Récupérer le dépôt complet
@@ -26,6 +33,8 @@ jobs:
 
       - name: Préparer Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Installer Android 34
         shell: bash
@@ -34,9 +43,7 @@ jobs:
           sdkmanager --sdk_root="$ANDROID_HOME" --install \
             'platform-tools' \
             'build-tools;34.0.0' \
-            'platforms;android-34' \
-            'cmake;3.10.2.4988404' \
-            'ndk;23.2.8568313'
+            'platforms;android-34'
 
       - name: Installer Godot 4.4 et modèles Android
         shell: bash
@@ -54,13 +61,15 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$HOME/.android"
-          keytool -genkeypair -v \
-            -keystore "$HOME/.android/debug.keystore" \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname 'CN=Android Debug,O=Android,C=US'
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -v \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname 'CN=Android Debug,O=CHK Pirate Warrior 2,C=FR'
+          fi
 
       - name: Configurer Godot Android
         shell: bash
@@ -75,7 +84,7 @@ jobs:
           export/android/debug_keystore = "$HOME/.android/debug.keystore"
           EOF
 
-      - name: Construire le projet d'export AVEC TOUS LES ASSETS
+      - name: Construire le projet avec tous les assets
         shell: bash
         run: |
           set -euo pipefail
@@ -86,19 +95,19 @@ jobs:
           cp 'joueur 1 cheikh anime.glb' ci_export/
           cp 'Yvane_anime_Godot_Draco.glb' ci_export/
           cp 'player_3_Nelvyn_Godot_anime (1).glb' ci_export/
-
-          echo '===== INVENTAIRE PROJET COMPLET ====='
-          du -sh ci_export/assets
-          echo "GLB: $(find ci_export/assets -type f -iname '*.glb' | wc -l)"
-          echo "OGG: $(find ci_export/assets/audio -type f -iname '*.ogg' | wc -l)"
           test "$(find ci_export/assets/royaumes -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 11
+          test -s 'ci_export/assets/interface/logo_chk_pirate_warrior_2.png'
+          test -s 'ci_export/assets/interface/menu_principal_chk_pirate_warrior_2.png'
+          test -s 'ci_export/assets/interface/menu_choix difficulté_aventure_chk_pirate_warrior_2.png'
           ASSET_MB=$(du -sm ci_export/assets | cut -f1)
+          echo "Assets complets: ${ASSET_MB} Mo"
+          echo "GLB avant réparation: $(find ci_export -type f -iname '*.glb' | wc -l)"
           if [ "$ASSET_MB" -lt 100 ]; then
-            echo "ERREUR: seulement ${ASSET_MB} Mo d'assets copiés; export incomplet."
+            echo "ERREUR: export assets incomplet"
             exit 2
           fi
 
-      - name: Réparer les GLB compressés et isoler les fichiers corrompus
+      - name: Réparer GLB Draco et quantifiés puis isoler les corrompus
         shell: bash
         run: |
           set -euo pipefail
@@ -119,13 +128,10 @@ jobs:
           const reportPath = process.argv[3];
           const decoder = await draco3d.createDecoderModule();
           const encoder = await draco3d.createEncoderModule();
-          const io = new NodeIO()
-            .registerExtensions(ALL_EXTENSIONS)
-            .registerDependencies({
-              'draco3d.decoder': decoder,
-              'draco3d.encoder': encoder,
-            });
-
+          const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+            'draco3d.decoder': decoder,
+            'draco3d.encoder': encoder,
+          });
           const files = [];
           function walk(dir) {
             for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
@@ -135,13 +141,8 @@ jobs:
             }
           }
           walk(root);
-
-          let rewritten = 0;
-          let dracoDecoded = 0;
-          let dequantized = 0;
-          let quarantined = 0;
+          let rewritten = 0, dracoDecoded = 0, dequantized = 0, quarantined = 0;
           const broken = [];
-
           for (const file of files) {
             try {
               const doc = await io.read(file);
@@ -149,41 +150,31 @@ jobs:
               const dracoExt = extensions.find(e => e.extensionName === 'KHR_draco_mesh_compression');
               const quantExt = extensions.find(e => e.extensionName === 'KHR_mesh_quantization');
               let changed = false;
-
               if (quantExt) {
                 await doc.transform(dequantize());
                 dequantized++;
                 changed = true;
               }
-
               if (dracoExt) {
                 dracoExt.dispose();
                 dracoDecoded++;
                 changed = true;
               }
-
               if (changed) {
                 const tmp = file + '.repaired.glb';
                 await io.write(tmp, doc);
                 fs.renameSync(tmp, file);
                 rewritten++;
-                console.log('GLB réparé:', path.relative(root, file));
               }
             } catch (error) {
               quarantined++;
               const relative = path.relative(root, file);
-              const message = `${relative} | ${String(error)}`;
-              broken.push(message);
-              const invalidPath = file + '.invalid';
-              fs.renameSync(file, invalidPath);
-              console.warn('GLB isolé:', message);
+              broken.push(`${relative} | ${String(error)}`);
+              fs.renameSync(file, file + '.invalid');
             }
           }
-
           fs.writeFileSync(reportPath,
-            `GLB analysés=${files.length}\nRéécrits=${rewritten}\nDraco décodés=${dracoDecoded}\nDéquantifiés=${dequantized}\nIsolés=${quarantined}\n\n` +
-            broken.join('\n') + '\n');
-          console.log(`GLB analysés=${files.length}, réécrits=${rewritten}, Draco=${dracoDecoded}, déquantifiés=${dequantized}, isolés=${quarantined}`);
+            `GLB analysés=${files.length}\nRéécrits=${rewritten}\nDraco décodés=${dracoDecoded}\nDéquantifiés=${dequantized}\nIsolés=${quarantined}\n\n` + broken.join('\n') + '\n');
           NODE
           node repair_all_glb.mjs "$GITHUB_WORKSPACE/ci_export" "$GITHUB_WORKSPACE/artifact/GLB_BROKEN.txt"
           cat "$GITHUB_WORKSPACE/artifact/GLB_BROKEN.txt"
@@ -192,23 +183,31 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          cd "$GITHUB_WORKSPACE"
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" --import 2>&1 | tee godot-import.log
           if grep -E "SCRIPT ERROR:|Parse Error:" godot-import.log; then
             echo 'Erreur de script détectée pendant import.'
             exit 3
           fi
 
-      - name: Audit strict des 11 royaumes et assets
+      - name: Audit historique des 11 royaumes et assets
         shell: bash
         run: |
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
             --script res://scripts/tests/full_repo_audit.gd
 
-      - name: Vérifier le chargement du projet
+      - name: Audit V3 gameplay mobile et décors GLB
+        shell: bash
+        run: |
+          godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
+            --script res://scripts/tests/v2_complete_audit.gd 2>&1 | tee v3-complete-audit.log
+          grep -q 'CHK_PIRATE_WARRIOR_2_V3_GAMEPLAY_READY' v3-complete-audit.log
+
+      - name: Vérifier le chargement réel du projet
         shell: bash
         run: |
           set -o pipefail
-          timeout 45s godot --headless --path "$GITHUB_WORKSPACE/ci_export" --editor --quit-after 5 2>&1 | tee godot-smoke.log || STATUS=$?
+          timeout 60s godot --headless --path "$GITHUB_WORKSPACE/ci_export" --editor --quit-after 8 2>&1 | tee godot-smoke.log || STATUS=$?
           STATUS=${STATUS:-0}
           if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access" godot-smoke.log; then
             exit 4
@@ -217,7 +216,7 @@ jobs:
             exit "$STATUS"
           fi
 
-      - name: Exporter le véritable APK Android complet
+      - name: Exporter le véritable APK Android V3 complet
         shell: bash
         env:
           GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /home/runner/.android/debug.keystore
@@ -227,16 +226,16 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/ci_export/build/android"
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
             --export-debug Android \
-            "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_FULL_unsigned.apk" \
-            --verbose
-          test -s "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_FULL_unsigned.apk"
+            "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V3_unsigned.apk" \
+            --verbose 2>&1 | tee godot-export.log
+          test -s "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V3_unsigned.apk"
 
       - name: Aligner signer et vérifier l'APK
         shell: bash
         run: |
           set -euo pipefail
-          SOURCE_APK="$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_FULL_unsigned.apk"
-          FINAL_APK="$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_FULL.apk"
+          SOURCE_APK="$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V3_unsigned.apk"
+          FINAL_APK="$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V3_GAMEPLAY.apk"
           ZIPALIGN="$ANDROID_HOME/build-tools/34.0.0/zipalign"
           APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
           "$ZIPALIGN" -f -p 4 "$SOURCE_APK" "$GITHUB_WORKSPACE/artifact/aligned.apk"
@@ -249,23 +248,25 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs "$FINAL_APK"
           unzip -t "$FINAL_APK" >/dev/null
           APK_MB=$(du -m "$FINAL_APK" | cut -f1)
-          echo "APK final: ${APK_MB} Mo"
+          echo "APK final V3: ${APK_MB} Mo"
           if [ "$APK_MB" -lt 70 ]; then
-            echo 'ERREUR: APK anormalement petit; les assets complets ne sont probablement pas embarqués.'
+            echo 'ERREUR: APK anormalement petit.'
             exit 5
           fi
           sha256sum "$FINAL_APK" | tee artifact/SHA256.txt
 
-      - name: Publier APK complet et rapports
+      - name: Publier APK V3 complet et rapports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: CHK-Pirate-Warrior-2-FULL-APK
+          name: CHK-Pirate-Warrior-2-V3-GAMEPLAY-APK
           path: |
-            artifact/CHK_Pirate_Warrior_2_FULL.apk
+            artifact/CHK_Pirate_Warrior_2_V3_GAMEPLAY.apk
             artifact/SHA256.txt
             artifact/GLB_BROKEN.txt
             godot-import.log
             godot-smoke.log
+            godot-export.log
+            v3-complete-audit.log
           if-no-files-found: warn
           retention-days: 30
