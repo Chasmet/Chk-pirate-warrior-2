@@ -1,7 +1,7 @@
 [gd_scene load_steps=11 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/hero_controller.gd" id="1_hero"]
-[ext_resource type="Script" path="res://scripts/camera/third_person_camera.gd" id="2_camera"]
+[ext_resource type="Script" path="res://scripts/player/hero_controller_v2.gd" id="1_hero"]
+[ext_resource type="Script" path="res://scripts/camera/third_person_camera_v2.gd" id="2_camera"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud_mobile.tscn" id="3_hud"]
 [ext_resource type="PackedScene" path="res://scenes/ui/mobile_input_overlay.tscn" id="4_touch"]
 [ext_resource type="Script" path="res://scripts/world/archipelago_director_v2.gd" id="5_world"]
@@ -27,7 +27,7 @@ shape = SubResource("CapsuleShape_player")
 script = ExtResource("2_camera")
 
 [node name="SpringArm3D" type="SpringArm3D" parent="Hero/CameraRig"]
-spring_length = 6.4
+spring_length = 4.6
 collision_mask = 1
 
 [node name="Camera3D" type="Camera3D" parent="Hero/CameraRig/SpringArm3D"]
