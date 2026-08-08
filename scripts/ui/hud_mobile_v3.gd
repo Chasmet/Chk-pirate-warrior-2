@@ -14,20 +14,22 @@ func _layout_v3() -> void:
     if hero_label != null and hero_label.get_parent() is Control:
         var stats := hero_label.get_parent() as Control
         stats.position = Vector2(12.0, 12.0)
-        stats.size = Vector2(320.0, 142.0)
-        hero_label.size = Vector2(185.0, 32.0)
-        level_label.position = Vector2(175.0, 12.0)
-        level_label.size = Vector2(132.0, 28.0)
+        stats.size = Vector2(430.0, 150.0)
+        hero_label.size = Vector2(220.0, 32.0)
+        level_label.position = Vector2(220.0, 12.0)
+        level_label.size = Vector2(196.0, 28.0)
 
     if mission_title != null and mission_title.get_parent() is Control:
         var mission := mission_title.get_parent() as Control
-        var mission_width := clampf(w * 0.36, 430.0, 570.0)
+        var mission_width := clampf(w * 0.32, 390.0, 520.0)
         mission.position = Vector2((w - mission_width) * 0.5, 12.0)
         mission.size = Vector2(mission_width, 108.0)
         mission_title.position = Vector2(10.0, 8.0)
         mission_title.size = Vector2(mission_width - 20.0, 34.0)
+        mission_title.add_theme_font_size_override("font_size", 22)
         mission_text.position = Vector2(10.0, 45.0)
         mission_text.size = Vector2(mission_width - 20.0, 54.0)
+        mission_text.add_theme_font_size_override("font_size", 16)
 
     _place_hud_button("CARTE", Vector2(w - 430.0, 14.0), Vector2(92.0, 58.0))
     _place_hud_button("SAC", Vector2(w - 330.0, 14.0), Vector2(82.0, 58.0))
@@ -36,16 +38,16 @@ func _layout_v3() -> void:
 
     var map_title := _find_label_by_text(self, "GRAND ARCHIPEL")
     if map_title != null and map_title.get_parent() is Control:
-        # L'ancien gros encart permanent surchargeait le petit écran.
-        # La carte complète reste accessible avec le bouton CARTE.
+        # La carte complète reste accessible via CARTE ; on libère l'écran de jeu.
         (map_title.get_parent() as Control).visible = false
 
     if subtitle_panel != null:
-        var subtitle_width := minf(560.0, w * 0.52)
-        subtitle_panel.position = Vector2((w - subtitle_width) * 0.5, maxf(135.0, h - 165.0))
-        subtitle_panel.size = Vector2(subtitle_width, 74.0)
+        var subtitle_width := minf(520.0, w * 0.46)
+        subtitle_panel.position = Vector2((w - subtitle_width) * 0.5, maxf(135.0, h - 150.0))
+        subtitle_panel.size = Vector2(subtitle_width, 68.0)
         if subtitle_label != null:
-            subtitle_label.size = Vector2(subtitle_width - 30.0, 54.0)
+            subtitle_label.size = Vector2(subtitle_width - 30.0, 50.0)
+            subtitle_label.add_theme_font_size_override("font_size", 18)
 
     if inventory_panel != null:
         var inv_w := minf(620.0, w - 80.0)
