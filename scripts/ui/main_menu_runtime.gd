@@ -215,14 +215,21 @@ func _open_difficulty() -> void:
 func _start_new_game(difficulty_id: String) -> void:
     GameState.new_game(GameState.selected_hero, difficulty_id)
     GameState.quick_save()
+    _restore_world_from_state()
     _start_game()
 
 func _continue_game() -> void:
     if not GameState.load_save():
         _status.text = "Aucune sauvegarde trouvée. Lance une nouvelle aventure."
         return
+    _restore_world_from_state()
     _status.text = "Sauvegarde chargée • Île %02d • %s • %d/10 boss" % [GameState.current_island, GameState.difficulty_label(), GameState.defeated_main_boss_count()]
     _start_game()
+
+func _restore_world_from_state() -> void:
+    var world: Node = get_tree().get_first_node_in_group("world_director")
+    if world != null and world.has_method("restore_loaded_game"):
+        world.call("restore_loaded_game")
 
 func _start_game() -> void:
     get_tree().paused = false
