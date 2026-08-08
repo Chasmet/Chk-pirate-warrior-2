@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/hero_controller_v3.gd" id="1_hero"]
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera_v3.gd" id="2_camera"]
@@ -9,6 +9,9 @@
 [ext_resource type="Script" path="res://scripts/world/world_life_director.gd" id="7_life"]
 [ext_resource type="Script" path="res://scripts/ui/world_map_runtime.gd" id="8_map"]
 [ext_resource type="Script" path="res://scripts/world/glb_scenery_director.gd" id="9_scenery"]
+[ext_resource type="Script" path="res://scripts/world/coastal_detail_director.gd" id="10_coast"]
+[ext_resource type="Script" path="res://scripts/world/island_collectible_director.gd" id="11_collectibles"]
+[ext_resource type="Script" path="res://scripts/world/ambient_fauna_director.gd" id="12_fauna"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.38
@@ -31,18 +34,27 @@ shape = SubResource("CapsuleShape_player")
 script = ExtResource("2_camera")
 
 [node name="SpringArm3D" type="SpringArm3D" parent="Hero/CameraRig"]
-spring_length = 3.5
+spring_length = 3.65
 collision_mask = 1
 
 [node name="Camera3D" type="Camera3D" parent="Hero/CameraRig/SpringArm3D"]
 current = true
-fov = 62.0
+fov = 64.0
 
 [node name="ArchipelagoDirector" type="Node3D" parent="."]
 script = ExtResource("5_world")
 
 [node name="GLBSceneryDirector" type="Node3D" parent="."]
 script = ExtResource("9_scenery")
+
+[node name="CoastalDetailDirector" type="Node3D" parent="."]
+script = ExtResource("10_coast")
+
+[node name="IslandCollectibleDirector" type="Node3D" parent="."]
+script = ExtResource("11_collectibles")
+
+[node name="AmbientFaunaDirector" type="Node3D" parent="."]
+script = ExtResource("12_fauna")
 
 [node name="WorldLifeDirector" type="Node3D" parent="."]
 script = ExtResource("7_life")

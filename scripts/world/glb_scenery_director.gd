@@ -62,8 +62,219 @@ func _rebuild(island_id: int, serial: int) -> void:
     island_root.add_child(decor_root)
 
     var info: Dictionary = WorldCatalog.island(island_id - 1)
+    if island_id == 1:
+        _build_musical_arrival(decor_root, info)
     _build_port_landmark(decor_root, info, island_id)
     _scatter_theme(decor_root, info, island_id)
+
+func _build_musical_arrival(parent: Node3D, info: Dictionary) -> void:
+    var musical_root := Node3D.new()
+    musical_root.name = "AccordiaMusicale"
+    parent.add_child(musical_root)
+
+    var size: Vector2 = info["size"]
+    var port_z := size.y * 0.45
+    var arrival_z := size.y * 0.34
+    _build_harp_gate(musical_root, info, port_z - 4.0)
+    _build_piano_promenade(musical_root, info, arrival_z + 14.0, port_z - 20.0)
+    _build_accordia_city(musical_root, info, arrival_z - 78.0)
+    _build_resonance_monument(musical_root, info, -size.y * 0.05)
+
+func _build_harp_gate(parent: Node3D, info: Dictionary, z: float) -> void:
+    var base_y := maxf(_terrain_height(info, -13.0, z), _terrain_height(info, 13.0, z))
+    var gold := Color("d8a93e")
+    var dark_gold := Color("936622")
+    _add_landmark_box(parent, "ArcheHarpe_Gauche", Vector3(-13.0, base_y + 9.0, z), Vector3(1.7, 18.0, 1.8), gold, Vector3.ZERO, true)
+    _add_landmark_box(parent, "ArcheHarpe_Droite", Vector3(13.0, base_y + 9.0, z), Vector3(1.7, 18.0, 1.8), gold, Vector3.ZERO, true)
+    _add_landmark_box(parent, "ArcheHarpe_SommetG", Vector3(-6.5, base_y + 17.2, z), Vector3(14.0, 1.5, 1.8), gold, Vector3(0.0, 0.0, deg_to_rad(-12.0)), true)
+    _add_landmark_box(parent, "ArcheHarpe_SommetD", Vector3(6.5, base_y + 17.2, z), Vector3(14.0, 1.5, 1.8), gold, Vector3(0.0, 0.0, deg_to_rad(12.0)), true)
+    for i in range(9):
+        var string_x := -8.0 + float(i) * 2.0
+        var string_height := 8.0 + (8.0 - absf(string_x)) * 0.58
+        _add_landmark_cylinder(
+            parent,
+            "CordeHarpe_%02d" % i,
+            Vector3(string_x, base_y + 4.0 + string_height * 0.5, z),
+            0.09,
+            string_height,
+            Color("f8df83"),
+            false
+        )
+    _add_landmark_box(parent, "SeuilHarpe", Vector3(0.0, base_y + 0.2, z), Vector3(29.0, 0.45, 4.0), dark_gold, Vector3.ZERO, true)
+    _add_world_label(parent, "PORT D’ACCORDIA", Vector3(0.0, base_y + 20.8, z), Color("ffe9a0"))
+
+func _build_piano_promenade(parent: Node3D, info: Dictionary, start_z: float, end_z: float) -> void:
+    var center_z := (start_z + end_z) * 0.5
+    var base_y := _terrain_height(info, 0.0, center_z)
+    _add_landmark_box(
+        parent,
+        "PontPiano_Collision",
+        Vector3(0.0, base_y - 0.15, center_z),
+        Vector3(16.0, 0.55, end_z - start_z + 5.0),
+        Color("493b35"),
+        Vector3.ZERO,
+        true
+    )
+    var key_count := 18
+    var key_step := (end_z - start_z) / float(key_count - 1)
+    var black_pattern := [1, 3, 6, 8, 10, 13, 15]
+    for i in range(key_count):
+        var key_z := start_z + float(i) * key_step
+        _add_landmark_box(
+            parent,
+            "PontPiano_ToucheBlanche_%02d" % i,
+            Vector3(0.0, base_y + 0.22, key_z),
+            Vector3(15.0, 0.22, maxf(2.8, key_step - 0.22)),
+            Color("f2ead7"),
+            Vector3.ZERO,
+            false
+        )
+        if i in black_pattern:
+            _add_landmark_box(
+                parent,
+                "PontPiano_ToucheNoire_%02d" % i,
+                Vector3(4.2, base_y + 0.43, key_z + key_step * 0.22),
+                Vector3(6.1, 0.28, maxf(1.7, key_step * 0.55)),
+                Color("211f25"),
+                Vector3.ZERO,
+                false
+            )
+
+func _build_accordia_city(parent: Node3D, info: Dictionary, city_z: float) -> void:
+    var city_root := Node3D.new()
+    city_root.name = "Accordia"
+    parent.add_child(city_root)
+    var district_colors := [Color("b76873"), Color("4d8795"), Color("c39445"), Color("755f9a")]
+    for i in range(16):
+        var side := -1.0 if i % 2 == 0 else 1.0
+        var row := float(i / 2)
+        var x := side * (29.0 + float(i % 4) * 10.0)
+        var z := city_z - row * 11.0
+        var ground_y := _terrain_height(info, x, z)
+        var building_height := 8.0 + float(i % 4) * 2.4
+        var color: Color = district_colors[i % district_colors.size()]
+        _add_landmark_box(
+            city_root,
+            "MaisonMusicale_%02d" % i,
+            Vector3(x, ground_y + building_height * 0.5, z),
+            Vector3(13.0, building_height, 9.0),
+            color,
+            Vector3.ZERO,
+            true
+        )
+        _add_landmark_cylinder(
+            city_root,
+            "ToitMaison_%02d" % i,
+            Vector3(x, ground_y + building_height + 2.2, z),
+            5.2,
+            4.4,
+            color.lightened(0.22),
+            false,
+            0.35
+        )
+
+    var amphitheater_z := city_z + 20.0
+    for tier in range(3):
+        var radius := 20.0 + float(tier) * 7.0
+        for seat in range(9):
+            var angle := lerpf(-2.55, -0.59, float(seat) / 8.0)
+            var x := cos(angle) * radius
+            var z := amphitheater_z + sin(angle) * radius
+            var y := _terrain_height(info, x, z) + float(tier) * 0.75
+            _add_landmark_box(
+                city_root,
+                "Amphitheatre_%d_%02d" % [tier, seat],
+                Vector3(x, y + 0.35, z),
+                Vector3(7.8, 0.7, 3.0),
+                Color("cdbb91"),
+                Vector3(0.0, -angle - PI * 0.5, 0.0),
+                true
+            )
+
+    var conservatory_z := city_z - 102.0
+    var conservatory_y := _terrain_height(info, 0.0, conservatory_z)
+    _add_landmark_box(parent, "GrandConservatoire", Vector3(0.0, conservatory_y + 9.0, conservatory_z), Vector3(62.0, 18.0, 31.0), Color("d8c9a4"), Vector3.ZERO, true)
+    for column in range(7):
+        _add_landmark_cylinder(parent, "ColonneConservatoire_%02d" % column, Vector3(-21.0 + float(column) * 7.0, conservatory_y + 8.0, conservatory_z + 17.0), 0.8, 16.0, Color("eee3c7"), true)
+    _add_landmark_cylinder(parent, "DomeConservatoire", Vector3(0.0, conservatory_y + 21.0, conservatory_z), 11.0, 8.0, Color("c49a45"), false, 5.0)
+    _add_world_label(parent, "ACCORDIA", Vector3(0.0, conservatory_y + 25.5, conservatory_z + 1.0), Color("fff1bb"))
+
+func _build_resonance_monument(parent: Node3D, info: Dictionary, z: float) -> void:
+    var base_y := _terrain_height(info, 0.0, z)
+    var heights := [34.0, 43.0, 54.0, 68.0, 76.0, 68.0, 54.0, 43.0, 34.0]
+    for i in range(heights.size()):
+        var height: float = heights[i]
+        var x := -32.0 + float(i) * 8.0
+        _add_landmark_cylinder(
+            parent,
+            "OrgueMontResonance_%02d" % i,
+            Vector3(x, base_y + height * 0.5, z),
+            3.0,
+            height,
+            Color("655b6e").lightened(float(i % 3) * 0.07),
+            true
+        )
+    _add_world_label(parent, "MONT DE LA RÉSONANCE", Vector3(0.0, base_y + 84.0, z), Color("d9c8ff"))
+
+func _add_landmark_box(parent: Node3D, node_name: String, center: Vector3, box_size: Vector3, color: Color, rotation_value: Vector3, solid: bool) -> void:
+    var anchor := StaticBody3D.new()
+    anchor.name = node_name
+    anchor.position = center
+    anchor.rotation = rotation_value
+    var visual := MeshInstance3D.new()
+    var mesh := BoxMesh.new()
+    mesh.size = box_size
+    visual.mesh = mesh
+    visual.material_override = _landmark_material(color)
+    anchor.add_child(visual)
+    if solid:
+        var collision := CollisionShape3D.new()
+        var shape := BoxShape3D.new()
+        shape.size = box_size
+        collision.shape = shape
+        anchor.add_child(collision)
+    parent.add_child(anchor)
+
+func _add_landmark_cylinder(parent: Node3D, node_name: String, center: Vector3, radius: float, height: float, color: Color, solid: bool, top_radius: float = -1.0) -> void:
+    var anchor := StaticBody3D.new()
+    anchor.name = node_name
+    anchor.position = center
+    var visual := MeshInstance3D.new()
+    var mesh := CylinderMesh.new()
+    mesh.bottom_radius = radius
+    mesh.top_radius = radius if top_radius < 0.0 else top_radius
+    mesh.height = height
+    mesh.radial_segments = 12
+    visual.mesh = mesh
+    visual.material_override = _landmark_material(color)
+    anchor.add_child(visual)
+    if solid:
+        var collision := CollisionShape3D.new()
+        var shape := CylinderShape3D.new()
+        shape.radius = radius
+        shape.height = height
+        collision.shape = shape
+        anchor.add_child(collision)
+    parent.add_child(anchor)
+
+func _landmark_material(color: Color) -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.roughness = 0.76
+    material.metallic = 0.14 if color.r > 0.65 and color.g > 0.45 else 0.02
+    return material
+
+func _add_world_label(parent: Node3D, value: String, position_value: Vector3, color: Color) -> void:
+    var label := Label3D.new()
+    label.name = value.to_snake_case().capitalize().replace(" ", "")
+    label.text = value
+    label.position = position_value
+    label.font_size = 64
+    label.pixel_size = 0.018
+    label.modulate = color
+    label.outline_size = 12
+    label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    parent.add_child(label)
 
 func _active_island_root() -> Node3D:
     var world: Node = get_tree().get_first_node_in_group("world_director")
