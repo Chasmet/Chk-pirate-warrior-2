@@ -3,11 +3,11 @@ extends CanvasLayer
 const VirtualJoystickScript = preload("res://scripts/ui/virtual_joystick.gd")
 const TouchActionButtonScript = preload("res://scripts/ui/touch_action_button.gd")
 
-# Marge volontairement large : sur certains téléphones Android en paysage,
-# la barre système masquée conserve une zone de réveil plus grande que son icône.
-# Les actions ne doivent jamais se trouver dans cette bande.
+# Marge volontairement large côté navigation Android. Le joystick gauche était
+# déjà stable sur le téléphone : on le conserve proche de sa position validée.
 const SAFE_SIDE_MARGIN := 190.0
 const SAFE_BOTTOM_MARGIN := 130.0
+const JOYSTICK_LEFT_MARGIN := 56.0
 
 var _movement: Control
 var _attack_button: TouchActionButton
@@ -131,24 +131,26 @@ func _layout_controls() -> void:
 
     if _movement != null:
         _movement.position = Vector2(
-            SAFE_SIDE_MARGIN,
+            JOYSTICK_LEFT_MARGIN,
             maxf(72.0, h - _movement.size.y - SAFE_BOTTOM_MARGIN)
         )
 
-    # Toute la grappe d'actions est rentrée vers le centre. Les dimensions
-    # restent identiques : seule leur position change.
+    # Rangée basse sans chevauchement. Les tailles validées restent inchangées.
+    if _interact_button != null:
+        _interact_button.position = Vector2(350.0, h - SAFE_BOTTOM_MARGIN - 86.0)
+    if _jump_button != null:
+        _jump_button.position = Vector2(585.0, h - SAFE_BOTTOM_MARGIN - 110.0)
+    if _dodge_button != null:
+        _dodge_button.position = Vector2(748.0, h - SAFE_BOTTOM_MARGIN - 100.0)
     if _attack_button != null:
         _attack_button.position = Vector2(w - SAFE_SIDE_MARGIN - 174.0, h - SAFE_BOTTOM_MARGIN - 174.0)
+
+    # Pouvoirs sur une rangée supérieure, également loin du bord système.
     if _ability_1_button != null:
-        _ability_1_button.position = Vector2(w - 520.0, h - 430.0)
+        _ability_1_button.position = Vector2(760.0, h - 430.0)
     if _ability_2_button != null:
         _ability_2_button.position = Vector2(w - SAFE_SIDE_MARGIN - 138.0 - 28.0, h - 480.0)
-    if _dodge_button != null:
-        _dodge_button.position = Vector2(w - 540.0, h - SAFE_BOTTOM_MARGIN - 100.0)
-    if _jump_button != null:
-        _jump_button.position = Vector2(w - 710.0, h - SAFE_BOTTOM_MARGIN - 110.0)
-    if _interact_button != null:
-        _interact_button.position = Vector2(w - 950.0, h - SAFE_BOTTOM_MARGIN - 86.0)
+
     if _hero_switch_button != null:
         _hero_switch_button.position = Vector2(w - SAFE_SIDE_MARGIN - 208.0, 86.0)
     if _camera_reset_button != null:
