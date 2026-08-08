@@ -13,6 +13,7 @@ var health := 100.0
 var _visual: Node3D
 var _player: Node3D
 var _attack_cooldown := 0.0
+var _death_reported := false
 
 func _ready() -> void:
     add_to_group("enemy")
@@ -32,10 +33,15 @@ func configure(path: String, is_boss: bool, difficulty: float = 1.0) -> void:
         _load_visual()
 
 func receive_damage(amount: float) -> void:
+    if _death_reported or amount <= 0.0:
+        return
     health = maxf(0.0, health - amount)
     if health <= 0.0:
+        _death_reported = true
         if boss:
             get_tree().call_group("world_director", "on_boss_defeated", self)
+        else:
+            get_tree().call_group("world_director", "on_enemy_defeated", self)
         queue_free()
 
 func _physics_process(delta: float) -> void:
