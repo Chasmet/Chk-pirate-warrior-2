@@ -1,6 +1,9 @@
 class_name ArchipelagoDirectorV3
 extends "res://scripts/world/archipelago_director_v2.gd"
 
+const SHALLOW_WATER_MIN_Y := -0.98
+const SHALLOW_WATER_RADIAL_LIMIT := 0.94
+
 func _ready() -> void:
     # Une seule île est active à la fois : 56 subdivisions restent légères sur Android
     # tout en supprimant l'aspect polygonal grossier vu sur téléphone.
@@ -110,6 +113,30 @@ func _add_static_box(parent: Node3D, node_name: String, center: Vector3, box_siz
     body.add_child(collision)
     parent.add_child(body)
 
+# Le générateur de mesh parent appelle cette méthode virtuellement. On garde donc
+# le fond de toute eau située à l'intérieur du contour de l'île à -0,98 m minimum.
+# La surface de mer est à -0,65 m : profondeur intérieure maximale ~33 cm.
+# À partir du littoral (radial > 0,94), le relief redescend normalement vers la
+# haute mer et le bateau reste nécessaire pour voyager entre les royaumes.
+func _terrain_vertex(ix: int, iz: int, resolution: int, size: Vector2, noise: FastNoiseLite) -> Vector3:
+    var u := float(ix) / float(resolution)
+    var v := float(iz) / float(resolution)
+    var x := (u - 0.5) * size.x
+    var z := (v - 0.5) * size.y
+    var nx := x / maxf(1.0, size.x * 0.5)
+    var nz := z / maxf(1.0, size.y * 0.5)
+    var radial := sqrt(nx * nx + nz * nz)
+    var coast := smoothstep(1.0, 0.72, radial)
+    var raw := noise.get_noise_2d(x, z)
+    var ridge := absf(noise.get_noise_2d(x * 0.42 + 913.0, z * 0.42 - 441.0))
+    var height := (raw * 28.0 + ridge * 16.0) * coast
+    if radial > 0.94:
+        height -= (radial - 0.94) * 145.0
+    if absf(x) < 115.0 and z > size.y * 0.18:
+        height *= 0.12
+    height = _clamp_inland_water_depth(height, radial)
+    return Vector3(x, height, z)
+
 func _terrain_height_at(info: Dictionary, x: float, z: float) -> float:
     var size: Vector2 = info["size"]
     var nx := x / maxf(1.0, size.x * 0.5)
@@ -129,6 +156,11 @@ func _terrain_height_at(info: Dictionary, x: float, z: float) -> float:
         height -= (radial - 0.94) * 145.0
     if absf(x) < 115.0 and z > size.y * 0.18:
         height *= 0.12
+    return _clamp_inland_water_depth(height, radial)
+
+func _clamp_inland_water_depth(height: float, radial: float) -> float:
+    if radial <= SHALLOW_WATER_RADIAL_LIMIT:
+        return maxf(height, SHALLOW_WATER_MIN_Y)
     return height
 
 func _terrain_palette(island_id: int, base_color: Color) -> Dictionary:
