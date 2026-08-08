@@ -31,12 +31,12 @@ shape = SubResource("CapsuleShape_player")
 script = ExtResource("2_camera")
 
 [node name="SpringArm3D" type="SpringArm3D" parent="Hero/CameraRig"]
-spring_length = 4.2
+spring_length = 3.65
 collision_mask = 1
 
 [node name="Camera3D" type="Camera3D" parent="Hero/CameraRig/SpringArm3D"]
 current = true
-fov = 66.0
+fov = 64.0
 
 [node name="ArchipelagoDirector" type="Node3D" parent="."]
 script = ExtResource("5_world")
