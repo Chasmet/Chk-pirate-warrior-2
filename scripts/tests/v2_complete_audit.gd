@@ -49,6 +49,8 @@ func _run() -> void:
     _check(director_text.contains("GameState.can_enter_island(11)"), "le Royaume Troublé est verrouillé par la progression")
     _check(director_text.contains("func _preserve_active_boat_for_transition"), "le bateau actif survit au changement d'île")
     _check(director_text.contains("func _restore_boat_mode_if_needed"), "une sauvegarde en mer restaure réellement le bateau")
+    _check(director_text.contains("func restore_loaded_game"), "Continuer peut reconstruire le royaume sauvegardé même si le monde était déjà initialisé")
+    _check(director_text.contains("_current_index = -1"), "la reprise force le rechargement même pour une sauvegarde sur l'île 1")
     _check(director_text.contains("active.force_reposition"), "le verrou de l'île 11 repousse aussi le bateau actif")
 
     var boat_text := FileAccess.get_file_as_string("res://scripts/player/boat_controller.gd")
@@ -72,6 +74,10 @@ func _run() -> void:
     _check(life_text.contains("wreck_salvaged_%02d"), "les épaves sont fouillables et persistantes")
     _check(life_text.contains("_crew_relations_ready"), "l'initialisation des relations attend le démarrage réel de la partie")
     _check(not life_text.contains("_player = get_tree().get_first_node_in_group(\"player\") as Node3D\n    _initialize_crew_relations()"), "aucune sauvegarde n'est écrite depuis le menu au _ready")
+
+    var menu_text := FileAccess.get_file_as_string("res://scripts/ui/main_menu_runtime.gd")
+    _check(menu_text.contains("_restore_world_from_state()"), "Nouvelle aventure et Continuer synchronisent le monde avec GameState")
+    _check(menu_text.contains("restore_loaded_game"), "le bouton Continuer déclenche le rechargement physique de l'île sauvegardée")
 
     var camera_text := FileAccess.get_file_as_string("res://scripts/camera/third_person_camera_v2.gd")
     _check(camera_text.contains("BOAT_ARM := 11.5"), "la caméra bateau cadre le navire en troisième personne")
