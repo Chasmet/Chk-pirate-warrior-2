@@ -4,7 +4,7 @@
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera.gd" id="2_camera"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud_mobile.tscn" id="3_hud"]
 [ext_resource type="PackedScene" path="res://scenes/ui/mobile_input_overlay.tscn" id="4_touch"]
-[ext_resource type="Script" path="res://scripts/world/archipelago_director.gd" id="5_world"]
+[ext_resource type="Script" path="res://scripts/world/archipelago_director_v2.gd" id="5_world"]
 [ext_resource type="Script" path="res://scripts/ui/main_menu_runtime.gd" id="6_menu"]
 [ext_resource type="Script" path="res://scripts/world/world_life_director.gd" id="7_life"]
 
