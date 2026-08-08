@@ -1,8 +1,8 @@
 extends "res://scripts/camera/third_person_camera.gd"
 
-const LAND_ARM := 4.2
+const LAND_ARM := 3.65
 const BOAT_ARM := 11.5
-const LAND_HEIGHT := 1.45
+const LAND_HEIGHT := 1.42
 const BOAT_HEIGHT := 3.1
 
 var _camera_mode_boat := false
