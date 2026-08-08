@@ -3,6 +3,9 @@ extends CanvasLayer
 const VirtualJoystickScript = preload("res://scripts/ui/virtual_joystick.gd")
 const TouchActionButtonScript = preload("res://scripts/ui/touch_action_button.gd")
 
+const SAFE_SIDE_MARGIN := 96.0
+const SAFE_BOTTOM_MARGIN := 104.0
+
 var _movement: Control
 var _attack_button: TouchActionButton
 var _ability_1_button: TouchActionButton
@@ -116,22 +119,28 @@ func _layout_controls() -> void:
     var w := viewport_size.x
     var h := viewport_size.y
 
+    # Android réserve les bords gauche/droit et le bord bas aux gestes système.
+    # On garde donc une vraie zone morte autour des commandes afin qu'un mouvement
+    # du joystick ou un appui sur ATTAQUE ne déclenche plus Retour/Accueil/Récents.
     if _movement != null:
-        _movement.position = Vector2(24.0, maxf(28.0, h - 306.0))
+        _movement.position = Vector2(
+            SAFE_SIDE_MARGIN,
+            maxf(SAFE_SIDE_MARGIN, h - _movement.size.y - SAFE_BOTTOM_MARGIN)
+        )
 
     if _attack_button != null:
-        _attack_button.position = Vector2(w - 194.0, h - 194.0)
+        _attack_button.position = Vector2(w - SAFE_SIDE_MARGIN - 174.0, h - SAFE_BOTTOM_MARGIN - 174.0)
     if _ability_1_button != null:
-        _ability_1_button.position = Vector2(w - 352.0, h - 304.0)
+        _ability_1_button.position = Vector2(w - 432.0, h - 394.0)
     if _ability_2_button != null:
-        _ability_2_button.position = Vector2(w - 174.0, h - 364.0)
+        _ability_2_button.position = Vector2(w - SAFE_SIDE_MARGIN - 138.0 - 20.0, h - 454.0)
     if _dodge_button != null:
-        _dodge_button.position = Vector2(w - 370.0, h - 116.0)
+        _dodge_button.position = Vector2(w - 450.0, h - SAFE_BOTTOM_MARGIN - 100.0)
     if _jump_button != null:
-        _jump_button.position = Vector2(w - 530.0, h - 122.0)
+        _jump_button.position = Vector2(w - 610.0, h - SAFE_BOTTOM_MARGIN - 110.0)
     if _interact_button != null:
-        _interact_button.position = Vector2(w - 760.0, h - 98.0)
+        _interact_button.position = Vector2(w - 840.0, h - SAFE_BOTTOM_MARGIN - 86.0)
     if _hero_switch_button != null:
-        _hero_switch_button.position = Vector2(w - 220.0, 86.0)
+        _hero_switch_button.position = Vector2(w - SAFE_SIDE_MARGIN - 208.0, 86.0)
     if _camera_reset_button != null:
-        _camera_reset_button.position = Vector2(w - 396.0, 86.0)
+        _camera_reset_button.position = Vector2(w - SAFE_SIDE_MARGIN - 208.0 - 176.0, 86.0)
