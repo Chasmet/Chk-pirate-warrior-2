@@ -290,6 +290,8 @@ func _restore_boat_mode_if_needed(index: int, place_player: bool) -> void:
             var boat := node as BoatController
             if boat.is_boarded():
                 continue
+            if _island_root == null or not is_instance_valid(_island_root) or not _island_root.is_ancestor_of(boat):
+                continue
             var distance: float = boat.global_position.distance_to(saved)
             if distance < best_distance:
                 best_distance = distance
