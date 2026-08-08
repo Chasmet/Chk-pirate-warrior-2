@@ -7,6 +7,10 @@ const FINAL_PICKUP_RADIUS := 5.0
 var _final_gate_notice_cooldown := 0.0
 var _boss_spawned_for_island := -1
 
+func _ready() -> void:
+    _day_clock = clampf(GameState.world_time, 0.0, 1.0)
+    super._ready()
+
 func _process(delta: float) -> void:
     _final_gate_notice_cooldown = maxf(0.0, _final_gate_notice_cooldown - delta)
     super._process(delta)
@@ -18,10 +22,12 @@ func _load_island(index: int, place_player: bool) -> void:
     if resolved == 10 and not GameState.can_enter_island(11):
         _reject_final_kingdom()
         return
+    _preserve_active_boat_for_transition()
     _boss_spawned_for_island = -1
     super._load_island(resolved, place_player)
     _update_hud_mission(resolved)
     _restore_exact_position_if_needed(resolved, place_player)
+    _restore_boat_mode_if_needed(resolved, place_player)
     if resolved == 10 and GameState.is_boss_defeated(11) and not GameState.final_reward_collected:
         _ensure_final_reward()
 
@@ -119,24 +125,31 @@ func _has_live_boss() -> bool:
     return false
 
 func request_boat_interaction() -> bool:
-    var active := get_tree().get_first_node_in_group("active_controller")
-    if active != null and active.has_method("disembark"):
-        var nearest := _nearest_island_index(active.global_position if active is Node3D else _player.global_position)
+    var active_before := get_tree().get_first_node_in_group("active_controller")
+    if active_before != null and active_before.has_method("disembark"):
+        var nearest := _nearest_island_index(active_before.global_position if active_before is Node3D else _player.global_position)
         if nearest == 10 and not GameState.can_enter_island(11):
             _notify("Le Royaume Troublé reste scellé. Libère les dix premiers royaumes.")
             return false
     var result := super.request_boat_interaction()
     if result:
+        if active_before is BoatController and is_instance_valid(active_before) and not active_before.is_boarded():
+            if _island_root != null and is_instance_valid(_island_root):
+                active_before.reparent(_island_root, true)
         _capture_snapshot()
     return result
 
 func respawn_player() -> void:
     if _player == null or not is_instance_valid(_player) or _current_index < 0:
         return
+    var active := get_tree().get_first_node_in_group("active_controller")
+    if active is BoatController and active.is_boarded():
+        active.disembark()
     var info := WorldCatalog.island(_current_index)
     var size: Vector2 = info["size"]
     _player.global_position = _positions[_current_index] + Vector3(0.0, 10.0, size.y * 0.30)
     _player.velocity = Vector3.ZERO
+    GameState.set_exact_snapshot(_player.global_position, _player.global_rotation.y, false)
     _notify("Retour au camp de l’île %02d." % (_current_index + 1))
 
 func _reject_final_kingdom() -> void:
@@ -157,8 +170,14 @@ func _reject_final_kingdom() -> void:
         away = Vector3.FORWARD
     var info := WorldCatalog.island(9)
     var safe_size: Vector2 = info["size"]
-    _player.global_position = safe_center + away.normalized() * maxf(safe_size.x, safe_size.y) * 0.57 + Vector3.UP * 3.0
-    _player.velocity = Vector3.ZERO
+    var safe_position := safe_center + away.normalized() * maxf(safe_size.x, safe_size.y) * 0.57 + Vector3.UP * 3.0
+    var active := get_tree().get_first_node_in_group("active_controller")
+    if active is BoatController and active.is_boarded():
+        active.force_reposition(safe_position, active.rotation.y)
+    else:
+        _player.global_position = safe_position
+        _player.velocity = Vector3.ZERO
+        GameState.set_exact_snapshot(_player.global_position, _player.global_rotation.y, false)
 
 func _update_hud_mission(index: int) -> void:
     var hud := get_tree().get_first_node_in_group("hud")
@@ -227,11 +246,13 @@ func _capture_snapshot() -> void:
     if _player == null or not is_instance_valid(_player):
         return
     var boat_mode := get_tree().get_first_node_in_group("active_controller") != null
-    GameState.set_exact_snapshot(_player.global_position, _player.rotation.y, boat_mode)
+    GameState.set_exact_snapshot(_player.global_position, _player.global_rotation.y, boat_mode)
     GameState.quick_save()
 
 func _restore_exact_position_if_needed(index: int, place_player: bool) -> void:
     if not place_player or index + 1 != GameState.current_island:
+        return
+    if GameState.exact_boat_mode:
         return
     var saved := GameState.exact_position_vector()
     if not saved.is_finite() or _player == null or not is_instance_valid(_player):
@@ -242,4 +263,33 @@ func _restore_exact_position_if_needed(index: int, place_player: bool) -> void:
     var flat := Vector2(saved.x - center.x, saved.z - center.z)
     if flat.length() <= maxf(size.x, size.y) * 0.75:
         _player.global_position = saved
-        _player.rotation.y = GameState.exact_rotation_y
+        _player.global_rotation = Vector3(0.0, GameState.exact_rotation_y, 0.0)
+
+func _restore_boat_mode_if_needed(index: int, place_player: bool) -> void:
+    if not place_player or not GameState.exact_boat_mode or index + 1 != GameState.current_island:
+        return
+    if _player == null or not is_instance_valid(_player):
+        return
+    var saved := GameState.exact_position_vector()
+    if not saved.is_finite():
+        return
+    var best_boat: BoatController
+    var best_distance := INF
+    for node in get_tree().get_nodes_in_group("boat"):
+        if node is BoatController and not node.is_boarded():
+            var distance := node.global_position.distance_to(saved)
+            if distance < best_distance:
+                best_distance = distance
+                best_boat = node
+    if best_boat == null:
+        return
+    best_boat.force_reposition(saved, GameState.exact_rotation_y)
+    best_boat.board(_player)
+
+func _preserve_active_boat_for_transition() -> void:
+    var active := get_tree().get_first_node_in_group("active_controller")
+    if not (active is BoatController) or not active.is_boarded():
+        return
+    if active.get_parent() == self:
+        return
+    active.reparent(self, true)
