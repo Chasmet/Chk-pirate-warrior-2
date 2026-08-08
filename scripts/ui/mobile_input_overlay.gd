@@ -3,10 +3,9 @@ extends CanvasLayer
 const VirtualJoystickScript = preload("res://scripts/ui/virtual_joystick.gd")
 const TouchActionButtonScript = preload("res://scripts/ui/touch_action_button.gd")
 
-# Marge volontairement large côté navigation Android. Le joystick gauche était
-# déjà stable sur le téléphone : on le conserve proche de sa position validée.
+# Marges conservées pour éviter les gestes Retour/Accueil Android.
 const SAFE_SIDE_MARGIN := 190.0
-const SAFE_BOTTOM_MARGIN := 130.0
+const SAFE_BOTTOM_MARGIN := 120.0
 const JOYSTICK_LEFT_MARGIN := 56.0
 
 var _movement: Control
@@ -32,15 +31,18 @@ func _ready() -> void:
     _movement.size = Vector2(282, 282)
     add_child(_movement)
 
-    _attack_button = _create_action_button("ATTAQUE", &"attack", Vector2(174, 174), 25, true)
+    # Bloc combat : ATTAQUE dominant, pouvoirs au-dessus et esquive à côté.
+    _attack_button = _create_action_button("ATTAQUE", &"attack", Vector2(174, 174), 24, true)
     _attack_button.name = "AttackButton"
-    _ability_1_button = _create_action_button("POUVOIR 1", &"ability_1", Vector2(138, 138), 19, true)
+    _ability_1_button = _create_action_button("POUVOIR 1", &"ability_1", Vector2(126, 126), 16, true)
     _ability_1_button.name = "Ability1Button"
-    _ability_2_button = _create_action_button("POUVOIR 2", &"ability_2", Vector2(138, 138), 19, true)
+    _ability_2_button = _create_action_button("POUVOIR 2", &"ability_2", Vector2(126, 126), 16, true)
     _ability_2_button.name = "Ability2Button"
-    _dodge_button = _create_action_button("ESQUIVE", &"dodge", Vector2(150, 100), 20, false)
+    _dodge_button = _create_action_button("ESQUIVE", &"dodge", Vector2(116, 116), 17, true)
     _dodge_button.name = "DodgeButton"
-    _jump_button = _create_action_button("SAUT", &"jump", Vector2(146, 110), 23, false)
+
+    # Actions de déplacement au centre, comme sur la maquette.
+    _jump_button = _create_action_button("SAUT", &"jump", Vector2(150, 84), 21, false)
     _jump_button.name = "JumpButton"
     _create_interact_button()
     _create_switch_button()
@@ -69,18 +71,20 @@ func _create_action_button(label: String, action: StringName, button_size: Vecto
     return button
 
 func _create_interact_button() -> void:
-    _interact_button = _create_action_button("INTERAGIR / EMBARQUER", &"", Vector2(218, 86), 18, false)
+    _interact_button = _create_action_button("INTERAGIR /\nEMBARQUER", &"", Vector2(210, 84), 16, false)
     _interact_button.name = "InteractButton"
     _interact_button.activated.connect(_interact)
 
 func _create_switch_button() -> void:
-    _hero_switch_button = _create_action_button("CHANGER HÉROS", &"", Vector2(208, 76), 17, false)
+    _hero_switch_button = _create_action_button("HÉROS", &"", Vector2(96, 96), 16, true)
     _hero_switch_button.name = "HeroSwitchButton"
     _hero_switch_button.activated.connect(func(): GameState.cycle_hero())
 
 func _create_camera_reset_button() -> void:
-    _camera_reset_button = _create_action_button("RECENTRER\nCAMÉRA", &"", Vector2(168, 76), 17, false)
+    # Fonction conservée mais masquée : un bouton technique ne doit plus encombrer le HUD.
+    _camera_reset_button = _create_action_button("RECENTRER\nCAMÉRA", &"", Vector2(150, 66), 14, false)
     _camera_reset_button.name = "CameraResetButton"
+    _camera_reset_button.visible = false
     _camera_reset_button.activated.connect(_recenter_camera)
 
 func _on_hero_changed(_hero_id: String) -> void:
@@ -88,10 +92,8 @@ func _on_hero_changed(_hero_id: String) -> void:
     _refresh_hero_switch_label()
 
 func _refresh_hero_switch_label() -> void:
-    if _hero_switch_button == null:
-        return
-    var current_name := str(GameState.get_hero_data().get("display_name", "Héros")).to_upper()
-    _hero_switch_button.set_button_text("CHANGER HÉROS\n%s" % current_name)
+    if _hero_switch_button != null:
+        _hero_switch_button.set_button_text("HÉROS")
 
 func _refresh_ability_labels() -> void:
     var hero := GameState.get_hero_data()
@@ -103,12 +105,12 @@ func _refresh_ability_labels() -> void:
 
 func _short_ability_name(value: String) -> String:
     var cleaned := value.to_upper()
-    if cleaned.length() <= 16:
+    if cleaned.length() <= 15:
         return cleaned
     var words := cleaned.split(" ")
     if words.size() >= 2:
         return "%s\n%s" % [words[0], words[1]]
-    return cleaned.left(16)
+    return cleaned.left(15)
 
 func _interact() -> void:
     var world := get_tree().get_first_node_in_group("world_director")
@@ -129,29 +131,42 @@ func _layout_controls() -> void:
     var w := viewport_size.x
     var h := viewport_size.y
 
+    # Joystick seul en bas à gauche.
     if _movement != null:
         _movement.position = Vector2(
             JOYSTICK_LEFT_MARGIN,
             maxf(72.0, h - _movement.size.y - SAFE_BOTTOM_MARGIN)
         )
 
-    # Rangée basse sans chevauchement. Les tailles validées restent inchangées.
+    # Actions centrales : interaction et saut, bien séparés du joystick.
     if _interact_button != null:
-        _interact_button.position = Vector2(350.0, h - SAFE_BOTTOM_MARGIN - 86.0)
+        _interact_button.position = Vector2(360.0, h - SAFE_BOTTOM_MARGIN - _interact_button.size.y)
     if _jump_button != null:
-        _jump_button.position = Vector2(585.0, h - SAFE_BOTTOM_MARGIN - 110.0)
-    if _dodge_button != null:
-        _dodge_button.position = Vector2(748.0, h - SAFE_BOTTOM_MARGIN - 100.0)
-    if _attack_button != null:
-        _attack_button.position = Vector2(w - SAFE_SIDE_MARGIN - 174.0, h - SAFE_BOTTOM_MARGIN - 174.0)
-
-    # Pouvoirs sur une rangée supérieure, également loin du bord système.
-    if _ability_1_button != null:
-        _ability_1_button.position = Vector2(760.0, h - 430.0)
-    if _ability_2_button != null:
-        _ability_2_button.position = Vector2(w - SAFE_SIDE_MARGIN - 138.0 - 28.0, h - 480.0)
-
+        _jump_button.position = Vector2(585.0, h - SAFE_BOTTOM_MARGIN - _jump_button.size.y)
     if _hero_switch_button != null:
-        _hero_switch_button.position = Vector2(w - SAFE_SIDE_MARGIN - 208.0, 86.0)
+        _hero_switch_button.position = Vector2(515.0, maxf(300.0, h - 338.0))
+
+    # Bloc combat à droite. Tous les boutons restent hors de la bande système Android.
+    if _attack_button != null:
+        _attack_button.position = Vector2(
+            w - SAFE_SIDE_MARGIN - _attack_button.size.x,
+            h - SAFE_BOTTOM_MARGIN - _attack_button.size.y
+        )
+    if _dodge_button != null:
+        _dodge_button.position = Vector2(
+            w - SAFE_SIDE_MARGIN - _attack_button.size.x - _dodge_button.size.x - 18.0,
+            h - SAFE_BOTTOM_MARGIN - _dodge_button.size.y + 8.0
+        )
+    if _ability_1_button != null:
+        _ability_1_button.position = Vector2(
+            w - SAFE_SIDE_MARGIN - _attack_button.size.x - _ability_1_button.size.x - 12.0,
+            maxf(302.0, h - 430.0)
+        )
+    if _ability_2_button != null:
+        _ability_2_button.position = Vector2(
+            w - SAFE_SIDE_MARGIN - _ability_2_button.size.x,
+            maxf(296.0, h - 454.0)
+        )
+
     if _camera_reset_button != null:
-        _camera_reset_button.position = Vector2(w - SAFE_SIDE_MARGIN - 208.0 - 184.0, 86.0)
+        _camera_reset_button.position = Vector2(w - SAFE_SIDE_MARGIN - 150.0, 310.0)
