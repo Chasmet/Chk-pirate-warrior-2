@@ -36,23 +36,30 @@ func _rebuild(serial: int) -> void:
     var centers := WorldCatalog.world_positions()
     _detail_root.global_position = centers[index]
 
-    _build_beach_ring(info)
+    _build_beach_arcs(info)
     _build_shallow_coves(info)
+    _build_cliff_multimesh(info)
     _build_rock_multimesh(info)
+    _build_tree_multimesh(info)
     _build_grass_multimesh(info)
 
-func _build_beach_ring(info: Dictionary) -> void:
+func _build_beach_arcs(info: Dictionary) -> void:
+    # Plus de cercle de sable artificiel sur 360°. Les plages occupent seulement
+    # les secteurs bas de la côte et le port ; les autres zones deviennent rocheuses.
     var island_size: Vector2 = info["size"]
     var surface := SurfaceTool.new()
     surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-    var segments := 72
+    var segments := 96
     var inner_radial := 0.78
-    var outer_radial := 0.93
+    var outer_radial := 0.925
 
     for i in range(segments):
         var next := (i + 1) % segments
         var a0 := TAU * float(i) / float(segments)
         var a1 := TAU * float(next) / float(segments)
+        var mid := (a0 + a1) * 0.5
+        if not _is_beach_sector(mid, int(info["id"])):
+            continue
         var p00 := _coast_point(info, island_size, a0, inner_radial)
         var p01 := _coast_point(info, island_size, a1, inner_radial)
         var p10 := _coast_point(info, island_size, a0, outer_radial)
@@ -62,15 +69,24 @@ func _build_beach_ring(info: Dictionary) -> void:
 
     surface.generate_normals()
     var mesh := surface.commit()
+    if mesh == null:
+        return
     var beach := MeshInstance3D.new()
-    beach.name = "PlagesNaturelles"
+    beach.name = "PetitesPlagesNaturelles"
     beach.mesh = mesh
     beach.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     var material := StandardMaterial3D.new()
     material.albedo_color = _beach_color(int(info["id"]))
-    material.roughness = 0.94
+    material.roughness = 0.96
     beach.material_override = material
     _detail_root.add_child(beach)
+
+func _is_beach_sector(angle: float, island_id: int) -> bool:
+    # Le port se trouve vers +Z : on y garantit une plage d'arrivée lisible.
+    if sin(angle) > 0.72:
+        return true
+    var cliff_strength := pow(absf(sin(angle * 2.5 + float(island_id) * 0.71)), 3.0)
+    return cliff_strength < 0.38
 
 func _coast_point(info: Dictionary, island_size: Vector2, angle: float, radial: float) -> Vector3:
     var wobble := 1.0 + sin(angle * 5.0 + float(info["id"])) * 0.035 + cos(angle * 9.0) * 0.022
@@ -96,7 +112,6 @@ func _build_shallow_coves(info: Dictionary) -> void:
         var local_x := unit.x * island_size.x
         var local_z := unit.z * island_size.y
         var ground := _terrain_height_at(info, local_x, local_z)
-        # L'eau n'est que 18 à 26 cm au-dessus du fond : traversable à pied.
         var water_y := ground + 0.18 + float(i % 2) * 0.08
         var water := MeshInstance3D.new()
         water.name = "EauPeuProfonde_%02d" % i
@@ -133,6 +148,50 @@ void fragment() {
     material.shader = shader
     return material
 
+func _build_cliff_multimesh(info: Dictionary) -> void:
+    var island_size: Vector2 = info["size"]
+    var mesh := SphereMesh.new()
+    mesh.radius = 1.0
+    mesh.height = 2.0
+    mesh.radial_segments = 8
+    mesh.rings = 5
+    var material := StandardMaterial3D.new()
+    material.albedo_color = _cliff_color(int(info["id"]))
+    material.roughness = 1.0
+    mesh.material = material
+
+    var transforms: Array[Transform3D] = []
+    var rng := RandomNumberGenerator.new()
+    rng.seed = 7100 + int(info["id"]) * 181
+    for i in range(58):
+        var angle := rng.randf_range(0.0, TAU)
+        if sin(angle) > 0.68:
+            continue
+        var cliff_strength := pow(absf(sin(angle * 2.5 + float(info["id"]) * 0.71)), 3.0)
+        if cliff_strength < 0.52:
+            continue
+        var radial := rng.randf_range(0.79, 0.90)
+        var x := cos(angle) * island_size.x * 0.5 * radial
+        var z := sin(angle) * island_size.y * 0.5 * radial
+        var ground := _terrain_height_at(info, x, z)
+        var sy := rng.randf_range(2.4, 5.8) * (0.72 + cliff_strength * 0.55)
+        var scale := Vector3(rng.randf_range(2.0, 4.8), sy, rng.randf_range(1.8, 4.2))
+        var basis := Basis.IDENTITY.rotated(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(scale)
+        transforms.append(Transform3D(basis, Vector3(x, ground + sy * 0.72, z)))
+
+    var multimesh := MultiMesh.new()
+    multimesh.transform_format = MultiMesh.TRANSFORM_3D
+    multimesh.mesh = mesh
+    multimesh.instance_count = transforms.size()
+    for i in range(transforms.size()):
+        multimesh.set_instance_transform(i, transforms[i])
+
+    var cliffs := MultiMeshInstance3D.new()
+    cliffs.name = "FalaisesRocheusesMultiMesh"
+    cliffs.multimesh = multimesh
+    cliffs.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+    _detail_root.add_child(cliffs)
+
 func _build_rock_multimesh(info: Dictionary) -> void:
     var island_size: Vector2 = info["size"]
     var mesh := SphereMesh.new()
@@ -141,24 +200,24 @@ func _build_rock_multimesh(info: Dictionary) -> void:
     mesh.radial_segments = 8
     mesh.rings = 4
     var material := StandardMaterial3D.new()
-    material.albedo_color = Color("66625a") if int(info["id"]) != 8 else Color("a8b8c0")
+    material.albedo_color = _cliff_color(int(info["id"])).lightened(0.08)
     material.roughness = 1.0
     mesh.material = material
 
     var multimesh := MultiMesh.new()
     multimesh.transform_format = MultiMesh.TRANSFORM_3D
     multimesh.mesh = mesh
-    multimesh.instance_count = 34
+    multimesh.instance_count = 42
 
     var rng := RandomNumberGenerator.new()
     rng.seed = 4100 + int(info["id"]) * 97
     for i in range(multimesh.instance_count):
         var angle := rng.randf_range(0.0, TAU)
-        var radial := rng.randf_range(0.60, 0.89)
+        var radial := rng.randf_range(0.56, 0.90)
         var x := cos(angle) * island_size.x * 0.5 * radial
         var z := sin(angle) * island_size.y * 0.5 * radial
         var y := _terrain_height_at(info, x, z) + 0.35
-        var scale := Vector3(rng.randf_range(0.45, 1.55), rng.randf_range(0.35, 1.10), rng.randf_range(0.55, 1.65))
+        var scale := Vector3(rng.randf_range(0.45, 1.75), rng.randf_range(0.35, 1.25), rng.randf_range(0.55, 1.85))
         var basis := Basis.IDENTITY.rotated(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(scale)
         multimesh.set_instance_transform(i, Transform3D(basis, Vector3(x, y, z)))
 
@@ -167,6 +226,71 @@ func _build_rock_multimesh(info: Dictionary) -> void:
     rocks.multimesh = multimesh
     rocks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     _detail_root.add_child(rocks)
+
+func _build_tree_multimesh(info: Dictionary) -> void:
+    if int(info["id"]) in [8, 9]:
+        return
+    var island_size: Vector2 = info["size"]
+    var count := 30
+
+    var trunk_mesh := CylinderMesh.new()
+    trunk_mesh.top_radius = 0.24
+    trunk_mesh.bottom_radius = 0.38
+    trunk_mesh.height = 4.2
+    trunk_mesh.radial_segments = 6
+    var trunk_mat := StandardMaterial3D.new()
+    trunk_mat.albedo_color = Color("76533a")
+    trunk_mat.roughness = 1.0
+    trunk_mesh.material = trunk_mat
+
+    var crown_mesh := SphereMesh.new()
+    crown_mesh.radius = 1.7
+    crown_mesh.height = 3.2
+    crown_mesh.radial_segments = 8
+    crown_mesh.rings = 5
+    var crown_mat := StandardMaterial3D.new()
+    var base: Color = info.get("color", Color("4b8f6a"))
+    crown_mat.albedo_color = base.lightened(0.06)
+    crown_mat.roughness = 0.95
+    crown_mesh.material = crown_mat
+
+    var trunks := MultiMesh.new()
+    trunks.transform_format = MultiMesh.TRANSFORM_3D
+    trunks.mesh = trunk_mesh
+    trunks.instance_count = count
+    var crowns := MultiMesh.new()
+    crowns.transform_format = MultiMesh.TRANSFORM_3D
+    crowns.mesh = crown_mesh
+    crowns.instance_count = count
+
+    var rng := RandomNumberGenerator.new()
+    rng.seed = 8100 + int(info["id"]) * 211
+    for i in range(count):
+        var angle := rng.randf_range(0.0, TAU)
+        var radial := rng.randf_range(0.26, 0.70)
+        var x := cos(angle) * island_size.x * 0.5 * radial
+        var z := sin(angle) * island_size.y * 0.5 * radial
+        if absf(x) < 95.0 and z > island_size.y * 0.15:
+            x += 120.0 if i % 2 == 0 else -120.0
+        var y := _terrain_height_at(info, x, z)
+        var yaw := rng.randf_range(0.0, TAU)
+        var scale := rng.randf_range(0.78, 1.28)
+        var trunk_basis := Basis.IDENTITY.rotated(Vector3.UP, yaw).scaled(Vector3(scale, scale, scale))
+        trunks.set_instance_transform(i, Transform3D(trunk_basis, Vector3(x, y + 2.1 * scale, z)))
+        var crown_basis := Basis.IDENTITY.rotated(Vector3.UP, yaw).scaled(Vector3(scale * 1.05, scale, scale * 1.05))
+        crowns.set_instance_transform(i, Transform3D(crown_basis, Vector3(x, y + 5.0 * scale, z)))
+
+    var trunk_instances := MultiMeshInstance3D.new()
+    trunk_instances.name = "ArbresTroncsMultiMesh"
+    trunk_instances.multimesh = trunks
+    trunk_instances.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+    _detail_root.add_child(trunk_instances)
+
+    var crown_instances := MultiMeshInstance3D.new()
+    crown_instances.name = "ArbresFeuillageMultiMesh"
+    crown_instances.multimesh = crowns
+    crown_instances.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+    _detail_root.add_child(crown_instances)
 
 func _build_grass_multimesh(info: Dictionary) -> void:
     if int(info["id"]) in [8, 9]:
@@ -183,17 +307,17 @@ func _build_grass_multimesh(info: Dictionary) -> void:
     var multimesh := MultiMesh.new()
     multimesh.transform_format = MultiMesh.TRANSFORM_3D
     multimesh.mesh = mesh
-    multimesh.instance_count = 54
+    multimesh.instance_count = 82
 
     var rng := RandomNumberGenerator.new()
     rng.seed = 6200 + int(info["id"]) * 131
     for i in range(multimesh.instance_count):
         var angle := rng.randf_range(0.0, TAU)
-        var radial := rng.randf_range(0.42, 0.82)
+        var radial := rng.randf_range(0.34, 0.82)
         var x := cos(angle) * island_size.x * 0.5 * radial
         var z := sin(angle) * island_size.y * 0.5 * radial
         var y := _terrain_height_at(info, x, z) + 0.62
-        var scale := Vector3(1.0, rng.randf_range(0.65, 1.45), rng.randf_range(0.65, 1.35))
+        var scale := Vector3(1.0, rng.randf_range(0.65, 1.55), rng.randf_range(0.65, 1.35))
         var basis := Basis.IDENTITY.rotated(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(scale)
         multimesh.set_instance_transform(i, Transform3D(basis, Vector3(x, y, z)))
 
@@ -204,6 +328,12 @@ func _build_grass_multimesh(info: Dictionary) -> void:
     _detail_root.add_child(grass)
 
 func _terrain_height_at(info: Dictionary, x: float, z: float) -> float:
+    # Utiliser exactement la hauteur du vrai terrain V3 afin que plages, arbres,
+    # falaises et collectibles ne flottent jamais après une évolution du relief.
+    var world := get_tree().get_first_node_in_group("world_director")
+    if world != null and world.has_method("_terrain_height_at"):
+        return float(world.call("_terrain_height_at", info, x, z))
+
     var island_size: Vector2 = info["size"]
     var nx := x / maxf(1.0, island_size.x * 0.5)
     var nz := z / maxf(1.0, island_size.y * 0.5)
@@ -238,3 +368,18 @@ func _beach_color(island_id: int) -> Color:
             return Color("9b875f")
         _:
             return Color("d8c082")
+
+func _cliff_color(island_id: int) -> Color:
+    match island_id:
+        2:
+            return Color("71525f")
+        4:
+            return Color("384954")
+        8:
+            return Color("91a6b0")
+        9:
+            return Color("332826")
+        11:
+            return Color("3f3830")
+        _:
+            return Color("5b584f")
