@@ -154,6 +154,20 @@ func _terrain_palette(island_id: int, base_color: Color) -> Dictionary:
         _:
             return {"core": base_color, "coast": Color("c8ad72"), "rock": Color("55514a")}
 
+# Le bateau reste clairement dans l'eau mais suffisamment près du bout du quai
+# pour que l'embarquement tactile ne dépende jamais de quelques centimètres de houle.
+func _spawn_boat(info: Dictionary) -> void:
+    super._spawn_boat(info)
+    if _island_root == null or not is_instance_valid(_island_root):
+        return
+    var boat_name := "Bateau_%02d" % int(info["id"])
+    var boat := _island_root.get_node_or_null(boat_name) as BoatController
+    if boat == null:
+        return
+    var size: Vector2 = info["size"]
+    boat.position = Vector3(5.0, boat.water_height, size.y * 0.45 + 38.0)
+    boat.velocity = Vector3.ZERO
+
 # Le joueur ne démarre plus au bout étroit du quai entouré d'eau.
 # Il arrive à l'entrée du port, sur une zone large, dégagée et orientée vers l'île.
 func _safe_port_spawn(index: int) -> Vector3:
