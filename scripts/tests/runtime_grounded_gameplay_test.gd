@@ -173,12 +173,20 @@ func _run() -> void:
         await _tap_button(hero_switch_button, 28)
         _check(GameState.selected_hero == "cheikh", "cycle héros revient correctement à Cheikh")
 
+    # L'esquive active volontairement 0,30 s d'invulnérabilité et une impulsion.
+    # L'ancien test enchaînait immédiatement dégâts + embarquement et créait donc
+    # deux faux échecs. On laisse maintenant l'état de combat revenir au repos.
+    for _frame in range(30):
+        await get_tree().physics_frame
+    player.velocity = Vector3.ZERO
+
     # Régression téléphone signalée : le contact d'un ennemi ne doit jamais
     # fermer l'application. On injecte plusieurs impacts consécutifs comme le ferait l'IA.
     var health_before_hit := float(player.get("health"))
     for _hit in range(3):
         player.call("receive_damage", 5.0)
-        await get_tree().physics_frame
+        for _frame in range(2):
+            await get_tree().physics_frame
     var health_after_hit := float(player.get("health"))
     _check(is_instance_valid(player), "les impacts ennemis gardent le héros et le jeu actifs")
     _check(health_after_hit < health_before_hit, "les dégâts ennemis retirent bien des PV sans fermer le jeu")
