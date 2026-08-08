@@ -173,6 +173,16 @@ func _run() -> void:
         await _tap_button(hero_switch_button, 28)
         _check(GameState.selected_hero == "cheikh", "cycle héros revient correctement à Cheikh")
 
+    # Régression téléphone signalée : le contact d'un ennemi ne doit jamais
+    # fermer l'application. On injecte plusieurs impacts consécutifs comme le ferait l'IA.
+    var health_before_hit := float(player.get("health"))
+    for _hit in range(3):
+        player.call("receive_damage", 5.0)
+        await get_tree().physics_frame
+    var health_after_hit := float(player.get("health"))
+    _check(is_instance_valid(player), "les impacts ennemis gardent le héros et le jeu actifs")
+    _check(health_after_hit < health_before_hit, "les dégâts ennemis retirent bien des PV sans fermer le jeu")
+
     var boat := get_tree().root.find_child("Bateau_01", true, false) as BoatController
     var dock := get_tree().root.find_child("PortPrincipal", true, false) as Node3D
     _check(boat != null, "le bateau du premier port existe")
@@ -219,7 +229,7 @@ func _run() -> void:
             _check(player.is_on_floor(), "le héros respawn réellement sur le port après une mort en mer")
 
     if _failures == 0:
-        print("CHK_PIRATE_WARRIOR_2_V4_RUNTIME_ALL_TOUCH_ACTIONS_OK")
+        print("CHK_PIRATE_WARRIOR_2_V4_RUNTIME_ALL_TOUCH_AND_DAMAGE_OK")
     await _finish(main)
 
 func _finish(main: Node) -> void:
