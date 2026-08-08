@@ -1,26 +1,58 @@
 class_name ArchipelagoDirectorV2
 extends ArchipelagoDirector
 
+const SOLDIERS_REQUIRED := 6
+const FINAL_PICKUP_RADIUS := 5.0
+
 var _final_gate_notice_cooldown := 0.0
+var _boss_spawned_for_island := -1
 
 func _process(delta: float) -> void:
     _final_gate_notice_cooldown = maxf(0.0, _final_gate_notice_cooldown - delta)
     super._process(delta)
     GameState.world_time = _day_clock
+    _update_final_reward_collection()
 
 func _load_island(index: int, place_player: bool) -> void:
     var resolved := clampi(index, 0, WorldCatalog.island_count() - 1)
     if resolved == 10 and not GameState.can_enter_island(11):
         _reject_final_kingdom()
         return
+    _boss_spawned_for_island = -1
     super._load_island(resolved, place_player)
     _update_hud_mission(resolved)
     _restore_exact_position_if_needed(resolved, place_player)
+    if resolved == 10 and GameState.is_boss_defeated(11) and not GameState.final_reward_collected:
+        _ensure_final_reward()
+
+func on_enemy_defeated(_enemy: Node) -> void:
+    if _current_index < 0:
+        return
+    var island_id := _current_index + 1
+    if island_id == 11 or GameState.is_boss_defeated(island_id):
+        return
+    var key := _soldier_key(island_id)
+    var current := clampi(int(GameState.get_quest_value(key, 0)), 0, SOLDIERS_REQUIRED)
+    if current >= SOLDIERS_REQUIRED:
+        return
+    current += 1
+    GameState.set_quest_value(key, current)
+    GameState.add_xp(28 + island_id * 4)
+    GameState.add_coins(12 + island_id * 2)
+    GameState.quick_save()
+    if current >= SOLDIERS_REQUIRED:
+        _notify("OBJECTIF ACCOMPLI • LE BOSS DE L’ÎLE %02d APPARAÎT" % island_id)
+        _spawn_current_boss()
+    else:
+        _notify("Forces locales vaincues : %d/%d" % [current, SOLDIERS_REQUIRED])
+    _update_hud_mission(_current_index)
 
 func on_boss_defeated(enemy: Node) -> void:
     if _current_index < 0:
         return
     var island_id := _current_index + 1
+    if GameState.is_boss_defeated(island_id):
+        return
     GameState.mark_boss_defeated(island_id)
     GameState.add_xp(450 + island_id * 75)
     GameState.add_coins(180 + island_id * 35)
@@ -29,28 +61,62 @@ func on_boss_defeated(enemy: Node) -> void:
     if island_id == 10 and GameState.can_enter_island(11):
         _notify("LES DIX ROYAUMES SONT LIBÉRÉS • LE ROYAUME TROUBLÉ EST ACCESSIBLE")
     elif island_id == 11:
-        GameState.final_reward_collected = true
+        _ensure_final_reward()
         GameState.quick_save()
+        _notify("GARDIEN FINAL VAINCU • APPROCHE-TOI DU TROPHÉE RARE")
 
 func _spawn_population_and_enemies(info: Dictionary) -> void:
     var island_id := int(info["id"])
+    if GameState.is_boss_defeated(island_id):
+        return
+
     var size: Vector2 = info["size"]
     var difficulty_multiplier := GameState.difficulty_enemy_multiplier()
     var soldier_paths: Array = info.get("soldiers", [])
-    if island_id != 11 and not soldier_paths.is_empty():
-        for i in range(soldier_count):
+    var progress := clampi(int(GameState.get_quest_value(_soldier_key(island_id), 0)), 0, SOLDIERS_REQUIRED)
+
+    if island_id != 11 and progress < SOLDIERS_REQUIRED and not soldier_paths.is_empty():
+        var remaining := SOLDIERS_REQUIRED - progress
+        var spawn_count := clampi(maxi(remaining, 3), 3, soldier_count)
+        for i in range(spawn_count):
             var path := str(soldier_paths[i % soldier_paths.size()])
-            var angle := TAU * float(i) / float(maxi(1, soldier_count))
+            var angle := TAU * float(i) / float(maxi(1, spawn_count))
             var radius := minf(size.x, size.y) * (0.12 + float(i % 3) * 0.045)
             var base_difficulty := 0.8 + float(island_id) * 0.12
             _spawn_enemy(path, Vector3(cos(angle) * radius, 10.0, sin(angle) * radius), false, base_difficulty * difficulty_multiplier)
+        return
 
-    if GameState.is_boss_defeated(island_id):
+    _spawn_boss(info, difficulty_multiplier)
+
+func _spawn_current_boss() -> void:
+    if _current_index < 0 or _island_root == null or not is_instance_valid(_island_root):
+        return
+    if _boss_spawned_for_island == _current_index:
+        return
+    if _has_live_boss():
+        _boss_spawned_for_island = _current_index
+        return
+    var info := WorldCatalog.island(_current_index)
+    _spawn_boss(info, GameState.difficulty_enemy_multiplier())
+
+func _spawn_boss(info: Dictionary, difficulty_multiplier: float) -> void:
+    var island_id := int(info["id"])
+    if GameState.is_boss_defeated(island_id) or _has_live_boss():
         return
     var boss_path := str(info["boss"])
-    if ResourceLoader.exists(boss_path):
-        var boss_difficulty := (1.0 + float(island_id) * 0.16) * difficulty_multiplier
-        _spawn_enemy(boss_path, Vector3(0.0, 12.0, -size.y * 0.18), true, boss_difficulty)
+    if not ResourceLoader.exists(boss_path):
+        _notify("Boss indisponible pour l’île %02d : modèle GLB invalide." % island_id)
+        return
+    var size: Vector2 = info["size"]
+    var boss_difficulty := (1.0 + float(island_id) * 0.16) * difficulty_multiplier
+    _spawn_enemy(boss_path, Vector3(0.0, 12.0, -size.y * 0.18), true, boss_difficulty)
+    _boss_spawned_for_island = _current_index
+
+func _has_live_boss() -> bool:
+    for node in get_tree().get_nodes_in_group("enemy"):
+        if is_instance_valid(node) and bool(node.get("boss")):
+            return true
+    return false
 
 func request_boat_interaction() -> bool:
     var active := get_tree().get_first_node_in_group("active_controller")
@@ -63,6 +129,15 @@ func request_boat_interaction() -> bool:
     if result:
         _capture_snapshot()
     return result
+
+func respawn_player() -> void:
+    if _player == null or not is_instance_valid(_player) or _current_index < 0:
+        return
+    var info := WorldCatalog.island(_current_index)
+    var size: Vector2 = info["size"]
+    _player.global_position = _positions[_current_index] + Vector3(0.0, 10.0, size.y * 0.30)
+    _player.velocity = Vector3.ZERO
+    _notify("Retour au camp de l’île %02d." % (_current_index + 1))
 
 func _reject_final_kingdom() -> void:
     if _final_gate_notice_cooldown <= 0.0:
@@ -93,12 +168,60 @@ func _update_hud_mission(index: int) -> void:
     var island_id := index + 1
     var description := ""
     if island_id == 11:
-        description = "Trouve et vaincs le gardien final, puis récupère le trophée du Royaume Troublé."
+        if GameState.final_reward_collected:
+            description = "AVENTURE PRINCIPALE TERMINÉE • le trophée rare est à toi. Exploration libre."
+        elif GameState.is_boss_defeated(11):
+            description = "Le gardien est vaincu • récupère maintenant le trophée rare du Royaume Troublé."
+        else:
+            description = "Affronte le gardien final, puis récupère le trophée rare du Royaume Troublé."
     elif GameState.is_boss_defeated(island_id):
         description = "Royaume libéré • explore les secrets, améliore ton équipage ou reprends la mer."
     else:
-        description = "Explore le royaume, combats les forces locales et vaincs le boss majeur. Progression : %d/10 boss." % GameState.defeated_main_boss_count()
-    hud.set_mission("ÎLE %02d • %s" % [island_id, str(info["name"])], description)
+        var progress := clampi(int(GameState.get_quest_value(_soldier_key(island_id), 0)), 0, SOLDIERS_REQUIRED)
+        if progress < SOLDIERS_REQUIRED:
+            description = "Sécurise le royaume : forces locales %d/%d • le boss apparaîtra ensuite." % [progress, SOLDIERS_REQUIRED]
+        else:
+            description = "OBJECTIF MAJEUR • le boss est apparu. Vaincs-le pour libérer le royaume."
+    hud.set_mission("ÎLE %02d • %s • %d/10 royaumes libérés" % [island_id, str(info["name"]), GameState.defeated_main_boss_count()], description)
+
+func _soldier_key(island_id: int) -> String:
+    return "island_%02d_forces" % island_id
+
+func _ensure_final_reward() -> void:
+    if _island_root == null or not is_instance_valid(_island_root) or GameState.final_reward_collected:
+        return
+    if _island_root.get_node_or_null("TropheeFinal") != null:
+        return
+    var info := WorldCatalog.island(10)
+    if not info.has("reward"):
+        return
+    var reward := _instantiate_asset(str(info["reward"]))
+    if reward == null:
+        return
+    reward.name = "TropheeFinal"
+    reward.position = Vector3(0.0, 7.0, -40.0)
+    reward.scale *= Vector3.ONE * 1.6
+    _island_root.add_child(reward)
+
+func _update_final_reward_collection() -> void:
+    if _current_index != 10 or GameState.final_reward_collected or _player == null or not is_instance_valid(_player):
+        return
+    if not GameState.is_boss_defeated(11) or _island_root == null or not is_instance_valid(_island_root):
+        return
+    var reward := _island_root.get_node_or_null("TropheeFinal") as Node3D
+    if reward == null:
+        _ensure_final_reward()
+        reward = _island_root.get_node_or_null("TropheeFinal") as Node3D
+    if reward == null:
+        return
+    if _player.global_position.distance_to(reward.global_position) <= FINAL_PICKUP_RADIUS:
+        GameState.final_reward_collected = true
+        GameState.add_xp(2500)
+        GameState.add_coins(2500)
+        GameState.quick_save()
+        reward.queue_free()
+        _notify("CAMPAGNE TERMINÉE • TROPHÉE RARE OBTENU • EXPLORATION LIBRE")
+        _update_hud_mission(10)
 
 func _capture_snapshot() -> void:
     if _player == null or not is_instance_valid(_player):
