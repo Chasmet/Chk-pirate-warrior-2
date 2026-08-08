@@ -273,8 +273,8 @@ func _animate_fauna(_delta: float) -> void:
             animal.rotation.y = lerp_angle(animal.rotation.y, atan2(-direction.x, -direction.z), 0.10)
 
 func _animate_crews(delta: float) -> void:
-    var active_boat := get_tree().get_first_node_in_group("active_controller")
-    var player_is_sailing := active_boat is BoatController and active_boat.is_boarded()
+    var active_boat: Node = get_tree().get_first_node_in_group("active_controller")
+    var player_is_sailing: bool = active_boat is BoatController and (active_boat as BoatController).is_boarded()
     for i in range(_crew_ships.size()):
         var ship := _crew_ships[i]
         if not is_instance_valid(ship):
