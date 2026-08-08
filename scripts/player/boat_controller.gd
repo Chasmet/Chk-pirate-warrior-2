@@ -10,12 +10,12 @@ extends CharacterBody3D
 
 var _virtual_move := Vector2.ZERO
 var _driver: CharacterBody3D
-var _driver_parent: Node
 var _driver_collision: CollisionShape3D
 var _visual: Node3D
 var _bobbing_time := 0.0
 var _forward_speed := 0.0
 var _steering_velocity := 0.0
+var _snapshot_accumulator := 0.0
 
 func _ready() -> void:
     add_to_group("boat")
@@ -45,41 +45,48 @@ func board(player: CharacterBody3D) -> void:
     if player == null or is_boarded():
         return
     _driver = player
-    _driver_parent = player.get_parent()
     _driver_collision = player.get_node_or_null("CollisionShape3D") as CollisionShape3D
     if _driver_collision != null:
-        _driver_collision.disabled = true
+        _driver_collision.set_deferred("disabled", true)
     player.set_physics_process(false)
     player.velocity = Vector3.ZERO
-    player.reparent(self, true)
-    player.position = Vector3(0.0, 1.25, 0.25)
-    player.rotation = Vector3.ZERO
     _forward_speed = 0.0
     _steering_velocity = 0.0
+    _snapshot_accumulator = 0.0
     add_to_group("active_controller")
+    _sync_driver_to_deck()
     GameState.set_exact_snapshot(global_position, rotation.y, true)
 
 func disembark() -> void:
     if not is_boarded():
         return
     var player: CharacterBody3D = _driver
-    var target_parent: Node = _driver_parent if _driver_parent != null and is_instance_valid(_driver_parent) else get_parent()
-    player.reparent(target_parent, true)
     var right := global_transform.basis.x.normalized()
     player.global_position = global_position + right * 4.2 + Vector3.UP * 1.5
-    player.rotation = Vector3(0.0, rotation.y, 0.0)
+    player.global_rotation = Vector3(0.0, global_rotation.y, 0.0)
     if _driver_collision != null:
-        _driver_collision.disabled = false
+        _driver_collision.set_deferred("disabled", false)
+    player.velocity = Vector3.ZERO
     player.set_physics_process(true)
     remove_from_group("active_controller")
-    GameState.set_exact_snapshot(player.global_position, player.rotation.y, false)
+    GameState.set_exact_snapshot(player.global_position, player.global_rotation.y, false)
     GameState.quick_save()
     _driver = null
-    _driver_parent = null
     _driver_collision = null
     _virtual_move = Vector2.ZERO
     _forward_speed = 0.0
     _steering_velocity = 0.0
+    _snapshot_accumulator = 0.0
+
+func force_reposition(world_position: Vector3, yaw: float) -> void:
+    global_position = Vector3(world_position.x, water_height, world_position.z)
+    rotation = Vector3(0.0, yaw, 0.0)
+    velocity = Vector3.ZERO
+    _forward_speed = 0.0
+    _steering_velocity = 0.0
+    _virtual_move = Vector2.ZERO
+    _sync_driver_to_deck()
+    GameState.set_exact_snapshot(global_position, rotation.y, is_boarded())
 
 func _physics_process(delta: float) -> void:
     _bobbing_time += delta
@@ -121,9 +128,23 @@ func _physics_process(delta: float) -> void:
     velocity.y = 0.0
     move_and_slide()
     _animate_hull(steering, speed_ratio, delta)
+    _sync_driver_to_deck()
+
+    _snapshot_accumulator += delta
+    if _snapshot_accumulator >= 0.20:
+        _snapshot_accumulator = 0.0
+        GameState.set_exact_snapshot(global_position, rotation.y, true)
 
     if Input.is_action_just_pressed("interact"):
         disembark()
+
+func _sync_driver_to_deck() -> void:
+    if not is_boarded():
+        return
+    var deck_local := Vector3(0.0, 1.25, 0.25)
+    _driver.global_position = global_transform * deck_local
+    _driver.global_rotation = Vector3(0.0, global_rotation.y, 0.0)
+    _driver.velocity = Vector3.ZERO
 
 func _animate_hull(steering: float, speed_ratio: float, delta: float) -> void:
     if _visual == null or not is_instance_valid(_visual):
