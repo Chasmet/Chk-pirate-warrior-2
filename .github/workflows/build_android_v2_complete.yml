@@ -1,23 +1,26 @@
-name: Compiler CHK Pirate Warrior 2 V3 gameplay
+name: Compiler CHK Pirate Warrior 2 V4 gameplay validé
 
 on:
   workflow_dispatch:
   push:
     branches:
       - agent/full-game-v2-complete
+      - agent/full-game-v2-final-gameplay
+      - agent/v4-grounded-gameplay
   pull_request:
     branches:
       - main
+      - agent/full-game-v2-final-gameplay
 
 permissions:
   contents: read
 
 concurrency:
-  group: chk-pirate-warrior-2-v3-${{ github.ref }}
+  group: chk-pirate-warrior-2-v4-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-apk-v3:
+  build-apk-v4:
     runs-on: ubuntu-latest
     timeout-minutes: 75
 
@@ -196,27 +199,29 @@ jobs:
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
             --script res://scripts/tests/full_repo_audit.gd
 
-      - name: Audit V3 gameplay mobile et décors GLB
+      - name: Audit V4 des fondations gameplay et notices
         shell: bash
         run: |
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
-            --script res://scripts/tests/v2_complete_audit.gd 2>&1 | tee v3-complete-audit.log
-          grep -q 'CHK_PIRATE_WARRIOR_2_V3_GAMEPLAY_READY' v3-complete-audit.log
+            --script res://scripts/tests/v2_complete_audit.gd 2>&1 | tee v4-foundation-audit.log
+          grep -q 'CHK_PIRATE_WARRIOR_2_V4_FOUNDATION_AUDIT_OK' v4-foundation-audit.log
 
-      - name: Vérifier le chargement réel du projet
+      - name: Jouer automatiquement apparition déplacement et saut
         shell: bash
         run: |
           set -o pipefail
-          timeout 60s godot --headless --path "$GITHUB_WORKSPACE/ci_export" --editor --quit-after 8 2>&1 | tee godot-smoke.log || STATUS=$?
+          timeout 120s godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
+            res://scenes/tests/runtime_grounded_gameplay_test.tscn 2>&1 | tee godot-runtime-gameplay.log || STATUS=$?
           STATUS=${STATUS:-0}
-          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access" godot-smoke.log; then
+          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|ÉCHEC RUNTIME" godot-runtime-gameplay.log; then
             exit 4
           fi
-          if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
+          if [ "$STATUS" -ne 0 ]; then
             exit "$STATUS"
           fi
+          grep -q 'CHK_PIRATE_WARRIOR_2_V4_RUNTIME_GROUNDED_JUMP_OK' godot-runtime-gameplay.log
 
-      - name: Exporter le véritable APK Android V3 complet
+      - name: Exporter l'APK Android V4 validée
         shell: bash
         env:
           GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /home/runner/.android/debug.keystore
@@ -226,16 +231,16 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/ci_export/build/android"
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
             --export-debug Android \
-            "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V3_unsigned.apk" \
+            "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V4_unsigned.apk" \
             --verbose 2>&1 | tee godot-export.log
-          test -s "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V3_unsigned.apk"
+          test -s "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V4_unsigned.apk"
 
       - name: Aligner signer et vérifier l'APK
         shell: bash
         run: |
           set -euo pipefail
-          SOURCE_APK="$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V3_unsigned.apk"
-          FINAL_APK="$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V3_GAMEPLAY.apk"
+          SOURCE_APK="$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V4_unsigned.apk"
+          FINAL_APK="$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V4_GAMEPLAY.apk"
           ZIPALIGN="$ANDROID_HOME/build-tools/34.0.0/zipalign"
           APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
           "$ZIPALIGN" -f -p 4 "$SOURCE_APK" "$GITHUB_WORKSPACE/artifact/aligned.apk"
@@ -248,25 +253,25 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs "$FINAL_APK"
           unzip -t "$FINAL_APK" >/dev/null
           APK_MB=$(du -m "$FINAL_APK" | cut -f1)
-          echo "APK final V3: ${APK_MB} Mo"
+          echo "APK finale V4: ${APK_MB} Mo"
           if [ "$APK_MB" -lt 70 ]; then
             echo 'ERREUR: APK anormalement petit.'
             exit 5
           fi
           sha256sum "$FINAL_APK" | tee artifact/SHA256.txt
 
-      - name: Publier APK V3 complet et rapports
+      - name: Publier APK V4 et preuves d'exécution
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: CHK-Pirate-Warrior-2-V3-GAMEPLAY-APK
+          name: CHK-Pirate-Warrior-2-V4-GAMEPLAY-APK
           path: |
-            artifact/CHK_Pirate_Warrior_2_V3_GAMEPLAY.apk
+            artifact/CHK_Pirate_Warrior_2_V4_GAMEPLAY.apk
             artifact/SHA256.txt
             artifact/GLB_BROKEN.txt
             godot-import.log
-            godot-smoke.log
+            godot-runtime-gameplay.log
             godot-export.log
-            v3-complete-audit.log
+            v4-foundation-audit.log
           if-no-files-found: warn
           retention-days: 30

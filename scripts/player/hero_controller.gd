@@ -4,10 +4,15 @@ signal health_changed(value: float, maximum: float)
 signal energy_changed(value: float, maximum: float)
 signal aura_changed(value: float)
 signal ability_used(index: int, ability: Dictionary)
+signal jumped()
+signal landed()
 
 @export var move_speed := 5.5
 @export var run_speed := 8.0
 @export var rotation_speed := 12.0
+@export var gravity := 22.0
+@export var jump_velocity := 7.4
+@export var coyote_time := 0.13
 @export var max_health := 165.0
 @export var max_energy := 100.0
 @export var target_visual_height := 1.82
@@ -30,6 +35,7 @@ var _attack_lock := 0.0
 var _dodge_time := 0.0
 var _dodge_cooldown := 0.0
 var _dodge_direction := Vector3.ZERO
+var _coyote_remaining := 0.0
 
 func _ready() -> void:
     add_to_group("player")
@@ -49,8 +55,14 @@ func _physics_process(delta: float) -> void:
     _dodge_cooldown = maxf(0.0, _dodge_cooldown - delta)
     _dodge_time = maxf(0.0, _dodge_time - delta)
 
-    if not is_on_floor():
-        velocity.y -= 18.0 * delta
+    var grounded_before := is_on_floor()
+    if grounded_before:
+        _coyote_remaining = coyote_time
+        if velocity.y < 0.0:
+            velocity.y = -0.35
+    else:
+        _coyote_remaining = maxf(0.0, _coyote_remaining - delta)
+        velocity.y -= gravity * delta
 
     var keyboard_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
     var input_vec := _virtual_move
@@ -58,6 +70,15 @@ func _physics_process(delta: float) -> void:
         input_vec = keyboard_vec
 
     var direction := _camera_relative_direction(input_vec)
+    var jumped_this_frame := false
+
+    if Input.is_action_just_pressed("jump") and _coyote_remaining > 0.0 and _dodge_time <= 0.0:
+        velocity.y = jump_velocity
+        _coyote_remaining = 0.0
+        jumped_this_frame = true
+        _play_animation_by_keywords(["jump"], false)
+        jumped.emit()
+        Input.vibrate_handheld(16)
 
     if Input.is_action_just_pressed("dodge") and _dodge_cooldown <= 0.0:
         _start_dodge(direction)
@@ -68,19 +89,31 @@ func _physics_process(delta: float) -> void:
     elif direction.length() > 0.05:
         direction = direction.normalized()
         _last_move_dir = direction
-        velocity.x = direction.x * move_speed
-        velocity.z = direction.z * move_speed
+        var input_strength := clampf(input_vec.length(), 0.0, 1.0)
+        var speed_blend := clampf((input_strength - 0.32) / 0.68, 0.0, 1.0)
+        var current_speed := lerpf(move_speed, run_speed, speed_blend)
+        if not grounded_before:
+            current_speed *= 0.78
+        velocity.x = direction.x * current_speed
+        velocity.z = direction.z * current_speed
         var target_angle := atan2(-direction.x, -direction.z)
         rotation.y = lerp_angle(rotation.y, target_angle, minf(1.0, rotation_speed * delta))
-        if _attack_lock <= 0.0:
-            _play_locomotion_animation(true)
+        if grounded_before and not jumped_this_frame and _attack_lock <= 0.0:
+            _play_locomotion_animation(true, speed_blend >= 0.56)
     else:
         velocity.x = move_toward(velocity.x, 0.0, move_speed * 7.0 * delta)
         velocity.z = move_toward(velocity.z, 0.0, move_speed * 7.0 * delta)
-        if _attack_lock <= 0.0:
+        if grounded_before and not jumped_this_frame and _attack_lock <= 0.0:
             _play_locomotion_animation(false)
 
+    if not grounded_before and velocity.y < -0.8 and _attack_lock <= 0.0:
+        _play_animation_by_keywords(["fall"], true)
+
     move_and_slide()
+
+    if not grounded_before and is_on_floor():
+        landed.emit()
+        _play_animation_by_keywords(["land"], false)
 
     if Input.is_action_just_pressed("attack"):
         basic_attack()
@@ -213,8 +246,8 @@ func _load_visuals() -> void:
             _attach_to_bone_or_fallback(
                 weapon_node,
                 ["hand.R", "RightHand", "Hand.R", "mixamorig_RightHand", "hand_r"],
+                Vector3(0.0, 0.58, 0.0),
                 Vector3.ZERO,
-                Vector3(0.0, 0.0, 90.0),
                 true
             )
 
@@ -222,7 +255,7 @@ func _attach_backpack(backpack_visual: Node3D) -> void:
     var anchor := Node3D.new()
     anchor.name = "BackpackAnchor"
     add_child(anchor)
-    anchor.position = Vector3(0.0, 1.08, 0.30)
+    anchor.position = Vector3(0.0, 1.24, 0.27)
     anchor.rotation_degrees = Vector3(0.0, 180.0, 0.0)
     anchor.add_child(backpack_visual)
 
@@ -231,7 +264,7 @@ func _attach_backpack(backpack_visual: Node3D) -> void:
         var bounds: AABB = result.get("bounds", AABB())
         var longest := maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
         if longest > 0.001:
-            var factor := clampf(0.52 / longest, 0.001, 100.0)
+            var factor := clampf(0.42 / longest, 0.001, 100.0)
             backpack_visual.scale *= Vector3.ONE * factor
             var centered_result := _calculate_visual_bounds(anchor)
             if bool(centered_result.get("valid", false)):
@@ -362,9 +395,10 @@ func _find_animation_player(root: Node) -> AnimationPlayer:
             return found
     return null
 
-func _play_locomotion_animation(moving: bool) -> void:
+func _play_locomotion_animation(moving: bool, running: bool = false) -> void:
     if moving:
-        if not _play_animation_by_keywords(["walk", "run", "move"], true):
+        var keywords := ["run", "sprint", "walk", "move"] if running else ["walk", "run", "move"]
+        if not _play_animation_by_keywords(keywords, true):
             _play_animation_by_keywords(["idle"], true)
     else:
         _play_animation_by_keywords(["idle", "stand"], true)

@@ -14,22 +14,27 @@ func _layout_v3() -> void:
     if hero_label != null and hero_label.get_parent() is Control:
         var stats := hero_label.get_parent() as Control
         stats.position = Vector2(12.0, 12.0)
-        stats.size = Vector2(430.0, 150.0)
-        hero_label.size = Vector2(220.0, 32.0)
-        level_label.position = Vector2(220.0, 12.0)
-        level_label.size = Vector2(196.0, 28.0)
+        stats.size = Vector2(405.0, 146.0)
+        hero_label.size = Vector2(205.0, 32.0)
+        hero_label.add_theme_font_size_override("font_size", 23)
+        level_label.position = Vector2(202.0, 12.0)
+        level_label.size = Vector2(188.0, 28.0)
+        level_label.add_theme_font_size_override("font_size", 15)
+        for bar in [health_bar, energy_bar, aura_bar]:
+            if bar != null:
+                bar.size.x = 286.0
 
     if mission_title != null and mission_title.get_parent() is Control:
         var mission := mission_title.get_parent() as Control
-        var mission_width := clampf(w * 0.32, 390.0, 520.0)
+        var mission_width := clampf(w * 0.32, 390.0, 470.0)
         mission.position = Vector2((w - mission_width) * 0.5, 12.0)
-        mission.size = Vector2(mission_width, 108.0)
+        mission.size = Vector2(mission_width, 96.0)
         mission_title.position = Vector2(10.0, 8.0)
-        mission_title.size = Vector2(mission_width - 20.0, 34.0)
-        mission_title.add_theme_font_size_override("font_size", 22)
-        mission_text.position = Vector2(10.0, 45.0)
-        mission_text.size = Vector2(mission_width - 20.0, 54.0)
-        mission_text.add_theme_font_size_override("font_size", 16)
+        mission_title.size = Vector2(mission_width - 20.0, 29.0)
+        mission_title.add_theme_font_size_override("font_size", 18)
+        mission_text.position = Vector2(10.0, 37.0)
+        mission_text.size = Vector2(mission_width - 20.0, 51.0)
+        mission_text.add_theme_font_size_override("font_size", 14)
 
     _place_hud_button("CARTE", Vector2(w - 430.0, 14.0), Vector2(92.0, 58.0))
     _place_hud_button("SAC", Vector2(w - 330.0, 14.0), Vector2(82.0, 58.0))

@@ -56,6 +56,80 @@ void fragment() {
     var size: Vector2 = info["size"]
     material.set_shader_parameter("island_half_size", size * 0.5)
     terrain.material_override = material
+    _build_arrival_plaza(info)
+
+func _build_arrival_plaza(info: Dictionary) -> void:
+    if _island_root == null or not is_instance_valid(_island_root):
+        return
+    var size: Vector2 = info["size"]
+    var plaza_z := size.y * 0.34
+    var plaza_y := _terrain_height_at(info, 0.0, plaza_z)
+
+    # Une surface large, visible et collisionnée garantit un vrai départ sur
+    # terre. Le terrain procédural reste en dessous, mais le joueur n'apparaît
+    # plus au-dessus d'une pente invisible ou d'une couture du maillage.
+    _add_static_box(
+        _island_root,
+        "PlaceArrivee",
+        Vector3(0.0, plaza_y - 0.45, plaza_z),
+        Vector3(86.0, 1.1, 68.0),
+        Color("d7c58b")
+    )
+
+    # Promenade continue entre la place d'arrivée et le quai principal.
+    for i in range(7):
+        var road_z := plaza_z + 40.0 + float(i) * 12.0
+        var road_y := _terrain_height_at(info, 0.0, road_z)
+        _add_static_box(
+            _island_root,
+            "RoutePort_%02d" % i,
+            Vector3(0.0, road_y - 0.30, road_z),
+            Vector3(16.0, 0.8, 13.0),
+            Color("a88958")
+        )
+
+func _add_static_box(parent: Node3D, node_name: String, center: Vector3, box_size: Vector3, color: Color) -> void:
+    var body := StaticBody3D.new()
+    body.name = node_name
+    body.position = center
+
+    var visual := MeshInstance3D.new()
+    var mesh := BoxMesh.new()
+    mesh.size = box_size
+    visual.mesh = mesh
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.roughness = 0.88
+    visual.material_override = material
+    body.add_child(visual)
+
+    var collision := CollisionShape3D.new()
+    var shape := BoxShape3D.new()
+    shape.size = box_size
+    collision.shape = shape
+    body.add_child(collision)
+    parent.add_child(body)
+
+func _terrain_height_at(info: Dictionary, x: float, z: float) -> float:
+    var size: Vector2 = info["size"]
+    var nx := x / maxf(1.0, size.x * 0.5)
+    var nz := z / maxf(1.0, size.y * 0.5)
+    var radial := sqrt(nx * nx + nz * nz)
+    var coast := smoothstep(1.0, 0.72, radial)
+    var noise := FastNoiseLite.new()
+    noise.seed = 731 + int(info["id"]) * 97
+    noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+    noise.frequency = 0.0065
+    noise.fractal_octaves = 4
+    noise.fractal_gain = 0.52
+    var raw := noise.get_noise_2d(x, z)
+    var ridge := absf(noise.get_noise_2d(x * 0.42 + 913.0, z * 0.42 - 441.0))
+    var height := (raw * 28.0 + ridge * 16.0) * coast
+    if radial > 0.94:
+        height -= (radial - 0.94) * 145.0
+    if absf(x) < 115.0 and z > size.y * 0.18:
+        height *= 0.12
+    return height
 
 func _terrain_palette(island_id: int, base_color: Color) -> Dictionary:
     match island_id:
@@ -87,4 +161,5 @@ func _safe_port_spawn(index: int) -> Vector3:
     var info: Dictionary = WorldCatalog.island(resolved)
     var size: Vector2 = info["size"]
     var local_z: float = size.y * 0.34
-    return _positions[resolved] + Vector3(0.0, 10.0, local_z)
+    var ground_y := _terrain_height_at(info, 0.0, local_z)
+    return _positions[resolved] + Vector3(0.0, ground_y + 1.2, local_z)

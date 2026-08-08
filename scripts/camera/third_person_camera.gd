@@ -8,8 +8,9 @@ extends Node3D
 @export var vertical_offset := 1.35
 
 var yaw := 0.0
-var pitch := deg_to_rad(-7.0)
+var pitch := deg_to_rad(-14.0)
 var _target: Node3D
+var _look_touch_id := -1
 
 func _ready() -> void:
     add_to_group("camera_rig")
@@ -29,10 +30,17 @@ func _follow_target() -> void:
         global_position = _target.global_position + Vector3(0.0, vertical_offset, 0.0)
 
 func _unhandled_input(event: InputEvent) -> void:
-    if event is InputEventScreenDrag:
+    if event is InputEventScreenTouch:
+        var touch := event as InputEventScreenTouch
         var viewport_size := get_viewport().get_visible_rect().size
-        if event.position.x > viewport_size.x * 0.42:
-            _add_look(Vector2(event.relative.x, event.relative.y), sensitivity)
+        if touch.pressed and _look_touch_id == -1 and touch.position.x > viewport_size.x * 0.42:
+            _look_touch_id = touch.index
+        elif not touch.pressed and touch.index == _look_touch_id:
+            _look_touch_id = -1
+    elif event is InputEventScreenDrag:
+        var drag := event as InputEventScreenDrag
+        if drag.index == _look_touch_id:
+            _add_look(Vector2(drag.relative.x, drag.relative.y), sensitivity)
     elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
         _add_look(Vector2(event.relative.x, event.relative.y), sensitivity)
 

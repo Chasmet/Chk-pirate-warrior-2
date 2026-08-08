@@ -1,8 +1,8 @@
 extends "res://scripts/camera/third_person_camera.gd"
 
-const LAND_ARM := 3.5
+const LAND_ARM := 4.2
 const BOAT_ARM := 11.5
-const LAND_HEIGHT := 1.25
+const LAND_HEIGHT := 1.45
 const BOAT_HEIGHT := 3.1
 
 var _camera_mode_boat := false
@@ -33,5 +33,5 @@ func _apply_dynamic_camera(immediate: bool, delta: float = 0.016) -> void:
         if boat_mode:
             pitch = deg_to_rad(-13.0)
         else:
-            pitch = deg_to_rad(-7.0)
+            pitch = deg_to_rad(-14.0)
         _apply_rotation()
