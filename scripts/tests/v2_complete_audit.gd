@@ -65,6 +65,13 @@ func _run() -> void:
     _check(life_text.contains("active_fauna_budget := 6"), "budget faune limité à six actifs")
     _check(life_text.contains("active_crew_budget := 3"), "trois équipages autonomes prévus")
     _check(life_text.contains("if _current_island == 11"), "le Royaume Troublé reste sans habitants ni faune")
+    _check(life_text.contains("GameState.crew_relation(crew_id)"), "les équipages appliquent réellement leur réputation persistante")
+    _check(life_text.contains("relation == \"hostile\""), "un équipage hostile poursuit et attaque en mer")
+    _check(life_text.contains("relation == \"allie\""), "un équipage allié escorte le joueur en mer")
+    _check(life_text.contains("floating_treasure_%02d"), "les trésors flottants sont collectables et persistants")
+    _check(life_text.contains("wreck_salvaged_%02d"), "les épaves sont fouillables et persistantes")
+    _check(life_text.contains("_crew_relations_ready"), "l'initialisation des relations attend le démarrage réel de la partie")
+    _check(not life_text.contains("_player = get_tree().get_first_node_in_group(\"player\") as Node3D\n    _initialize_crew_relations()"), "aucune sauvegarde n'est écrite depuis le menu au _ready")
 
     var camera_text := FileAccess.get_file_as_string("res://scripts/camera/third_person_camera_v2.gd")
     _check(camera_text.contains("BOAT_ARM := 11.5"), "la caméra bateau cadre le navire en troisième personne")
