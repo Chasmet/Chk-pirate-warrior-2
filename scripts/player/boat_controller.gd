@@ -14,6 +14,8 @@ var _driver_parent: Node
 var _driver_collision: CollisionShape3D
 var _visual: Node3D
 var _bobbing_time := 0.0
+var _forward_speed := 0.0
+var _steering_velocity := 0.0
 
 func _ready() -> void:
     add_to_group("boat")
@@ -52,7 +54,10 @@ func board(player: CharacterBody3D) -> void:
     player.reparent(self, true)
     player.position = Vector3(0.0, 1.25, 0.25)
     player.rotation = Vector3.ZERO
+    _forward_speed = 0.0
+    _steering_velocity = 0.0
     add_to_group("active_controller")
+    GameState.set_exact_snapshot(global_position, rotation.y, true)
 
 func disembark() -> void:
     if not is_boarded():
@@ -67,33 +72,66 @@ func disembark() -> void:
         _driver_collision.disabled = false
     player.set_physics_process(true)
     remove_from_group("active_controller")
+    GameState.set_exact_snapshot(player.global_position, player.rotation.y, false)
+    GameState.quick_save()
     _driver = null
     _driver_parent = null
     _driver_collision = null
     _virtual_move = Vector2.ZERO
+    _forward_speed = 0.0
+    _steering_velocity = 0.0
 
 func _physics_process(delta: float) -> void:
     _bobbing_time += delta
-    global_position.y = water_height + sin(_bobbing_time * 1.7) * 0.10
+    var wave := sin(_bobbing_time * 1.7) * 0.10 + sin(_bobbing_time * 0.73 + global_position.x * 0.002) * 0.035
+    global_position.y = water_height + wave
     if not is_boarded():
+        _forward_speed = move_toward(_forward_speed, 0.0, 3.5 * delta)
         velocity = velocity.move_toward(Vector3.ZERO, 8.0 * delta)
+        _animate_hull(0.0, 0.0, delta)
         move_and_slide()
         return
 
     var keyboard := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
     var input_vec := _virtual_move if _virtual_move.length() >= keyboard.length() else keyboard
-    rotation.y -= input_vec.x * turn_speed * delta
-    var throttle := clampf(-input_vec.y, -0.35, 1.0)
-    var speed := boost_speed if Input.is_action_pressed("dodge") else cruise_speed
+    var throttle := clampf(-input_vec.y, -0.42, 1.0)
+    var steering := clampf(input_vec.x, -1.0, 1.0)
+    var upgrade_factor := 1.0 + float(maxi(0, GameState.boat_level - 1)) * 0.075
+    var maximum_speed := (boost_speed if Input.is_action_pressed("dodge") else cruise_speed) * upgrade_factor
+    var reverse_speed := maximum_speed * 0.30
+    var target_speed := throttle * (maximum_speed if throttle >= 0.0 else reverse_speed)
+
+    var acceleration := (9.0 + float(GameState.boat_level) * 0.8) if absf(throttle) > 0.05 else 4.8
+    _forward_speed = move_toward(_forward_speed, target_speed, acceleration * delta)
+    var speed_ratio := clampf(absf(_forward_speed) / maxf(maximum_speed, 0.1), 0.0, 1.0)
+
+    var steering_grip := lerpf(0.36, 1.0, smoothstep(0.03, 0.72, speed_ratio))
+    if absf(_forward_speed) < 0.8:
+        steering_grip = maxf(steering_grip, 0.24)
+    var reverse_sign := -1.0 if _forward_speed < -0.25 else 1.0
+    var target_turn := steering * turn_speed * steering_grip * reverse_sign * (1.0 + float(GameState.boat_level - 1) * 0.025)
+    _steering_velocity = move_toward(_steering_velocity, target_turn, 3.1 * delta)
+    rotation.y -= _steering_velocity * delta
+
     var forward := -global_transform.basis.z
-    var target_velocity := forward * throttle * speed
-    velocity.x = move_toward(velocity.x, target_velocity.x, speed * 1.8 * delta)
-    velocity.z = move_toward(velocity.z, target_velocity.z, speed * 1.8 * delta)
+    var target_velocity := forward * _forward_speed
+    var hull_response := lerpf(5.2, 8.6, speed_ratio)
+    velocity.x = move_toward(velocity.x, target_velocity.x, hull_response * delta)
+    velocity.z = move_toward(velocity.z, target_velocity.z, hull_response * delta)
     velocity.y = 0.0
     move_and_slide()
+    _animate_hull(steering, speed_ratio, delta)
 
     if Input.is_action_just_pressed("interact"):
         disembark()
+
+func _animate_hull(steering: float, speed_ratio: float, delta: float) -> void:
+    if _visual == null or not is_instance_valid(_visual):
+        return
+    var target_roll := -steering * 0.075 * speed_ratio + sin(_bobbing_time * 1.35) * 0.012
+    var target_pitch := sin(_bobbing_time * 1.05 + 0.7) * (0.012 + speed_ratio * 0.018)
+    _visual.rotation.z = lerpf(_visual.rotation.z, target_roll, 1.0 - exp(-3.2 * delta))
+    _visual.rotation.x = lerpf(_visual.rotation.x, target_pitch, 1.0 - exp(-2.8 * delta))
 
 func _load_visual() -> void:
     if _visual != null and is_instance_valid(_visual):
@@ -126,19 +164,11 @@ func _normalize_visual(root: Node3D) -> void:
         if mesh_instance.mesh == null:
             continue
         var box := mesh_instance.get_aabb()
-        var xf := root.global_transform.affine_inverse() * mesh_instance.global_transform
+        var transform := root.global_transform.affine_inverse() * mesh_instance.global_transform
         for i in range(8):
-            var p: Vector3 = xf * box.get_endpoint(i)
-            min_corner = Vector3(
-                minf(min_corner.x, p.x),
-                minf(min_corner.y, p.y),
-                minf(min_corner.z, p.z)
-            )
-            max_corner = Vector3(
-                maxf(max_corner.x, p.x),
-                maxf(max_corner.y, p.y),
-                maxf(max_corner.z, p.z)
-            )
+            var point: Vector3 = transform * box.get_endpoint(i)
+            min_corner = Vector3(minf(min_corner.x, point.x), minf(min_corner.y, point.y), minf(min_corner.z, point.z))
+            max_corner = Vector3(maxf(max_corner.x, point.x), maxf(max_corner.y, point.y), maxf(max_corner.z, point.z))
     var size := max_corner - min_corner
     if size.length() <= 0.01:
         return
