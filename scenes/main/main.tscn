@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/hero_controller.gd" id="1_hero"]
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera.gd" id="2_camera"]
@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/mobile_input_overlay.tscn" id="4_touch"]
 [ext_resource type="Script" path="res://scripts/world/archipelago_director.gd" id="5_world"]
 [ext_resource type="Script" path="res://scripts/ui/main_menu_runtime.gd" id="6_menu"]
+[ext_resource type="Script" path="res://scripts/world/world_life_director.gd" id="7_life"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.38
@@ -34,6 +35,9 @@ fov = 68.0
 
 [node name="ArchipelagoDirector" type="Node3D" parent="."]
 script = ExtResource("5_world")
+
+[node name="WorldLifeDirector" type="Node3D" parent="."]
+script = ExtResource("7_life")
 
 [node name="HUDMobile" parent="." instance=ExtResource("3_hud")]
 
