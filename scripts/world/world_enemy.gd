@@ -304,7 +304,7 @@ func _ensure_objective_marker() -> void:
     _objective_marker.add_child(nameplate)
 
 func _nameplate_text() -> String:
-    var prefix := "BOSS" if boss else _archetype_label()
+    var prefix := "GRAND BOSS" if boss else ("COMMANDANT 1" if display_name.to_lower().contains("commandant 1") else ("COMMANDANT 2" if display_name.to_lower().contains("commandant 2") else _archetype_label()))
     var phase := " • PHASE 2" if _phase_two else ""
     return "%s%s\n%s" % [prefix, phase, display_name.to_upper()]
 
