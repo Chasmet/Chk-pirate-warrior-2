@@ -79,3 +79,23 @@ func _normalize_weapon_visual() -> void:
     if parent_scaled_by_hero and _visual_scale_factor > 0.001:
         local_factor /= _visual_scale_factor
     weapon_node.scale = Vector3.ONE * local_factor
+
+func basic_attack() -> void:
+    super.basic_attack()
+    # Réplique courte, aléatoire et limitée par le directeur vocal : jamais à chaque coup.
+    get_tree().call_group("hero_voice_director", "play_event", "attaque")
+
+func use_ability(index: int) -> bool:
+    var used := super.use_ability(index)
+    if used:
+        # Tant qu'aucune prise "pouvoir" dédiée n'existe, les phrases d'attaque
+        # servent aussi aux capacités offensives, avec le même anti-spam.
+        get_tree().call_group("hero_voice_director", "play_event", "attaque")
+    return used
+
+func receive_damage(amount: float) -> void:
+    var health_before := health
+    super.receive_damage(amount)
+    # Le son part uniquement si le coup a réellement traversé l'invulnérabilité.
+    if health < health_before:
+        get_tree().call_group("hero_voice_director", "play_event", "douleur")
