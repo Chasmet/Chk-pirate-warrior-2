@@ -173,17 +173,18 @@ func _build_music_arrival(size: Vector2, arrival_z: float, colors: Array) -> voi
             _box(_root, "PianoNoir_%02d_%02d" % [row, black_key], Vector3(bx, y + 0.18, z - 1.2), Vector3(1.55, 0.32, 3.5), Color("27272b"))
 
     # Deux arches-harpes marquent l'entrée du royaume depuis le quai.
-    for side in [-1.0, 1.0]:
+    for side_variant in [-1.0, 1.0]:
+        var side: float = float(side_variant)
         var harp := Node3D.new()
-        harp.name = "ArcheHarpe_%s" % ("G" if side < 0 else "D")
+        harp.name = "ArcheHarpe_%s" % ("G" if side < 0.0 else "D")
         harp.position = _ground_local(Vector3(side * 32.0, 0.0, arrival_z - 8.0))
         _root.add_child(harp)
         _cylinder(harp, "Montant", Vector3(0.0, 5.0, 0.0), 0.48, 10.0, colors[0])
         _cylinder(harp, "ColonneCourbe", Vector3(side * 3.4, 4.4, 0.0), 0.36, 8.8, colors[0])
         _box(harp, "Traverse", Vector3(side * 1.7, 8.8, 0.0), Vector3(4.6, 0.45, 0.45), colors[0])
         for string_index in range(7):
-            var sx := side * (0.55 + float(string_index) * 0.42)
-            var sh := 6.4 - float(string_index) * 0.45
+            var sx: float = side * (0.55 + float(string_index) * 0.42)
+            var sh: float = 6.4 - float(string_index) * 0.45
             _cylinder(harp, "Corde_%02d" % string_index, Vector3(sx, 4.4, 0.0), 0.045, sh, colors[2], 0.75)
 
     # Place publique : scène, batterie, orgue et grands symboles musicaux.
