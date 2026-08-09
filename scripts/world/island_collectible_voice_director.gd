@@ -6,7 +6,7 @@ extends IslandCollectibleDirector
 func _collect_nearby() -> void:
     var loot_will_be_collected := false
     if _player != null and is_instance_valid(_player):
-        for pickup: Node3D in _pickups:
+        for pickup in _pickups:
             if not is_instance_valid(pickup) or pickup.is_queued_for_deletion():
                 continue
             if str(pickup.get_meta("kind", "coin")) != "loot":
