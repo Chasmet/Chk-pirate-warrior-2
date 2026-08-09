@@ -16,8 +16,9 @@ var _dodge_button: TouchActionButton
 var _jump_button: TouchActionButton
 var _interact_button: TouchActionButton
 var _hero_switch_button: TouchActionButton
+var _inventory_button: TouchActionButton
 var _camera_reset_button: TouchActionButton
-var _last_boat_mode := false
+var _last_vehicle_mode := false
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
@@ -41,11 +42,12 @@ func _ready() -> void:
     _dodge_button = _create_action_button("ESQUIVE", &"dodge", Vector2(116, 116), 17, true)
     _dodge_button.name = "DodgeButton"
 
-    # SAUT est volontairement côté gauche, juste après le joystick.
-    _jump_button = _create_action_button("SAUT", &"jump", Vector2(150, 84), 21, false)
+    # SAUT appartient au bloc d'actions de droite, comme demandé sur téléphone.
+    _jump_button = _create_action_button("SAUT", &"jump", Vector2(116, 116), 19, true)
     _jump_button.name = "JumpButton"
     _create_interact_button()
     _create_switch_button()
+    _create_inventory_button()
     _create_camera_reset_button()
 
     GameState.hero_changed.connect(_on_hero_changed)
@@ -56,11 +58,15 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
     var active := get_tree().get_first_node_in_group("active_controller")
-    var boat_mode := active is BoatController and (active as BoatController).is_boarded()
-    if boat_mode != _last_boat_mode:
-        _last_boat_mode = boat_mode
+    var vehicle_mode := active != null
+    if vehicle_mode != _last_vehicle_mode:
+        _last_vehicle_mode = vehicle_mode
         if _jump_button != null:
-            _jump_button.set_enabled(not boat_mode)
+            _jump_button.set_enabled(not vehicle_mode)
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+        _cancel_all_touches()
 
 func _create_action_button(label: String, action: StringName, button_size: Vector2, font_size: int, round_button: bool) -> TouchActionButton:
     var button := TouchActionButtonScript.new() as TouchActionButton
@@ -79,6 +85,10 @@ func _create_switch_button() -> void:
     _hero_switch_button = _create_action_button("HÉROS", &"", Vector2(96, 96), 16, true)
     _hero_switch_button.name = "HeroSwitchButton"
     _hero_switch_button.activated.connect(func(): GameState.cycle_hero())
+
+func _create_inventory_button() -> void:
+    _inventory_button = _create_action_button("SAC", &"open_inventory", Vector2(96, 96), 17, true)
+    _inventory_button.name = "InventoryButton"
 
 func _create_camera_reset_button() -> void:
     # Fonction conservée mais masquée : un bouton technique ne doit plus encombrer le HUD.
@@ -126,6 +136,22 @@ func _recenter_camera() -> void:
     if rig != null and rig.has_method("recenter_behind_target"):
         rig.recenter_behind_target()
 
+func _cancel_all_touches() -> void:
+    if _movement != null and _movement.has_method("cancel_input"):
+        _movement.call("cancel_input")
+    for button in [
+        _attack_button,
+        _ability_1_button,
+        _ability_2_button,
+        _dodge_button,
+        _jump_button,
+        _interact_button,
+        _hero_switch_button,
+        _inventory_button
+    ]:
+        if button != null:
+            button.cancel_press()
+
 func _layout_controls() -> void:
     var viewport_size := get_viewport().get_visible_rect().size
     var w := viewport_size.x
@@ -138,16 +164,17 @@ func _layout_controls() -> void:
             maxf(72.0, h - _movement.size.y - SAFE_BOTTOM_MARGIN)
         )
 
-    # Ordre demandé : joystick -> SAUT -> INTERAGIR. Aucun chevauchement.
+    # Centre : interaction, choix du héros et sac. Le joystick reste seul à gauche.
     var action_y := h - SAFE_BOTTOM_MARGIN - 84.0
-    if _jump_button != null:
-        var jump_x := JOYSTICK_LEFT_MARGIN + (_movement.size.x if _movement != null else 282.0) + 16.0
-        _jump_button.position = Vector2(jump_x, action_y)
     if _interact_button != null:
-        var interact_x := (_jump_button.position.x + _jump_button.size.x + 14.0) if _jump_button != null else 520.0
+        var joystick_right := JOYSTICK_LEFT_MARGIN + (_movement.size.x if _movement != null else 282.0)
+        var jump_left := w - SAFE_SIDE_MARGIN - 174.0 - 116.0 - 116.0 - 42.0
+        var interact_x := clampf(w * 0.5 - 105.0, joystick_right + 16.0, jump_left - 224.0)
         _interact_button.position = Vector2(interact_x, action_y)
     if _hero_switch_button != null:
-        _hero_switch_button.position = Vector2(500.0, maxf(292.0, h - 342.0))
+        _hero_switch_button.position = Vector2(_interact_button.position.x + 2.0, maxf(286.0, action_y - 112.0))
+    if _inventory_button != null:
+        _inventory_button.position = Vector2(_interact_button.position.x + 112.0, maxf(286.0, action_y - 112.0))
 
     # Bloc combat à droite. Tous les boutons restent hors de la bande système Android.
     if _attack_button != null:
@@ -159,6 +186,11 @@ func _layout_controls() -> void:
         _dodge_button.position = Vector2(
             w - SAFE_SIDE_MARGIN - _attack_button.size.x - _dodge_button.size.x - 18.0,
             h - SAFE_BOTTOM_MARGIN - _dodge_button.size.y + 8.0
+        )
+    if _jump_button != null:
+        _jump_button.position = Vector2(
+            _dodge_button.position.x - _jump_button.size.x - 18.0,
+            h - SAFE_BOTTOM_MARGIN - _jump_button.size.y + 8.0
         )
     if _ability_1_button != null:
         _ability_1_button.position = Vector2(

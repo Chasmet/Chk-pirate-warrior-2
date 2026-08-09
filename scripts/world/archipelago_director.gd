@@ -64,17 +64,19 @@ func request_boat_interaction() -> bool:
     if active != null and active.has_method("disembark"):
         active.disembark()
         return true
-    var best_boat: Node3D
+    var best_controller: Node3D
     var best_distance := INF
-    for boat in get_tree().get_nodes_in_group("boat"):
-        if boat is Node3D:
-            var d: float = (boat as Node3D).global_position.distance_to(_player.global_position)
+    for group_name in ["boat", "island_vehicle"]:
+        for candidate in get_tree().get_nodes_in_group(group_name):
+            if not (candidate is Node3D) or not is_instance_valid(candidate):
+                continue
+            var d: float = (candidate as Node3D).global_position.distance_to(_player.global_position)
             if d < best_distance:
                 best_distance = d
-                best_boat = boat as Node3D
-    if best_boat != null and best_distance <= 9.0 and best_boat.has_method("try_interact"):
-        return bool(best_boat.try_interact(_player))
-    _notify("Approche-toi d'un bateau pour embarquer.")
+                best_controller = candidate as Node3D
+    if best_controller != null and best_distance <= 9.0 and best_controller.has_method("try_interact"):
+        return bool(best_controller.try_interact(_player))
+    _notify("Approche-toi d'un bateau ou d'un véhicule pour l'utiliser.")
     return false
 
 func _nearest_island_index(world_position: Vector3) -> int:
@@ -354,18 +356,31 @@ func _scatter_real_props(info: Dictionary) -> void:
 func _spawn_population_and_enemies(info: Dictionary) -> void:
     var size: Vector2 = info["size"]
     var soldier_paths: Array = info.get("soldiers", [])
+    var soldier_names: Array = info.get("soldier_names", [])
+    var soldier_archetypes: Array = info.get("soldier_archetypes", [])
     if not soldier_paths.is_empty():
         for i in range(soldier_count):
-            var path := str(soldier_paths[i % soldier_paths.size()])
+            var variant := i % soldier_paths.size()
+            var path := str(soldier_paths[variant])
+            var display_name := str(soldier_names[variant % soldier_names.size()]) if not soldier_names.is_empty() else "Force locale"
+            var archetype := str(soldier_archetypes[variant % soldier_archetypes.size()]) if not soldier_archetypes.is_empty() else "melee"
             var angle := TAU * float(i) / float(maxi(1, soldier_count))
             var radius := minf(size.x, size.y) * (0.12 + float(i % 3) * 0.045)
-            _spawn_enemy(path, Vector3(cos(angle) * radius, 10.0, sin(angle) * radius), false, 0.8 + float(info["id"]) * 0.12)
+            _spawn_enemy(path, Vector3(cos(angle) * radius, 10.0, sin(angle) * radius), false, 0.8 + float(info["id"]) * 0.12, display_name, archetype, variant)
     if ResourceLoader.exists(str(info["boss"])):
-        _spawn_enemy(str(info["boss"]), Vector3(0.0, 12.0, -size.y * 0.18), true, 1.0 + float(info["id"]) * 0.16)
+        _spawn_enemy(
+            str(info["boss"]),
+            Vector3(0.0, 12.0, -size.y * 0.18),
+            true,
+            1.0 + float(info["id"]) * 0.16,
+            str(info.get("boss_name", "Boss")),
+            str(info.get("boss_archetype", "boss_brute")),
+            0
+        )
 
-func _spawn_enemy(path: String, local_position: Vector3, is_boss: bool, difficulty: float) -> void:
+func _spawn_enemy(path: String, local_position: Vector3, is_boss: bool, difficulty: float, display_name: String = "", archetype: String = "melee", variant_index: int = 0) -> void:
     var enemy := CharacterBody3D.new()
-    enemy.name = "Boss" if is_boss else "Ennemi"
+    enemy.name = ("Boss" if is_boss else "Ennemi") + "_%02d" % variant_index
     enemy.set_script(WorldEnemyScript)
     var collision := CollisionShape3D.new()
     var shape := CapsuleShape3D.new()
@@ -375,11 +390,7 @@ func _spawn_enemy(path: String, local_position: Vector3, is_boss: bool, difficul
     collision.position.y = shape.height * 0.5
     enemy.add_child(collision)
     enemy.position = local_position
-    enemy.set("model_path", path)
-    enemy.set("boss", is_boss)
-    enemy.set("max_health", (620.0 if is_boss else 105.0) * difficulty)
-    enemy.set("health", (620.0 if is_boss else 105.0) * difficulty)
-    enemy.set("attack_damage", (22.0 if is_boss else 8.0) * difficulty)
+    enemy.call("configure", path, is_boss, difficulty, display_name, archetype, variant_index)
     _island_root.add_child(enemy)
 
 func _spawn_boat(info: Dictionary) -> void:

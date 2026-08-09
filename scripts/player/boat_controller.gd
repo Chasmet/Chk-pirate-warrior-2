@@ -1,6 +1,11 @@
 class_name BoatController
 extends CharacterBody3D
 
+const DECKHAND_MODELS := [
+    "res://assets/vrac/Adventurer by Quaternius - 5EGWBMpuXq.glb",
+    "res://assets/vrac/solad 1 anime.glb"
+]
+
 @export var model_path := "res://assets/bateaux_glb/glb/navire_pirate_clair.glb"
 @export var cruise_speed := 24.0
 @export var boost_speed := 38.0
@@ -16,10 +21,12 @@ var _bobbing_time := 0.0
 var _forward_speed := 0.0
 var _steering_velocity := 0.0
 var _snapshot_accumulator := 0.0
+var _crew_root: Node3D
 
 func _ready() -> void:
     add_to_group("boat")
     _load_visual()
+    _build_deck_crew()
 
 func _exit_tree() -> void:
     if not is_boarded():
@@ -42,6 +49,7 @@ func setup(path: String) -> void:
     model_path = path
     if is_inside_tree():
         _load_visual()
+        _build_deck_crew()
 
 func set_virtual_move(value: Vector2) -> void:
     _virtual_move = value.limit_length(1.0)
@@ -262,6 +270,79 @@ func _collect_meshes(node: Node, output: Array[MeshInstance3D]) -> void:
         output.append(node as MeshInstance3D)
     for child in node.get_children():
         _collect_meshes(child, output)
+
+func _build_deck_crew() -> void:
+    if _crew_root != null and is_instance_valid(_crew_root):
+        _crew_root.queue_free()
+    _crew_root = Node3D.new()
+    _crew_root.name = "MatelotsDuBord"
+    add_child(_crew_root)
+    for i in range(DECKHAND_MODELS.size()):
+        var deckhand := _instantiate_character(str(DECKHAND_MODELS[i]))
+        if deckhand == null:
+            deckhand = _fallback_deckhand(i)
+        deckhand.name = "Matelot_%02d" % (i + 1)
+        _crew_root.add_child(deckhand)
+        _normalize_character(deckhand, 1.70)
+        deckhand.position = Vector3(-1.28 if i == 0 else 1.28, 1.24, -1.25 if i == 0 else 1.45)
+        deckhand.rotation.y = PI if i == 0 else 0.0
+
+func _instantiate_character(path: String) -> Node3D:
+    if path.is_empty() or not ResourceLoader.exists(path):
+        return null
+    var resource: Resource = load(path)
+    if resource is PackedScene:
+        var instance := (resource as PackedScene).instantiate()
+        if instance is Node3D:
+            return instance as Node3D
+        instance.queue_free()
+    return null
+
+func _normalize_character(root: Node3D, target_height: float) -> void:
+    var meshes: Array[MeshInstance3D] = []
+    _collect_meshes(root, meshes)
+    if meshes.is_empty():
+        return
+    var min_y := INF
+    var max_y := -INF
+    var inverse := root.global_transform.affine_inverse()
+    for mesh_instance in meshes:
+        if mesh_instance.mesh == null:
+            continue
+        var box := mesh_instance.get_aabb()
+        var transform := inverse * mesh_instance.global_transform
+        for endpoint in range(8):
+            var point: Vector3 = transform * box.get_endpoint(endpoint)
+            min_y = minf(min_y, point.y)
+            max_y = maxf(max_y, point.y)
+    var height := max_y - min_y
+    if height <= 0.01:
+        return
+    var factor := clampf(target_height / height, 0.015, 24.0)
+    root.scale *= Vector3.ONE * factor
+    root.position.y -= min_y * factor
+
+func _fallback_deckhand(index: int) -> Node3D:
+    var root := Node3D.new()
+    var body := MeshInstance3D.new()
+    var capsule := CapsuleMesh.new()
+    capsule.radius = 0.28
+    capsule.height = 1.25
+    body.mesh = capsule
+    body.position.y = 0.78
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color("4c6070") if index == 0 else Color("7a5537")
+    body.material_override = material
+    root.add_child(body)
+    var head := MeshInstance3D.new()
+    var sphere := SphereMesh.new()
+    sphere.radius = 0.21
+    sphere.height = 0.42
+    head.mesh = sphere
+    head.position.y = 1.53
+    head.material_override = material
+    root.add_child(head)
+    return root
 
 func _create_fallback_visual() -> void:
     var mesh_instance := MeshInstance3D.new()

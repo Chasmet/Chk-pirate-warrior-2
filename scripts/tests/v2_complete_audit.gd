@@ -4,10 +4,10 @@ var failures := 0
 
 func _check(condition: bool, message: String) -> void:
     if condition:
-        print("OK V4  ", message)
+        print("OK V5  ", message)
     else:
         failures += 1
-        push_error("ÉCHEC V4  " + message)
+        push_error("ÉCHEC V5  " + message)
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -22,6 +22,9 @@ func _run() -> void:
     _check(ResourceLoader.exists("res://scripts/world/coastal_detail_director.gd"), "détails côtiers présents")
     _check(ResourceLoader.exists("res://scripts/world/island_collectible_director.gd"), "collectibles insulaires présents")
     _check(ResourceLoader.exists("res://scripts/world/ambient_fauna_director.gd"), "faune côtière présente")
+    _check(ResourceLoader.exists("res://scripts/world/island_settlement_director.gd"), "villages et quais V5 présents")
+    _check(ResourceLoader.exists("res://scripts/world/island_vehicle_director.gd"), "véhicules de royaume V5 présents")
+    _check(ResourceLoader.exists("res://scripts/player/island_vehicle.gd"), "contrôleur de véhicule terrestre présent")
     _check(ResourceLoader.exists("res://scripts/player/hero_controller_v3.gd"), "contrôleur héros V3 présent")
     _check(ResourceLoader.exists("res://scripts/camera/third_person_camera_v3.gd"), "caméra troisième personne V3 présente")
     _check(ResourceLoader.exists("res://scripts/ui/hud_mobile_v3.gd"), "HUD Android responsive présent")
@@ -30,6 +33,13 @@ func _run() -> void:
     _check(project_text.contains("config/icon=\"res://assets/interface/logo_chk_pirate_warrior_2.png\""), "logo configuré comme icône de projet")
     _check(project_text.contains("size/viewport_width=1280"), "viewport Android optimisé en 1280x720")
     _check(project_text.contains("size/viewport_height=720"), "hauteur viewport Android optimisée")
+
+    var island_one := WorldCatalog.island(0)
+    _check((island_one.get("soldiers", []) as Array).size() >= 4, "l'île 1 ne répète plus un seul modèle ennemi")
+    _check((island_one.get("soldier_archetypes", []) as Array).size() >= 4, "l'île 1 possède quatre comportements ennemis")
+    for island_index in range(WorldCatalog.island_count()):
+        var island_info := WorldCatalog.island(island_index)
+        _check((island_info.get("soldiers", []) as Array).size() >= 3, "île %02d : au moins trois modèles de forces" % (island_index + 1))
 
     var export_text := FileAccess.get_file_as_string("res://export_presets.cfg")
     var invalid_sdk_override := export_text.contains("gradle_build/use_gradle_build=false") and (export_text.contains("gradle_build/min_sdk=") or export_text.contains("gradle_build/target_sdk="))
@@ -50,6 +60,8 @@ func _run() -> void:
     _check(director_text.contains("func _update_final_reward_collection"), "trophée final réellement ramassable")
     _check(director_text.contains("func _rescue_player_from_ocean"), "secours automatique si le héros tombe dans l'océan")
     _check(director_text.contains("func _restore_boat_mode_if_needed"), "reprise de sauvegarde en mer")
+    _check(director_text.contains("active.has_method(\"force_disembark_at\")"), "respawn libère bateau et véhicule terrestre")
+    _check(director_text.contains("var boat_mode: bool = active is BoatController"), "un véhicule terrestre n'est pas sauvegardé comme bateau")
 
     var director_v3_text := FileAccess.get_file_as_string("res://scripts/world/archipelago_director_v3.gd")
     _check(director_v3_text.contains("func _scatter_real_props"), "ancienne dispersion GLB non normalisée désactivée")
@@ -112,6 +124,9 @@ func _run() -> void:
     _check(touch_text.contains("Vector2(282, 282)"), "gros joystick déplacement")
     _check(touch_text.contains("Vector2(174, 174)"), "gros bouton attaque")
     _check(touch_text.contains("\"SAUT\", &\"jump\""), "bouton SAUT tactile visible")
+    _check(touch_text.contains("_dodge_button.position.x - _jump_button.size.x"), "bouton SAUT placé dans le bloc d'actions droit")
+    _check(touch_text.contains("InventoryButton"), "bouton SAC tactile non masqué")
+    _check(touch_text.contains("NOTIFICATION_APPLICATION_FOCUS_OUT"), "interruption Android libère les contacts multitouch")
     _check(touch_text.contains("TouchActionButtonScript"), "boutons d'action réellement multitouch")
     _check(touch_text.contains("SAFE_SIDE_MARGIN := 190.0"), "actions éloignées du bord de navigation Android")
     _check(touch_text.contains("AttackButton") and touch_text.contains("Ability1Button") and touch_text.contains("Ability2Button"), "boutons d'action nommés pour les tests runtime")
@@ -120,6 +135,7 @@ func _run() -> void:
 
     var action_button_text := FileAccess.get_file_as_string("res://scripts/ui/touch_action_button.gd")
     _check(not action_button_text.contains("Input.vibrate_handheld"), "aucun appel Android haptique commun pendant un appui d'action")
+    _check(action_button_text.contains("func cancel_press"), "chaque bouton peut annuler un contact Android interrompu")
 
     var joystick_text := FileAccess.get_file_as_string("res://scripts/ui/virtual_joystick.gd")
     _check(joystick_text.contains("make_canvas_position_local"), "coordonnées tactiles du joystick converties du viewport vers le local")
@@ -135,11 +151,35 @@ func _run() -> void:
     _check(not boat_text.contains("player.reparent(self"), "héros indépendant du bateau")
     _check(boat_text.contains("func _exit_tree"), "suppression bateau sécurisée")
     _check(boat_text.contains("func _find_safe_disembark_position"), "débarquement limité à une rive collisionnée")
+    _check(boat_text.contains("MatelotsDuBord"), "matelots visibles sur le bateau du joueur")
 
     var life_text := FileAccess.get_file_as_string("res://scripts/world/world_life_director.gd")
     _check(life_text.contains("active_citizen_budget := 10"), "budget habitants mobile")
     _check(life_text.contains("active_fauna_budget := 6"), "budget faune mobile")
     _check(life_text.contains("active_crew_budget := 3"), "trois équipages autonomes")
+    _check(life_text.contains("CIVILIAN_ROLES"), "habitants diversifiés par métier")
+    _check(life_text.contains("Matelot du quai"), "présence d'un matelot au quai d'embarquement")
+    _check(life_text.contains("for crew_index in range(3)"), "plusieurs matelots visibles sur les équipages libres")
+
+    var enemy_text := FileAccess.get_file_as_string("res://scripts/world/world_enemy.gd")
+    _check(enemy_text.contains("func _apply_archetype_stats"), "classes ennemies réellement distinctes")
+    _check(enemy_text.contains("boss_ranged") and enemy_text.contains("boss_duelist") and enemy_text.contains("boss_brute"), "boss dotés de profils tactiques distincts")
+    _check(enemy_text.contains("func _enter_phase_two"), "tous les boss possèdent une phase 2 fonctionnelle")
+    _check(enemy_text.contains("_attack_windup"), "attaques ennemies télégraphiées avant les dégâts")
+
+    var vehicle_text := FileAccess.get_file_as_string("res://scripts/player/island_vehicle.gd")
+    _check(vehicle_text.contains("class_name IslandVehicle"), "véhicule terrestre typé")
+    _check(vehicle_text.contains("func board") and vehicle_text.contains("func disembark"), "montée et descente des véhicules implémentées")
+    _check(vehicle_text.contains("move_and_slide"), "véhicules collisionnés avec le relief")
+
+    var vehicle_director_text := FileAccess.get_file_as_string("res://scripts/world/island_vehicle_director.gd")
+    _check(vehicle_director_text.contains("const VEHICLES"), "catalogue de véhicules thématiques présent")
+    _check(vehicle_director_text.contains("for i in range(specs.size())"), "plusieurs véhicules construits par royaume")
+
+    var settlement_text := FileAccess.get_file_as_string("res://scripts/world/island_settlement_director.gd")
+    _check(settlement_text.contains("building_count := 9 if _current_island == 11 else 12"), "douze bâtiments actifs par royaume habité")
+    _check(settlement_text.contains("func _spawn_port_market"), "échoppes ajoutées près des quais")
+    _check(settlement_text.contains("func _spawn_ruin"), "royaume final reste inhabité avec des ruines")
 
     var collectible_text := FileAccess.get_file_as_string("res://scripts/world/island_collectible_director.gd")
     _check(collectible_text.contains("coin_count_per_island := 18"), "18 pièces légères prévues par île")
@@ -182,9 +222,12 @@ func _run() -> void:
     _check(main_scene_text.contains("spring_length = 3.65"), "SpringArm V4 rapproché")
     _check(main_scene_text.contains("fov = 64.0"), "FOV V4 légèrement resserré")
     _check(main_scene_text.contains("world_life_director.gd"), "monde vivant actif")
+    _check(main_scene_text.contains("island_vehicle_director.gd"), "véhicules chargés dans la scène principale")
+    _check(main_scene_text.contains("island_settlement_director.gd"), "villages chargés dans la scène principale")
 
     if failures == 0:
         print("CHK_PIRATE_WARRIOR_2_V4_FOUNDATION_AUDIT_OK")
+        print("CHK_PIRATE_WARRIOR_2_V5_LIVING_ISLANDS_AUDIT_OK")
     else:
-        push_error("%d vérification(s) V4 ont échoué" % failures)
+        push_error("%d vérification(s) V5 ont échoué" % failures)
     quit(failures)

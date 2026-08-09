@@ -94,17 +94,22 @@ func _spawn_population_and_enemies(info: Dictionary) -> void:
     var size: Vector2 = info["size"]
     var difficulty_multiplier := GameState.difficulty_enemy_multiplier()
     var soldier_paths: Array = info.get("soldiers", [])
+    var soldier_names: Array = info.get("soldier_names", [])
+    var soldier_archetypes: Array = info.get("soldier_archetypes", [])
     var progress := clampi(int(GameState.get_quest_value(_soldier_key(island_id), 0)), 0, SOLDIERS_REQUIRED)
 
     if island_id != 11 and progress < SOLDIERS_REQUIRED and not soldier_paths.is_empty():
         var remaining := SOLDIERS_REQUIRED - progress
         var spawn_count := clampi(maxi(remaining, 3), 3, soldier_count)
         for i in range(spawn_count):
-            var path := str(soldier_paths[i % soldier_paths.size()])
+            var variant := (i + progress) % soldier_paths.size()
+            var path := str(soldier_paths[variant])
+            var display_name := str(soldier_names[variant % soldier_names.size()]) if not soldier_names.is_empty() else "Force locale"
+            var archetype := str(soldier_archetypes[variant % soldier_archetypes.size()]) if not soldier_archetypes.is_empty() else "melee"
             var angle := TAU * float(i) / float(maxi(1, spawn_count))
             var radius := minf(size.x, size.y) * (0.12 + float(i % 3) * 0.045)
             var base_difficulty := 0.8 + float(island_id) * 0.12
-            _spawn_enemy(path, Vector3(cos(angle) * radius, 10.0, sin(angle) * radius), false, base_difficulty * difficulty_multiplier)
+            _spawn_enemy(path, Vector3(cos(angle) * radius, 10.0, sin(angle) * radius), false, base_difficulty * difficulty_multiplier, display_name, archetype, variant)
         return
 
     _spawn_boss(info, difficulty_multiplier)
@@ -130,7 +135,15 @@ func _spawn_boss(info: Dictionary, difficulty_multiplier: float) -> void:
         return
     var size: Vector2 = info["size"]
     var boss_difficulty := (1.0 + float(island_id) * 0.16) * difficulty_multiplier
-    _spawn_enemy(boss_path, Vector3(0.0, 12.0, -size.y * 0.18), true, boss_difficulty)
+    _spawn_enemy(
+        boss_path,
+        Vector3(0.0, 12.0, -size.y * 0.18),
+        true,
+        boss_difficulty,
+        str(info.get("boss_name", "Boss")),
+        str(info.get("boss_archetype", "boss_brute")),
+        0
+    )
     _boss_spawned_for_island = _current_index
 
 func _has_live_boss() -> bool:
@@ -158,8 +171,8 @@ func respawn_player() -> void:
     if _player == null or not is_instance_valid(_player) or _current_index < 0:
         return
     var active := get_tree().get_first_node_in_group("active_controller")
-    if active is BoatController and active.is_boarded():
-        active.force_disembark_at(_safe_port_spawn(_current_index), 0.0)
+    if active != null and active.has_method("force_disembark_at"):
+        active.call("force_disembark_at", _safe_port_spawn(_current_index), 0.0)
     _place_player_at_safe_port(_current_index, true)
     _notify("Retour au port de l’île %02d." % (_current_index + 1))
 
@@ -214,6 +227,8 @@ func _rescue_player_from_ocean() -> void:
     if _player.global_position.y >= SAFE_LAND_MIN_Y:
         return
     _ocean_rescue_cooldown = 2.0
+    if active != null and active.has_method("force_disembark_at"):
+        active.call("force_disembark_at", _safe_port_spawn(_current_index), 0.0)
     _place_player_at_safe_port(_current_index, true)
     _notify("EAU TROP PROFONDE • retour automatique au port")
 
@@ -240,6 +255,8 @@ func _reject_final_kingdom() -> void:
     if active is BoatController and active.is_boarded():
         active.force_reposition(safe_position, active.rotation.y)
     else:
+        if active != null and active.has_method("force_disembark_at"):
+            active.call("force_disembark_at", safe_position, 0.0)
         _player.global_position = safe_position
         _player.velocity = Vector3.ZERO
         GameState.set_exact_snapshot(_player.global_position, _player.global_rotation.y, false)
@@ -311,7 +328,8 @@ func _update_final_reward_collection() -> void:
 func _capture_snapshot() -> void:
     if _player == null or not is_instance_valid(_player):
         return
-    var boat_mode := get_tree().get_first_node_in_group("active_controller") != null
+    var active := get_tree().get_first_node_in_group("active_controller")
+    var boat_mode: bool = active is BoatController and (active as BoatController).is_boarded()
     GameState.set_exact_snapshot(_player.global_position, _player.global_rotation.y, boat_mode)
     GameState.quick_save()
 

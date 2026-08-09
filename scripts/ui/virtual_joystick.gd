@@ -21,6 +21,11 @@ func _exit_tree() -> void:
         _send_move_to_controller(Vector2.ZERO)
         _release_movement_actions()
 
+func cancel_input() -> void:
+    _touch_id = -1
+    _mouse_active = false
+    _reset()
+
 func _gui_input(event: InputEvent) -> void:
     # InputEventScreenTouch/ScreenDrag utilisent les coordonnées du viewport.
     # Le joystick dessine et calcule en coordonnées locales : on convertit donc

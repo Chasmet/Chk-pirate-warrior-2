@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/hero_controller_v3.gd" id="1_hero"]
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera_v3.gd" id="2_camera"]
@@ -14,6 +14,8 @@
 [ext_resource type="Script" path="res://scripts/world/ambient_fauna_director.gd" id="12_fauna"]
 [ext_resource type="Script" path="res://scripts/world/island_context_decor_director.gd" id="13_context"]
 [ext_resource type="Script" path="res://scripts/ui/gameplay_ux_overlay.gd" id="14_ux"]
+[ext_resource type="Script" path="res://scripts/world/island_vehicle_director.gd" id="15_vehicles"]
+[ext_resource type="Script" path="res://scripts/world/island_settlement_director.gd" id="16_settlements"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.38
@@ -60,6 +62,12 @@ script = ExtResource("12_fauna")
 
 [node name="IslandContextDecorDirector" type="Node3D" parent="."]
 script = ExtResource("13_context")
+
+[node name="IslandSettlementDirector" type="Node3D" parent="."]
+script = ExtResource("16_settlements")
+
+[node name="IslandVehicleDirector" type="Node3D" parent="."]
+script = ExtResource("15_vehicles")
 
 [node name="WorldLifeDirector" type="Node3D" parent="."]
 script = ExtResource("7_life")

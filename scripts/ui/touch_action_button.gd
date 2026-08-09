@@ -58,6 +58,15 @@ func set_enabled(value: bool) -> void:
 func is_button_pressed() -> bool:
     return _pressed
 
+func cancel_press() -> void:
+    # Android peut interrompre un contact (notification, changement de focus,
+    # geste système) sans envoyer l'évènement de relâchement correspondant.
+    # On remet alors explicitement l'action à zéro pour éviter une attaque ou
+    # une direction qui resterait bloquée au retour dans le jeu.
+    _touch_id = -1
+    _mouse_down = false
+    _release_button()
+
 func _gui_input(event: InputEvent) -> void:
     if not enabled:
         return
