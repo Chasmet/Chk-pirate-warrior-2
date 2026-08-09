@@ -98,22 +98,35 @@ func _layout() -> void:
     var w := size.x
     var h := size.y
 
-    _coin_panel.position = Vector2(18.0, 166.0)
-    _coin_panel.size = Vector2(188.0, 44.0)
+    # Le compteur possède sa propre ligne sous la carte joueur.
+    _coin_panel.position = Vector2(18.0, 174.0)
+    _coin_panel.size = Vector2(188.0, 42.0)
     _coin_label.position = Vector2.ZERO
     _coin_label.size = _coin_panel.size
 
+    # Le GPS se cale sous la mission réelle : il ne peut plus recouvrir le titre
+    # « ÎLE xx • ... » ni venir se coller sur sa dernière ligne.
     var nav_w := minf(500.0, w * 0.42)
-    _nav_panel.position = Vector2((w - nav_w) * 0.5, 116.0)
-    _nav_panel.size = Vector2(nav_w, 44.0)
+    var nav_x := (w - nav_w) * 0.5
+    var nav_y := 136.0
+    var hud := get_tree().get_first_node_in_group("hud")
+    if hud != null:
+        var mission_value = hud.get("mission_panel")
+        if mission_value is Control:
+            var mission := mission_value as Control
+            nav_w = mission.size.x
+            nav_x = mission.global_position.x
+            nav_y = mission.global_position.y + mission.size.y + 8.0
+    _nav_panel.position = Vector2(nav_x, nav_y)
+    _nav_panel.size = Vector2(nav_w, 42.0)
     _nav_label.position = Vector2(42.0, 0.0)
-    _nav_label.size = Vector2(nav_w - 50.0, 44.0)
-    _arrow.position = Vector2(_nav_panel.position.x + 24.0, _nav_panel.position.y + 22.0)
+    _nav_label.size = Vector2(nav_w - 50.0, 42.0)
+    _arrow.position = Vector2(nav_x + 24.0, nav_y + 21.0)
 
-    # SAC près du bouton HÉROS, mais suffisamment haut pour ne pas gêner SAUT/INTERAGIR.
-    _bag_button.position = Vector2(628.0, maxf(284.0, h - 344.0))
+    # SAC regroupé avec HÉROS mais au-dessus de la ligne SAUT / INTERAGIR.
+    _bag_button.position = Vector2(612.0, maxf(278.0, h - 342.0))
 
-    _feedback_label.position = Vector2((w - 420.0) * 0.5, 170.0)
+    _feedback_label.position = Vector2((w - 420.0) * 0.5, nav_y + 48.0)
     _feedback_label.size = Vector2(420.0, 42.0)
 
 func _on_progression_changed() -> void:
@@ -129,6 +142,7 @@ func _on_progression_changed() -> void:
 
 func _on_island_changed(_island_id: int) -> void:
     _update_navigation.call_deferred()
+    _layout.call_deferred()
 
 func _refresh_wallet() -> void:
     if _coin_label != null:
