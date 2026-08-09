@@ -5,6 +5,11 @@ func _ready() -> void:
     move_speed = 8.2
     run_speed = 11.0
     rotation_speed = 16.0
+    floor_snap_length = 0.72
+    floor_max_angle = deg_to_rad(50.0)
+    floor_stop_on_slope = true
+    floor_constant_speed = true
+    safe_margin = 0.055
     super._ready()
 
 func _load_visuals() -> void:
