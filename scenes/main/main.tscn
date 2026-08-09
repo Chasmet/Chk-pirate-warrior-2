@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=21 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/hero_controller_v3.gd" id="1_hero"]
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera_v3.gd" id="2_camera"]
@@ -16,6 +16,8 @@
 [ext_resource type="Script" path="res://scripts/ui/gameplay_ux_overlay.gd" id="14_ux"]
 [ext_resource type="Script" path="res://scripts/world/island_vehicle_director.gd" id="15_vehicles"]
 [ext_resource type="Script" path="res://scripts/world/island_settlement_director.gd" id="16_settlements"]
+[ext_resource type="Script" path="res://scripts/world/enemy_recovery_service.gd" id="17_enemy_recovery"]
+[ext_resource type="Script" path="res://scripts/world/island_vegetation_director.gd" id="18_vegetation"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.38
@@ -60,6 +62,9 @@ script = ExtResource("11_collectibles")
 [node name="AmbientFaunaDirector" type="Node3D" parent="."]
 script = ExtResource("12_fauna")
 
+[node name="IslandVegetationDirector" type="Node3D" parent="."]
+script = ExtResource("18_vegetation")
+
 [node name="IslandContextDecorDirector" type="Node3D" parent="."]
 script = ExtResource("13_context")
 
@@ -71,6 +76,9 @@ script = ExtResource("15_vehicles")
 
 [node name="WorldLifeDirector" type="Node3D" parent="."]
 script = ExtResource("7_life")
+
+[node name="EnemyRecoveryService" type="Node" parent="."]
+script = ExtResource("17_enemy_recovery")
 
 [node name="HUDMobile" parent="." instance=ExtResource("3_hud")]
 
