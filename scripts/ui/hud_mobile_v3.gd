@@ -12,41 +12,48 @@ func _ready() -> void:
     get_viewport().size_changed.connect(_layout_v3)
     _layout_v3.call_deferred()
 
+func _refresh_progression_labels() -> void:
+    super._refresh_progression_labels()
+    # Le compteur de pièces possède désormais son propre panneau. Garder seulement
+    # le niveau ici évite l'empilement vu sur téléphone dans la carte joueur.
+    if level_label != null:
+        level_label.text = "NV %d" % GameState.level
+
 func _layout_v3() -> void:
     var viewport_size := get_viewport().get_visible_rect().size
     var w := viewport_size.x
     var h := viewport_size.y
     var usable_right := w - HUD_SAFE_RIGHT
 
-    # Carte joueur compacte à gauche, comme la maquette.
+    # Carte joueur compacte à gauche, sans superposition nom/niveau/barres/valeurs.
     if stats_panel != null:
-        var stats_w := clampf(w * 0.27, 320.0, 360.0)
+        var stats_w := clampf(w * 0.29, 350.0, 390.0)
         stats_panel.position = Vector2(HUD_SAFE_LEFT, 12.0)
-        stats_panel.size = Vector2(stats_w, 146.0)
+        stats_panel.size = Vector2(stats_w, 154.0)
         hero_label.position = Vector2(14.0, 8.0)
-        hero_label.size = Vector2(stats_w * 0.56, 32.0)
-        hero_label.add_theme_font_size_override("font_size", 23)
-        level_label.position = Vector2(stats_w * 0.54, 12.0)
-        level_label.size = Vector2(stats_w * 0.42, 28.0)
-        level_label.add_theme_font_size_override("font_size", 14)
+        hero_label.size = Vector2(stats_w - 112.0, 30.0)
+        hero_label.add_theme_font_size_override("font_size", 21)
+        level_label.position = Vector2(stats_w - 90.0, 10.0)
+        level_label.size = Vector2(74.0, 26.0)
+        level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+        level_label.add_theme_font_size_override("font_size", 13)
         for bar in [health_bar, energy_bar, aura_bar]:
             if bar != null:
-                bar.position.x = 88.0
-                bar.size.x = maxf(128.0, stats_w - 190.0)
+                bar.position.x = 82.0
+                bar.size.x = maxf(145.0, stats_w - 184.0)
         for value_label in [health_value_label, energy_value_label, aura_value_label]:
             if value_label != null:
-                value_label.position.x = stats_w - 104.0
-                value_label.size.x = 90.0
-                value_label.add_theme_font_size_override("font_size", 13)
+                value_label.position.x = stats_w - 91.0
+                value_label.size.x = 76.0
+                value_label.add_theme_font_size_override("font_size", 12)
 
-    # Boutons supérieurs : CARTE / SAC / SAUVEG. / PAUSE.
+    # Boutons supérieurs : le SAC est maintenant dans les commandes de gameplay.
     var top_buttons := [
         ["CARTE", Vector2(78.0, 54.0)],
-        ["SAC", Vector2(68.0, 54.0)],
         ["SAUVEG.", Vector2(94.0, 54.0)],
         ["PAUSE", Vector2(82.0, 54.0)]
     ]
-    var total_buttons_w := 78.0 + 68.0 + 94.0 + 82.0 + 3.0 * 8.0
+    var total_buttons_w := 78.0 + 94.0 + 82.0 + 2.0 * 8.0
     var buttons_x := usable_right - total_buttons_w
     var cursor_x := buttons_x
     for entry in top_buttons:
@@ -55,20 +62,27 @@ func _layout_v3() -> void:
         _place_hud_button(text_value, Vector2(cursor_x, 14.0), button_size)
         cursor_x += button_size.x + 8.0
 
-    # Mission au centre, sans chevaucher les stats ni les boutons supérieurs.
+    var legacy_sac := _find_button_by_text(self, "SAC")
+    if legacy_sac != null:
+        legacy_sac.visible = false
+        legacy_sac.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+    # Mission : titre sur une ligne dédiée, texte dessous, aucune ligne mélangée.
     if mission_panel != null:
-        var left_limit := (stats_panel.position.x + stats_panel.size.x + 12.0) if stats_panel != null else 360.0
-        var available := maxf(300.0, buttons_x - left_limit - 12.0)
+        var left_limit := (stats_panel.position.x + stats_panel.size.x + 14.0) if stats_panel != null else 390.0
+        var available := maxf(300.0, buttons_x - left_limit - 14.0)
         var mission_width := minf(520.0, available)
         var mission_x := left_limit + (available - mission_width) * 0.5
-        mission_panel.position = Vector2(mission_x, 12.0)
-        mission_panel.size = Vector2(mission_width, 96.0)
-        mission_title.position = Vector2(10.0, 7.0)
-        mission_title.size = Vector2(mission_width - 20.0, 29.0)
-        mission_title.add_theme_font_size_override("font_size", 18)
-        mission_text.position = Vector2(10.0, 36.0)
-        mission_text.size = Vector2(mission_width - 20.0, 52.0)
-        mission_text.add_theme_font_size_override("font_size", 13)
+        mission_panel.position = Vector2(mission_x, 10.0)
+        mission_panel.size = Vector2(mission_width, 118.0)
+        mission_title.position = Vector2(12.0, 8.0)
+        mission_title.size = Vector2(mission_width - 24.0, 28.0)
+        mission_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+        mission_title.add_theme_font_size_override("font_size", 16)
+        mission_text.position = Vector2(12.0, 43.0)
+        mission_text.size = Vector2(mission_width - 24.0, 64.0)
+        mission_text.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+        mission_text.add_theme_font_size_override("font_size", 12)
 
     # Vraie carte d'archipel visible en permanence sous les boutons.
     if map_panel != null:
