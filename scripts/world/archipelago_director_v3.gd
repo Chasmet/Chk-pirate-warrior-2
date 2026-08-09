@@ -196,6 +196,15 @@ func _terrain_palette(island_id: int, base_color: Color) -> Dictionary:
         _:
             return {"core": base_color, "coast": Color("c8ad72"), "rock": Color("55514a")}
 
+func _spawn_enemy(path: String, local_position: Vector3, is_boss: bool, difficulty: float) -> void:
+    # Depuis l'ajout des vraies collines/falaises, Y=10 n'est plus une hauteur
+    # de spawn valide : certaines forces apparaissaient sous une colline alors
+    # que le GPS les suivait. On pose maintenant chaque ennemi sur le relief réel.
+    var info := current_island_data()
+    var ground_y := _terrain_height_at(info, local_position.x, local_position.z)
+    local_position.y = ground_y + (0.22 if is_boss else 0.12)
+    super._spawn_enemy(path, local_position, is_boss, difficulty)
+
 func _spawn_boat(info: Dictionary) -> void:
     super._spawn_boat(info)
     if _island_root == null or not is_instance_valid(_island_root):
