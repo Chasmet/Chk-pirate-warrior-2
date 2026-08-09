@@ -38,6 +38,10 @@ var _variant_cursor: Dictionary = {}
 var _rng := RandomNumberGenerator.new()
 var _hero_serial := 0
 var _arrival_armed := true
+var _pending_event := ""
+var _pending_priority := -1
+var _monitor_accumulator := 0.0
+var _enemy_contact_active := false
 
 func _ready() -> void:
     add_to_group("hero_voice_director")
@@ -54,13 +58,23 @@ func _ready() -> void:
     GameState.island_changed.connect(_on_island_changed)
     _schedule_initial_context()
 
+func _process(delta: float) -> void:
+    # Détection légère du premier contact avec un ennemi. On ne déclenche pas la
+    # voix à chaque frame : uniquement au moment où le joueur entre dans la zone
+    # de détection d'au moins un ennemi, puis le cooldown évite les répétitions.
+    _monitor_accumulator += delta
+    if _monitor_accumulator < 0.12:
+        return
+    _monitor_accumulator = 0.0
+    _monitor_enemy_contact()
+
 func play_event(event_name: String, force: bool = false) -> bool:
     var event := event_name.strip_edges().to_lower()
     if event.is_empty():
         return false
 
-    # Les cris d'attaque sont volontairement rares. Avec une seule prise (Yvane
-    # pour l'instant), cela empêche une répétition identique à chaque coup.
+    # Les cris d'attaque sont volontairement rares. Avec une seule prise Yvane,
+    # cela évite de rejouer exactement le même cri à chaque coup.
     if event == "attaque" and not force:
         var hero_id := _hero_id()
         var chance := 0.34 if hero_id == "cheikh" else 0.22
@@ -78,9 +92,13 @@ func play_event(event_name: String, force: bool = false) -> bool:
 
     var priority := int(PRIORITIES.get(event, 30))
     if _player.playing:
-        # Une réplique importante (douleur, victoire, coffre...) peut interrompre
-        # une phrase de combat moins importante, jamais l'inverse.
+        # Une réplique importante peut interrompre une phrase de combat moins
+        # importante, jamais l'inverse. Si une réplique narrative arrive pendant
+        # une douleur plus prioritaire, on la met en attente au lieu de la perdre.
         if priority <= _current_priority:
+            if priority >= 60 and priority > _pending_priority:
+                _pending_event = event
+                _pending_priority = priority
             return false
         _player.stop()
 
@@ -106,8 +124,8 @@ func _clips_for_event(hero_id: String, event: String) -> Array[String]:
         if ResourceLoader.exists(path):
             result.append(path)
 
-    # Compatibilité avec les anciennes notices .ogg et avec un éventuel fichier
-    # unique sans suffixe. Cela permet d'ajouter Nelvyn plus tard sans changer le code.
+    # Compatibilité avec un futur fichier unique sans suffixe ou un autre format.
+    # Cela permettra notamment d'ajouter Nelvyn sans changer ce code.
     if result.is_empty():
         for extension in ["mp3", "ogg", "wav"]:
             var single := "%s/%s.%s" % [folder, event, extension]
@@ -130,9 +148,43 @@ func _hero_id() -> String:
     var hero_id := str(GameState.selected_hero).to_lower()
     return hero_id if hero_id in ["cheikh", "yvane", "nelvyn"] else "cheikh"
 
+func _monitor_enemy_contact() -> void:
+    var playable := get_tree().get_first_node_in_group("player") as Node3D
+    if playable == null or not is_instance_valid(playable):
+        _enemy_contact_active = false
+        return
+
+    var enemy_near := false
+    for node: Node in get_tree().get_nodes_in_group("enemy"):
+        if not is_instance_valid(node) or not (node is Node3D):
+            continue
+        var enemy := node as Node3D
+        var health_value := float(enemy.get("health"))
+        if health_value <= 0.0:
+            continue
+        var detection := float(enemy.get("detection_radius"))
+        if detection <= 0.0:
+            detection = 28.0
+        if playable.global_position.distance_to(enemy.global_position) <= detection:
+            enemy_near = true
+            break
+
+    if enemy_near and not _enemy_contact_active:
+        play_event("ennemi_repere")
+    _enemy_contact_active = enemy_near
+
 func _on_voice_finished() -> void:
     _current_priority = -1
     _current_event = ""
+    if not _pending_event.is_empty():
+        _play_pending.call_deferred()
+
+func _play_pending() -> void:
+    var event := _pending_event
+    _pending_event = ""
+    _pending_priority = -1
+    await get_tree().create_timer(0.08).timeout
+    play_event(event, true)
 
 func _on_hero_changed(_hero_id_value: String) -> void:
     _hero_serial += 1
@@ -140,6 +192,8 @@ func _on_hero_changed(_hero_id_value: String) -> void:
     _player.stop()
     _current_priority = -1
     _current_event = ""
+    _pending_event = ""
+    _pending_priority = -1
     _play_hero_greeting.call_deferred(serial)
 
 func _play_hero_greeting(serial: int) -> void:
@@ -149,6 +203,7 @@ func _play_hero_greeting(serial: int) -> void:
     play_event("bonjour", true)
 
 func _on_island_changed(island_id: int) -> void:
+    _enemy_contact_active = false
     # La bibliothèque actuelle possède une prise spécifique à l'arrivée sur l'île 01.
     # On la joue à chaque vraie nouvelle arrivée, pas à chaque frame ni changement de héros.
     if island_id != 1:
