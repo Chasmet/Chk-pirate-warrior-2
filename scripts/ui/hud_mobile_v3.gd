@@ -47,6 +47,11 @@ func _layout_v3() -> void:
                 value_label.size.x = 76.0
                 value_label.add_theme_font_size_override("font_size", 12)
 
+    # Dimensions carte calculées avant la mission pour réserver sa zone à droite.
+    var map_w := clampf(w * 0.27, 300.0, 350.0)
+    var map_h := clampf(h * 0.29, 180.0, 220.0)
+    var map_x := usable_right - map_w
+
     # Boutons supérieurs : le SAC est maintenant dans les commandes de gameplay.
     var top_buttons := [
         ["CARTE", Vector2(78.0, 54.0)],
@@ -67,12 +72,13 @@ func _layout_v3() -> void:
         legacy_sac.visible = false
         legacy_sac.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-    # Mission : titre sur une ligne dédiée, texte dessous, aucune ligne mélangée.
+    # Mission : elle finit AVANT la mini-carte, même sur écran large/étiré.
     if mission_panel != null:
         var left_limit := (stats_panel.position.x + stats_panel.size.x + 14.0) if stats_panel != null else 390.0
-        var available := maxf(300.0, buttons_x - left_limit - 14.0)
+        var right_limit := minf(buttons_x, map_x) - 14.0
+        var available := maxf(300.0, right_limit - left_limit)
         var mission_width := minf(520.0, available)
-        var mission_x := left_limit + (available - mission_width) * 0.5
+        var mission_x := left_limit + maxf(0.0, (available - mission_width) * 0.5)
         mission_panel.position = Vector2(mission_x, 10.0)
         mission_panel.size = Vector2(mission_width, 118.0)
         mission_title.position = Vector2(12.0, 8.0)
@@ -86,10 +92,8 @@ func _layout_v3() -> void:
 
     # Vraie carte d'archipel visible en permanence sous les boutons.
     if map_panel != null:
-        var map_w := clampf(w * 0.27, 300.0, 350.0)
-        var map_h := clampf(h * 0.29, 180.0, 220.0)
         map_panel.visible = true
-        map_panel.position = Vector2(usable_right - map_w, 78.0)
+        map_panel.position = Vector2(map_x, 78.0)
         map_panel.size = Vector2(map_w, map_h)
         var minimap := map_panel.get_node_or_null("ArchipelagoMinimap") as Control
         if minimap != null:
