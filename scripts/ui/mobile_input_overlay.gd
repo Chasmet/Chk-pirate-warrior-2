@@ -207,20 +207,22 @@ func _layout_controls() -> void:
         )
 
     # HÉROS et SAC ne doivent plus recouvrir le personnage au centre de l'écran.
-    # Sur un écran large Android ils passent clairement à droite du héros, sous la zone de mission.
-    var utility_x := w * (0.545 if w >= 1350.0 else 0.50)
+    # Sur l'écran large du téléphone ils sont poussés nettement vers la droite.
+    var utility_x := w * (0.585 if w >= 1350.0 else 0.50)
     var utility_y := maxf(278.0, h - 405.0)
     if _hero_switch_button != null:
         _hero_switch_button.position = Vector2(utility_x, utility_y)
     if _inventory_button != null:
         _inventory_button.position = Vector2(utility_x + 106.0, utility_y)
 
-    # INTERAGIR reste sous le bloc utilitaire, mais décollé du corps du joueur.
+    # INTERAGIR est placé plus haut que SAUT/ESQUIVE : il peut donc être plus à droite
+    # sans collision tactile avec le bloc combat du bas.
     if _interact_button != null:
-        var interact_x := w * (0.515 if w >= 1350.0 else 0.46)
-        var max_interact_x := _jump_button.position.x - _interact_button.size.x - 14.0 if _jump_button != null else w - SAFE_SIDE_MARGIN - _interact_button.size.x
-        interact_x = minf(interact_x, max_interact_x)
-        _interact_button.position = Vector2(maxf(360.0, interact_x), maxf(350.0, h - 326.0))
+        var interact_x := w * (0.56 if w >= 1350.0 else 0.48)
+        _interact_button.position = Vector2(
+            clampf(interact_x, 420.0, w - SAFE_SIDE_MARGIN - _interact_button.size.x),
+            maxf(350.0, h - 326.0)
+        )
 
     # Bouton de secours volontairement petit : visible si un ennemi disparaît, sans masquer le combat.
     if _enemy_recovery_button != null:
