@@ -16,17 +16,20 @@ func _align_loaded_hero_visual() -> void:
     if hero_model == null or not is_instance_valid(hero_model):
         return
 
-    # Le GLB de Cheikh regarde vers +Z alors que le contrôleur Godot avance vers -Z.
-    # Yvane et Nelvyn sont déjà orientés correctement et ne doivent surtout pas
-    # recevoir cette rotation supplémentaire.
-    var model_path := str(hero_data.get("model", "")).to_lower()
-    if model_path.contains("joueur 1 cheikh"):
+    # Les trois GLB joueurs ont été exportés face +Z, alors que le contrôleur
+    # Godot considère -Z comme l'avant. Cheikh était déjà corrigé ; les captures
+    # Android montrent que Yvane et Nelvyn regardaient encore la caméra quand ils
+    # avançaient, ce qui plaçait aussi leur sac sur le torse. On aligne donc les
+    # trois visuels sur le même repère de déplacement, sans toucher au CharacterBody.
+    var hero_id := str(GameState.selected_hero).to_lower()
+    if hero_id in ["cheikh", "yvane", "nelvyn"]:
         hero_model.rotation_degrees.y += 180.0
 
 func _attach_backpack(backpack_visual: Node3D) -> void:
-    # Les trois sacs utilisent le même point d'attache dans le dos, mais leurs GLB
-    # n'ont pas tous le même axe avant. Cheikh reste à 180° (validé sur téléphone),
-    # tandis que les sacs Yvane/Nelvyn doivent rester à 0° pour ne plus être à l'envers.
+    # L'ancre +Z est le dos du contrôleur puisque l'avant de déplacement est -Z.
+    # Une fois les trois modèles réalignés ci-dessus, le sac se retrouve donc bien
+    # derrière le personnage. L'orientation propre du GLB de chaque sac reste
+    # spécifique : Cheikh à 180° (déjà validé), Yvane/Nelvyn à 0°.
     var anchor := Node3D.new()
     anchor.name = "BackpackAnchor"
     add_child(anchor)
