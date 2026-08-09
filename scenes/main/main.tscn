@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/hero_controller_v3.gd" id="1_hero"]
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera_v3.gd" id="2_camera"]
@@ -12,6 +12,8 @@
 [ext_resource type="Script" path="res://scripts/world/coastal_detail_director.gd" id="10_coast"]
 [ext_resource type="Script" path="res://scripts/world/island_collectible_director.gd" id="11_collectibles"]
 [ext_resource type="Script" path="res://scripts/world/ambient_fauna_director.gd" id="12_fauna"]
+[ext_resource type="Script" path="res://scripts/world/island_context_decor_director.gd" id="13_context"]
+[ext_resource type="Script" path="res://scripts/ui/gameplay_ux_overlay.gd" id="14_ux"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.38
@@ -56,10 +58,16 @@ script = ExtResource("11_collectibles")
 [node name="AmbientFaunaDirector" type="Node3D" parent="."]
 script = ExtResource("12_fauna")
 
+[node name="IslandContextDecorDirector" type="Node3D" parent="."]
+script = ExtResource("13_context")
+
 [node name="WorldLifeDirector" type="Node3D" parent="."]
 script = ExtResource("7_life")
 
 [node name="HUDMobile" parent="." instance=ExtResource("3_hud")]
+
+[node name="GameplayUXOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("14_ux")
 
 [node name="MobileInputOverlay" parent="." instance=ExtResource("4_touch")]
 
