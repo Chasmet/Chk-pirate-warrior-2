@@ -216,6 +216,7 @@ func _collect_nearby() -> void:
         if kind == "loot":
             GameState.add_xp(8 + _current_island * 2)
             _notify("PETIT BUTIN • +%d pièces" % value)
+            get_tree().call_group("hero_voice_director", "play_event", "coffre_trouve")
         _pickups.erase(pickup)
         pickup.queue_free()
         _save_timer = 0.75
