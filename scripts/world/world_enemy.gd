@@ -95,8 +95,6 @@ func _load_visual() -> void:
                     _visual = candidate
                     _normalize_model(_visual, 3.4 if boss else 1.9)
                     return
-                # Un GLB peut être importable mais ne contenir aucun mesh exploitable.
-                # Dans ce cas il ne faut pas laisser un ennemi logique totalement invisible.
                 candidate.queue_free()
             else:
                 instance.queue_free()
@@ -117,16 +115,8 @@ func _normalize_model(root: Node3D, target_height: float) -> void:
         var xf := inverse * mesh_instance.global_transform
         for i in range(8):
             var p: Vector3 = xf * box.get_endpoint(i)
-            min_corner = Vector3(
-                minf(min_corner.x, p.x),
-                minf(min_corner.y, p.y),
-                minf(min_corner.z, p.z)
-            )
-            max_corner = Vector3(
-                maxf(max_corner.x, p.x),
-                maxf(max_corner.y, p.y),
-                maxf(max_corner.z, p.z)
-            )
+            min_corner = Vector3(minf(min_corner.x, p.x), minf(min_corner.y, p.y), minf(min_corner.z, p.z))
+            max_corner = Vector3(maxf(max_corner.x, p.x), maxf(max_corner.y, p.y), maxf(max_corner.z, p.z))
     var height := max_corner.y - min_corner.y
     if height <= 0.01:
         return
@@ -185,6 +175,19 @@ func _ensure_objective_marker() -> void:
     ring.mesh = torus
     ring.material_override = _marker_material(marker_color)
     _objective_marker.add_child(ring)
+
+    # Nom lisible à distance : le GPS ne doit plus pointer vers une cible anonyme.
+    var nameplate := Label3D.new()
+    nameplate.name = "EnemyNameplate"
+    nameplate.text = "BOSS" if boss else "ENNEMI"
+    nameplate.position = Vector3(0.0, 0.72, 0.0)
+    nameplate.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    nameplate.no_depth_test = true
+    nameplate.font_size = 32 if boss else 24
+    nameplate.outline_size = 8
+    nameplate.modulate = marker_color
+    nameplate.outline_modulate = Color(0.0, 0.0, 0.0, 0.92)
+    _objective_marker.add_child(nameplate)
 
 func _marker_material(color: Color) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
