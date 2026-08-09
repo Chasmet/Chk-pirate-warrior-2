@@ -18,6 +18,8 @@ var _environment: Environment
 var _day_clock := 0.25
 var _boss_defeated := {}
 var _notification_label: Label
+var _horizon_root: Node3D
+var _horizon_proxies: Array[Node3D] = []
 
 func _ready() -> void:
     add_to_group("world_director")
@@ -25,6 +27,7 @@ func _ready() -> void:
     _player = get_tree().get_first_node_in_group("player") as CharacterBody3D
     _create_environment()
     _create_ocean()
+    _create_horizon_islands()
     _create_notification_ui()
     var start_index := clampi(GameState.current_island - 1, 0, WorldCatalog.island_count() - 1)
     _load_island(start_index, true)
@@ -93,6 +96,7 @@ func _load_island(index: int, place_player: bool) -> void:
     if _island_root != null and is_instance_valid(_island_root):
         _island_root.queue_free()
     _current_index = index
+    _update_horizon_islands(index)
     GameState.set_island(index + 1)
     var info := WorldCatalog.island(index)
     _apply_weather(info)
@@ -145,7 +149,9 @@ func _create_ocean() -> void:
     for p in positions:
         min_z = minf(min_z, p.z)
         max_z = maxf(max_z, p.z)
-    ocean.position = Vector3(0.0, -2.2, (min_z + max_z) * 0.5)
+    # Les bateaux et les équipages naviguent autour de Y=-0,55. L'ancien plan
+    # à Y=-2,2 les faisait visuellement flotter 1,65 m au-dessus de l'eau.
+    ocean.position = Vector3(0.0, -0.65, (min_z + max_z) * 0.5)
     var material := StandardMaterial3D.new()
     material.albedo_color = Color(0.025, 0.25, 0.42, 0.94)
     material.metallic = 0.12
@@ -153,6 +159,80 @@ func _create_ocean() -> void:
     material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
     ocean.material_override = material
     add_child(ocean)
+
+func _create_horizon_islands() -> void:
+    _horizon_root = Node3D.new()
+    _horizon_root.name = "RoyaumesHorizonLOD"
+    add_child(_horizon_root)
+    _horizon_proxies.clear()
+    for i in range(WorldCatalog.island_count()):
+        var info: Dictionary = WorldCatalog.island(i)
+        var size: Vector2 = info["size"]
+        var proxy := Node3D.new()
+        proxy.name = "HorizonRoyaume_%02d" % (i + 1)
+        proxy.position = _positions[i]
+        _horizon_root.add_child(proxy)
+
+        var coast := MeshInstance3D.new()
+        coast.name = "SilhouetteCotiere"
+        var coast_mesh := SphereMesh.new()
+        coast_mesh.radius = 1.0
+        coast_mesh.height = 2.0
+        coast_mesh.radial_segments = 16
+        coast_mesh.rings = 6
+        coast.mesh = coast_mesh
+        coast.scale = Vector3(size.x * 0.46, 34.0 + float(i) * 2.8, size.y * 0.46)
+        coast.position.y = -31.0
+        coast.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        coast.material_override = _horizon_material(info["color"])
+        proxy.add_child(coast)
+
+        var peak_height := 82.0 + float((i * 37) % 115)
+        var peak := MeshInstance3D.new()
+        peak.name = "SommetLointain"
+        var peak_mesh := CylinderMesh.new()
+        peak_mesh.bottom_radius = 1.0
+        peak_mesh.top_radius = 0.08
+        peak_mesh.height = 2.0
+        peak_mesh.radial_segments = 10
+        peak.mesh = peak_mesh
+        var peak_radius := minf(size.x, size.y) * (0.10 + float(i % 3) * 0.018)
+        peak.scale = Vector3(peak_radius, peak_height * 0.5, peak_radius)
+        peak.position = Vector3(size.x * (-0.10 + float(i % 4) * 0.055), peak_height * 0.5 - 1.0, -size.y * 0.06)
+        peak.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        peak.material_override = _horizon_material(info["accent"])
+        proxy.add_child(peak)
+
+        if i == 0:
+            for pipe_index in range(5):
+                var pipe := MeshInstance3D.new()
+                pipe.name = "OrgueHorizon_%02d" % pipe_index
+                var pipe_mesh := CylinderMesh.new()
+                pipe_mesh.bottom_radius = 1.0
+                pipe_mesh.top_radius = 1.0
+                pipe_mesh.height = 2.0
+                pipe_mesh.radial_segments = 8
+                pipe.mesh = pipe_mesh
+                var pipe_height := 54.0 + float(2 - abs(pipe_index - 2)) * 18.0
+                pipe.scale = Vector3(7.0, pipe_height * 0.5, 7.0)
+                pipe.position = Vector3(-36.0 + float(pipe_index) * 18.0, pipe_height * 0.5, size.y * 0.05)
+                pipe.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+                pipe.material_override = _horizon_material(info["accent"])
+                proxy.add_child(pipe)
+
+        _horizon_proxies.append(proxy)
+
+func _horizon_material(color: Color) -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color.darkened(0.12)
+    material.roughness = 1.0
+    return material
+
+func _update_horizon_islands(active_index: int) -> void:
+    for i in range(_horizon_proxies.size()):
+        var proxy := _horizon_proxies[i]
+        if proxy != null and is_instance_valid(proxy):
+            proxy.visible = i != active_index
 
 func _build_terrain(info: Dictionary) -> void:
     var size: Vector2 = info["size"]
@@ -172,8 +252,11 @@ func _build_terrain(info: Dictionary) -> void:
             var p10 := _terrain_vertex(x + 1, z, resolution, size, noise)
             var p01 := _terrain_vertex(x, z + 1, resolution, size, noise)
             var p11 := _terrain_vertex(x + 1, z + 1, resolution, size, noise)
-            _add_triangle(surface, p00, p01, p10, size)
-            _add_triangle(surface, p10, p01, p11, size)
+            # Godot considère l'autre enroulement comme la face avant. L'ancien
+            # ordre rendait l'île invisible vue d'en haut et la collision
+            # concave rejetait le héros : il tombait sous le terrain en boucle.
+            _add_triangle(surface, p00, p10, p01, size)
+            _add_triangle(surface, p10, p11, p01, size)
     surface.generate_normals()
     var terrain_mesh := surface.commit()
 
@@ -192,6 +275,9 @@ func _build_terrain(info: Dictionary) -> void:
     var collision := CollisionShape3D.new()
     var shape := ConcavePolygonShape3D.new()
     shape.set_faces(terrain_mesh.get_faces())
+    # Sécurité mobile : un bord de triangle ou une arrivée depuis un relief
+    # abrupt ne doit jamais permettre de traverser l'île.
+    shape.backface_collision = true
     collision.shape = shape
     body.add_child(collision)
     _island_root.add_child(body)
@@ -303,13 +389,16 @@ func _spawn_boat(info: Dictionary) -> void:
     boat.set_script(BoatControllerScript)
     boat.set("model_path", str(info["ship"]))
     boat.set("water_height", -0.55)
+    boat.set("boarding_radius", 9.0)
     var collision := CollisionShape3D.new()
     var shape := BoxShape3D.new()
     shape.size = Vector3(5.0, 2.3, 12.0)
     collision.shape = shape
     collision.position.y = 1.0
     boat.add_child(collision)
-    boat.position = Vector3(7.5, -0.55, size.y * 0.52 + 45.0)
+    # Le bateau était à plus de 80 m du bout du quai de l'île 1 alors que la
+    # portée d'embarquement est de 9 m. Il est désormais amarré au quai.
+    boat.position = Vector3(7.0, -0.55, size.y * 0.45 + 39.0)
     _island_root.add_child(boat)
 
 func _spawn_final_reward(info: Dictionary) -> void:
@@ -377,11 +466,11 @@ func _create_notification_ui() -> void:
     _notification_label = Label.new()
     _notification_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     _notification_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-    _notification_label.anchor_left = 0.2
-    _notification_label.anchor_right = 0.8
-    _notification_label.anchor_top = 0.04
-    _notification_label.anchor_bottom = 0.12
-    _notification_label.add_theme_font_size_override("font_size", 26)
+    _notification_label.anchor_left = 0.28
+    _notification_label.anchor_right = 0.72
+    _notification_label.anchor_top = 0.17
+    _notification_label.anchor_bottom = 0.25
+    _notification_label.add_theme_font_size_override("font_size", 22)
     _notification_label.add_theme_color_override("font_color", Color.WHITE)
     _notification_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
     _notification_label.add_theme_constant_override("shadow_offset_x", 2)

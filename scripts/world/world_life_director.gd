@@ -132,6 +132,7 @@ func _spawn_citizens(center: Vector3, island_size: Vector2) -> void:
         var path := MERCHANT_MODEL if i == 0 else CIVILIAN_MODEL
         var citizen := Node3D.new()
         citizen.name = "Marchand" if i == 0 else "Habitant_%02d" % i
+        _root.add_child(citizen)
         var candidate := center + Vector3(
             sin(float(i) * 2.31) * island_size.x * 0.14,
             6.0,
@@ -147,7 +148,6 @@ func _spawn_citizens(center: Vector3, island_size: Vector2) -> void:
             _normalize_model(visual, 1.75 if i > 0 else 1.95)
         else:
             citizen.add_child(_humanoid_fallback(Color("536b78") if i > 0 else Color("b58a42")))
-        _root.add_child(citizen)
         _citizens.append(citizen)
         if i == 0:
             _merchant = citizen
@@ -157,6 +157,7 @@ func _spawn_fauna(center: Vector3, island_size: Vector2) -> void:
     for i in range(count):
         var animal := Node3D.new()
         animal.name = "Faune_%02d" % i
+        _root.add_child(animal)
         var candidate := center + Vector3(
             cos(float(i) * 1.91) * island_size.x * 0.22,
             4.5,
@@ -167,7 +168,6 @@ func _spawn_fauna(center: Vector3, island_size: Vector2) -> void:
         animal.set_meta("phase", float(i) * 1.21)
         animal.set_meta("radius", 10.0 + float(i % 3) * 5.0)
         animal.add_child(_animal_fallback(i))
-        _root.add_child(animal)
         _fauna.append(animal)
 
 func _spawn_maritime_events(center: Vector3, island_size: Vector2) -> void:
@@ -176,9 +176,9 @@ func _spawn_maritime_events(center: Vector3, island_size: Vector2) -> void:
         var wreck := _instantiate_asset(WRECK_MODEL)
         if wreck != null:
             wreck.name = "ÉpaveExplorable"
+            _root.add_child(wreck)
             wreck.global_position = center + Vector3(island_size.x * 0.36, -1.1, island_size.y * 0.58)
             wreck.rotation.y = 0.55
-            _root.add_child(wreck)
             _wreck = wreck
 
     var treasure_key := "floating_treasure_%02d" % _current_island
@@ -186,9 +186,9 @@ func _spawn_maritime_events(center: Vector3, island_size: Vector2) -> void:
         var treasure := _instantiate_asset(TREASURE_MODEL)
         if treasure != null:
             treasure.name = "TrésorFlottant"
+            _root.add_child(treasure)
             treasure.global_position = center + Vector3(-island_size.x * 0.42, -0.8, island_size.y * 0.56)
             treasure.scale *= Vector3.ONE * 1.15
-            _root.add_child(treasure)
             _treasure = treasure
 
 func _spawn_crews(center: Vector3, island_size: Vector2) -> void:
@@ -197,6 +197,7 @@ func _spawn_crews(center: Vector3, island_size: Vector2) -> void:
         var spec: Dictionary = CREWS[i]
         var ship_root := Node3D.new()
         ship_root.name = "ÉquipageLibre_%d" % (i + 1)
+        _root.add_child(ship_root)
         var radius := maxf(island_size.x, island_size.y) * (0.63 + float(i) * 0.08)
         var angle := float(i) * TAU / 3.0 + 0.45
         ship_root.global_position = center + Vector3(cos(angle) * radius, -0.62, sin(angle) * radius)
@@ -219,7 +220,6 @@ func _spawn_crews(center: Vector3, island_size: Vector2) -> void:
             _normalize_model(captain, 1.85)
             captain.position = Vector3(0.0, 2.1, 0.4)
 
-        _root.add_child(ship_root)
         _crew_ships.append(ship_root)
         _crew_attack_cooldowns[str(spec["id"])] = 0.0
 

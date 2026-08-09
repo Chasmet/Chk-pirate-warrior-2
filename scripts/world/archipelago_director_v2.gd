@@ -159,7 +159,7 @@ func respawn_player() -> void:
         return
     var active := get_tree().get_first_node_in_group("active_controller")
     if active is BoatController and active.is_boarded():
-        active.disembark()
+        active.force_disembark_at(_safe_port_spawn(_current_index), 0.0)
     _place_player_at_safe_port(_current_index, true)
     _notify("Retour au port de l’île %02d." % (_current_index + 1))
 
@@ -266,7 +266,8 @@ func _update_hud_mission(index: int) -> void:
             description = "Sécurise le royaume : forces locales %d/%d • le boss apparaîtra ensuite." % [progress, SOLDIERS_REQUIRED]
         else:
             description = "OBJECTIF MAJEUR • le boss est apparu. Vaincs-le pour libérer le royaume."
-    hud.set_mission("ÎLE %02d • %s • %d/10 royaumes libérés" % [island_id, str(info["name"]), GameState.defeated_main_boss_count()], description)
+    description = "%d/10 royaumes libérés • %s" % [GameState.defeated_main_boss_count(), description]
+    hud.set_mission("ÎLE %02d • %s" % [island_id, str(info["name"])], description)
 
 func _soldier_key(island_id: int) -> String:
     return "island_%02d_forces" % island_id

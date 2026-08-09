@@ -27,7 +27,6 @@ func _physics_process(delta: float) -> void:
 func _start_dodge(direction: Vector3) -> void:
     super._start_dodge(direction)
     _v2_invulnerability = 0.30
-    Input.vibrate_handheld(18)
 
 func receive_damage(amount: float) -> void:
     if _v2_invulnerability > 0.0 or amount <= 0.0:
@@ -35,7 +34,6 @@ func receive_damage(amount: float) -> void:
     var resolved_amount := amount * GameState.difficulty_damage_multiplier()
     health = maxf(0.0, health - resolved_amount)
     health_changed.emit(health, max_health)
-    Input.vibrate_handheld(45)
     if health <= 0.0:
         health = max_health
         energy = max_energy

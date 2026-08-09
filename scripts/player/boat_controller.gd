@@ -6,7 +6,7 @@ extends CharacterBody3D
 @export var boost_speed := 38.0
 @export var turn_speed := 1.45
 @export var water_height := -0.55
-@export var boarding_radius := 7.0
+@export var boarding_radius := 9.0
 
 var _virtual_move := Vector2.ZERO
 var _driver: CharacterBody3D
@@ -78,22 +78,64 @@ func disembark() -> void:
     if not is_boarded():
         return
     var player: CharacterBody3D = _driver
-    var right := global_transform.basis.x.normalized()
-    player.global_position = global_position + right * 4.2 + Vector3.UP * 1.5
-    player.global_rotation = Vector3(0.0, global_rotation.y, 0.0)
+    var landing := _find_safe_disembark_position()
+    if not bool(landing.get("found", false)):
+        _show_disembark_warning()
+        return
+    _release_driver_at(player, landing["position"], global_rotation.y, true)
+
+func force_disembark_at(world_position: Vector3, yaw: float = 0.0) -> bool:
+    if not is_boarded():
+        return false
+    _release_driver_at(_driver, world_position, yaw, false)
+    return true
+
+func _release_driver_at(player: CharacterBody3D, world_position: Vector3, yaw: float, save_now: bool) -> void:
     if _driver_collision != null:
         _driver_collision.set_deferred("disabled", false)
+    player.global_position = world_position
+    player.global_rotation = Vector3(0.0, yaw, 0.0)
     player.velocity = Vector3.ZERO
     player.set_physics_process(true)
     remove_from_group("active_controller")
     GameState.set_exact_snapshot(player.global_position, player.global_rotation.y, false)
-    GameState.quick_save()
+    if save_now:
+        GameState.quick_save()
     _driver = null
     _driver_collision = null
     _virtual_move = Vector2.ZERO
     _forward_speed = 0.0
     _steering_velocity = 0.0
     _snapshot_accumulator = 0.0
+
+func _find_safe_disembark_position() -> Dictionary:
+    var space := get_world_3d().direct_space_state
+    var right := global_transform.basis.x.normalized()
+    var forward := -global_transform.basis.z.normalized()
+    var offsets: Array[Vector3] = [
+        -right * 4.8 + forward * 5.0,
+        right * 4.8 + forward * 5.0,
+        -right * 5.4,
+        right * 5.4
+    ]
+    for offset: Vector3 in offsets:
+        var ray_start: Vector3 = global_position + offset + Vector3.UP * 12.0
+        var ray_end: Vector3 = ray_start + Vector3.DOWN * 28.0
+        var query := PhysicsRayQueryParameters3D.create(ray_start, ray_end, 1)
+        query.exclude = [get_rid()]
+        var hit := space.intersect_ray(query)
+        if hit.is_empty():
+            continue
+        var point: Vector3 = hit.get("position", Vector3.ZERO)
+        if point.y <= water_height + 0.35:
+            continue
+        return {"found": true, "position": point + Vector3.UP * 1.05}
+    return {"found": false}
+
+func _show_disembark_warning() -> void:
+    var hud := get_tree().get_first_node_in_group("hud")
+    if hud != null and hud.has_method("show_subtitle"):
+        hud.show_subtitle("Approche le bateau d’un quai ou d’une rive pour débarquer.", 2.4)
 
 func force_reposition(world_position: Vector3, yaw: float) -> void:
     global_position = Vector3(world_position.x, water_height, world_position.z)

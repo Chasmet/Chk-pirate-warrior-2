@@ -306,7 +306,7 @@ func _apply_hero_capacity() -> void:
 func _ensure_input_actions() -> void:
     var actions := [
         "move_left", "move_right", "move_forward", "move_back",
-        "attack", "dodge", "ability_1", "ability_2", "interact",
+        "jump", "attack", "dodge", "ability_1", "ability_2", "interact",
         "embark", "open_inventory", "open_map", "quick_save",
         "pause_game", "switch_hero"
     ]
@@ -318,6 +318,7 @@ func _ensure_input_actions() -> void:
     _bind_key_once("move_right", KEY_D)
     _bind_key_once("move_forward", KEY_W)
     _bind_key_once("move_back", KEY_S)
+    _bind_key_once("jump", KEY_SPACE)
     _bind_key_once("attack", KEY_J)
     _bind_key_once("dodge", KEY_K)
     _bind_key_once("ability_1", KEY_L)
