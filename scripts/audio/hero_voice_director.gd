@@ -155,7 +155,7 @@ func _monitor_enemy_contact() -> void:
         return
 
     var enemy_near := false
-    for node: Node in get_tree().get_nodes_in_group("enemy"):
+    for node in get_tree().get_nodes_in_group("enemy"):
         if not is_instance_valid(node) or not (node is Node3D):
             continue
         var enemy := node as Node3D
