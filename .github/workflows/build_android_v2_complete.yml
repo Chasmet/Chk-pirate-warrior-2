@@ -15,7 +15,7 @@ on:
       - agent/v4-grounded-gameplay
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: chk-pirate-warrior-2-v5-${{ github.ref }}
@@ -223,3 +223,22 @@ jobs:
             v5-foundation-audit.log
           if-no-files-found: warn
           retention-days: 30
+
+      - name: Publier l'APK dans GitHub Releases
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/agent/v5-living-islands-vehicles'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG='v5.2-voice'
+          APK="$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V5_LIVING_ISLANDS.apk"
+          test -s "$APK"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK#CHK_Pirate_Warrior_2_V5.2_VOICE.apk" --clobber
+          else
+            gh release create "$TAG" "$APK#CHK_Pirate_Warrior_2_V5.2_VOICE.apk" \
+              --target "$GITHUB_SHA" \
+              --title 'CHK Pirate Warrior 2 V5.2 VOICE' \
+              --notes 'APK Android V5.2 avec îles vivantes, véhicules, gameplay validé et voix contextuelles Cheikh/Yvane. Compilée, alignée, signée et vérifiée automatiquement par GitHub Actions.'
+          fi
