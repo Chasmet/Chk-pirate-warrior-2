@@ -17,6 +17,7 @@ var _jump_button: TouchActionButton
 var _interact_button: TouchActionButton
 var _hero_switch_button: TouchActionButton
 var _inventory_button: TouchActionButton
+var _enemy_recovery_button: TouchActionButton
 var _camera_reset_button: TouchActionButton
 var _last_vehicle_mode := false
 
@@ -27,7 +28,7 @@ func _ready() -> void:
     _movement = VirtualJoystickScript.new()
     _movement.name = "MovementJoystickInput"
     _movement.mode = "movement"
-    _movement.deadzone = 0.10
+    _movement.deadzone = 0.075
     _movement.draw_visuals = true
     _movement.size = Vector2(282, 282)
     add_child(_movement)
@@ -48,6 +49,7 @@ func _ready() -> void:
     _create_interact_button()
     _create_switch_button()
     _create_inventory_button()
+    _create_enemy_recovery_button()
     _create_camera_reset_button()
 
     GameState.hero_changed.connect(_on_hero_changed)
@@ -63,6 +65,8 @@ func _process(_delta: float) -> void:
         _last_vehicle_mode = vehicle_mode
         if _jump_button != null:
             _jump_button.set_enabled(not vehicle_mode)
+        if _enemy_recovery_button != null:
+            _enemy_recovery_button.set_enabled(not vehicle_mode)
 
 func _notification(what: int) -> void:
     if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
@@ -89,6 +93,11 @@ func _create_switch_button() -> void:
 func _create_inventory_button() -> void:
     _inventory_button = _create_action_button("SAC", &"open_inventory", Vector2(96, 96), 17, true)
     _inventory_button.name = "InventoryButton"
+
+func _create_enemy_recovery_button() -> void:
+    _enemy_recovery_button = _create_action_button("ENNEMI\nBLOQUÉ ?", &"", Vector2(170, 64), 14, false)
+    _enemy_recovery_button.name = "EnemyRecoveryButton"
+    _enemy_recovery_button.activated.connect(_recover_enemy)
 
 func _create_camera_reset_button() -> void:
     # Fonction conservée mais masquée : un bouton technique ne doit plus encombrer le HUD.
@@ -131,6 +140,11 @@ func _interact() -> void:
     await get_tree().process_frame
     Input.action_release("interact")
 
+func _recover_enemy() -> void:
+    var recovery := get_tree().get_first_node_in_group("enemy_recovery")
+    if recovery != null and recovery.has_method("request_recovery"):
+        recovery.call("request_recovery")
+
 func _recenter_camera() -> void:
     var rig := get_tree().get_first_node_in_group("camera_rig")
     if rig != null and rig.has_method("recenter_behind_target"):
@@ -147,7 +161,8 @@ func _cancel_all_touches() -> void:
         _jump_button,
         _interact_button,
         _hero_switch_button,
-        _inventory_button
+        _inventory_button,
+        _enemy_recovery_button
     ]:
         if button != null:
             button.cancel_press()
@@ -163,18 +178,6 @@ func _layout_controls() -> void:
             JOYSTICK_LEFT_MARGIN,
             maxf(72.0, h - _movement.size.y - SAFE_BOTTOM_MARGIN)
         )
-
-    # Centre : interaction, choix du héros et sac. Le joystick reste seul à gauche.
-    var action_y := h - SAFE_BOTTOM_MARGIN - 84.0
-    if _interact_button != null:
-        var joystick_right := JOYSTICK_LEFT_MARGIN + (_movement.size.x if _movement != null else 282.0)
-        var jump_left := w - SAFE_SIDE_MARGIN - 174.0 - 116.0 - 116.0 - 42.0
-        var interact_x := clampf(w * 0.5 - 105.0, joystick_right + 16.0, jump_left - 224.0)
-        _interact_button.position = Vector2(interact_x, action_y)
-    if _hero_switch_button != null:
-        _hero_switch_button.position = Vector2(_interact_button.position.x + 2.0, maxf(286.0, action_y - 112.0))
-    if _inventory_button != null:
-        _inventory_button.position = Vector2(_interact_button.position.x + 112.0, maxf(286.0, action_y - 112.0))
 
     # Bloc combat à droite. Tous les boutons restent hors de la bande système Android.
     if _attack_button != null:
@@ -201,6 +204,29 @@ func _layout_controls() -> void:
         _ability_2_button.position = Vector2(
             w - SAFE_SIDE_MARGIN - _ability_2_button.size.x,
             maxf(296.0, h - 454.0)
+        )
+
+    # HÉROS et SAC ne doivent plus recouvrir le personnage au centre de l'écran.
+    # Sur un écran large Android ils passent clairement à droite du héros, sous la zone de mission.
+    var utility_x := w * (0.545 if w >= 1350.0 else 0.50)
+    var utility_y := maxf(278.0, h - 405.0)
+    if _hero_switch_button != null:
+        _hero_switch_button.position = Vector2(utility_x, utility_y)
+    if _inventory_button != null:
+        _inventory_button.position = Vector2(utility_x + 106.0, utility_y)
+
+    # INTERAGIR reste sous le bloc utilitaire, mais décollé du corps du joueur.
+    if _interact_button != null:
+        var interact_x := w * (0.515 if w >= 1350.0 else 0.46)
+        var max_interact_x := _jump_button.position.x - _interact_button.size.x - 14.0 if _jump_button != null else w - SAFE_SIDE_MARGIN - _interact_button.size.x
+        interact_x = minf(interact_x, max_interact_x)
+        _interact_button.position = Vector2(maxf(360.0, interact_x), maxf(350.0, h - 326.0))
+
+    # Bouton de secours volontairement petit : visible si un ennemi disparaît, sans masquer le combat.
+    if _enemy_recovery_button != null:
+        _enemy_recovery_button.position = Vector2(
+            clampf(w * 0.55, 610.0, w - SAFE_SIDE_MARGIN - _enemy_recovery_button.size.x),
+            205.0
         )
 
     if _camera_reset_button != null:
