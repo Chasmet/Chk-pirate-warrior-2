@@ -41,7 +41,7 @@ func _ready() -> void:
     _dodge_button = _create_action_button("ESQUIVE", &"dodge", Vector2(116, 116), 17, true)
     _dodge_button.name = "DodgeButton"
 
-    # Actions de déplacement au centre, comme sur la maquette.
+    # SAUT est volontairement côté gauche, juste après le joystick.
     _jump_button = _create_action_button("SAUT", &"jump", Vector2(150, 84), 21, false)
     _jump_button.name = "JumpButton"
     _create_interact_button()
@@ -138,13 +138,16 @@ func _layout_controls() -> void:
             maxf(72.0, h - _movement.size.y - SAFE_BOTTOM_MARGIN)
         )
 
-    # Actions centrales : interaction et saut, bien séparés du joystick.
-    if _interact_button != null:
-        _interact_button.position = Vector2(360.0, h - SAFE_BOTTOM_MARGIN - _interact_button.size.y)
+    # Ordre demandé : joystick -> SAUT -> INTERAGIR. Aucun chevauchement.
+    var action_y := h - SAFE_BOTTOM_MARGIN - 84.0
     if _jump_button != null:
-        _jump_button.position = Vector2(585.0, h - SAFE_BOTTOM_MARGIN - _jump_button.size.y)
+        var jump_x := JOYSTICK_LEFT_MARGIN + (_movement.size.x if _movement != null else 282.0) + 16.0
+        _jump_button.position = Vector2(jump_x, action_y)
+    if _interact_button != null:
+        var interact_x := (_jump_button.position.x + _jump_button.size.x + 14.0) if _jump_button != null else 520.0
+        _interact_button.position = Vector2(interact_x, action_y)
     if _hero_switch_button != null:
-        _hero_switch_button.position = Vector2(515.0, maxf(300.0, h - 338.0))
+        _hero_switch_button.position = Vector2(500.0, maxf(292.0, h - 342.0))
 
     # Bloc combat à droite. Tous les boutons restent hors de la bande système Android.
     if _attack_button != null:
