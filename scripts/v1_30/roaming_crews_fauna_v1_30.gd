@@ -329,7 +329,7 @@ func _fallback_humanoid(color: Color) -> Node3D:
     sphere.height = 0.44
     head.mesh = sphere
     head.position.y = 1.62
-    head.material_override = _material(color.lightened(0.12))
+    head.material_override = _material(color.lerp(Color.WHITE, 0.12))
     root.add_child(head)
     return root
 
