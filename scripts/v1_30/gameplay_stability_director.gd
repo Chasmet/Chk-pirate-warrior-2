@@ -8,6 +8,8 @@ const CHECK_INTERVAL := 0.35
 const DUPLICATE_BOAT_RADIUS := 22.0
 const TROPHY_NAME := "TropheeFinal"
 const TROPHY_BEACON_NAME := "BaliseTropheeFinalV130"
+const DOCK_BOAT_FORWARD_OFFSET := 42.5
+const DOCK_BOAT_SIDE_OFFSET := 6.2
 
 var _accumulator := 0.0
 var _player: CharacterBody3D
@@ -41,6 +43,7 @@ func _repair_all() -> void:
     if _player == null or not is_instance_valid(_player):
         _player = get_tree().get_first_node_in_group("player") as CharacterBody3D
     _repair_orphaned_player_controller()
+    _repair_dock_boat_spawns()
     _deduplicate_overlapping_boats()
     _repair_final_trophy()
 
@@ -63,6 +66,34 @@ func _repair_orphaned_player_controller() -> void:
         if _player.has_method("set_virtual_move"):
             _player.call("set_virtual_move", Vector2.ZERO)
         _notify("Contrôle du héros restauré automatiquement.")
+
+func _repair_dock_boat_spawns() -> void:
+    # Le quai a une collision de 38 m centrée à +16,5 m : il atteint environ
+    # +35,5 m. Le bateau (12 m de long) était centré à +39 m et commençait donc
+    # avec sa coque dans le quai. On le décale légèrement vers le large une seule
+    # fois, sans jamais téléporter un bateau déjà piloté ou déplacé par le joueur.
+    var island_id := clampi(GameState.current_island, 1, WorldCatalog.island_count())
+    var info := WorldCatalog.island(island_id - 1)
+    var size: Vector2 = info["size"]
+    var legacy_z := size.y * 0.45 + 39.0
+    var safe_z := size.y * 0.45 + DOCK_BOAT_FORWARD_OFFSET
+
+    for candidate in get_tree().get_nodes_in_group("boat"):
+        if not (candidate is BoatController) or not is_instance_valid(candidate):
+            continue
+        var boat := candidate as BoatController
+        if boat.is_boarded() or bool(boat.get_meta("v130_dock_spawn_checked", false)):
+            continue
+        var parent := boat.get_parent()
+        if parent == null or not str(parent.name).begins_with("Royaume_"):
+            continue
+        if absf(boat.position.z - legacy_z) <= 5.5 and absf(boat.position.x - 7.0) <= 4.5:
+            boat.position.x = DOCK_BOAT_SIDE_OFFSET
+            boat.position.z = safe_z
+            boat.position.y = -0.55
+            boat.velocity = Vector3.ZERO
+            boat.turn_speed = maxf(boat.turn_speed, 1.62)
+        boat.set_meta("v130_dock_spawn_checked", true)
 
 func _deduplicate_overlapping_boats() -> void:
     var active := get_tree().get_first_node_in_group("active_controller")
