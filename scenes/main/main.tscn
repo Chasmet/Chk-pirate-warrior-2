@@ -1,4 +1,4 @@
-[gd_scene load_steps=23 format=3]
+[gd_scene load_steps=27 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/hero_controller_v3.gd" id="1_hero"]
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera_v3.gd" id="2_camera"]
@@ -20,6 +20,10 @@
 [ext_resource type="Script" path="res://scripts/world/island_vegetation_director.gd" id="18_vegetation"]
 [ext_resource type="Script" path="res://scripts/world/island_living_theme_director.gd" id="19_living_theme"]
 [ext_resource type="Script" path="res://scripts/audio/hero_voice_director.gd" id="20_voice"]
+[ext_resource type="Script" path="res://scripts/v1_30/gameplay_stability_director.gd" id="21_stability"]
+[ext_resource type="Script" path="res://scripts/v1_30/combat_hud_v1_30.gd" id="22_combat_hud"]
+[ext_resource type="Script" path="res://scripts/v1_30/power_fx_v1_30.gd" id="23_power_fx"]
+[ext_resource type="Script" path="res://scripts/v1_30/kingdom_identity_v1_30.gd" id="24_identity"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.38
@@ -88,7 +92,19 @@ script = ExtResource("17_enemy_recovery")
 [node name="HeroVoiceDirector" type="Node" parent="."]
 script = ExtResource("20_voice")
 
+[node name="GameplayStabilityV130" type="Node" parent="."]
+script = ExtResource("21_stability")
+
+[node name="PowerFXV130" type="Node3D" parent="."]
+script = ExtResource("23_power_fx")
+
+[node name="KingdomIdentityV130" type="Node3D" parent="."]
+script = ExtResource("24_identity")
+
 [node name="HUDMobile" parent="." instance=ExtResource("3_hud")]
+
+[node name="CombatHUDV130" type="CanvasLayer" parent="."]
+script = ExtResource("22_combat_hud")
 
 [node name="GameplayUXOverlay" type="CanvasLayer" parent="."]
 script = ExtResource("14_ux")
