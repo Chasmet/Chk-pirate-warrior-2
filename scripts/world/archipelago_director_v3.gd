@@ -234,9 +234,19 @@ func on_boss_defeated(enemy: Node) -> void:
 
 func request_boat_interaction() -> bool:
     var active_before := get_tree().get_first_node_in_group("active_controller")
+
+    # Un ancien bateau/véhicule peut rester référencé dans le groupe actif alors
+    # qu'il n'a plus de conducteur. Le parent historique considère alors son
+    # simple disembark() comme une interaction réussie et empêche tout nouvel
+    # embarquement. On nettoie ce faux état avant de choisir un contrôleur.
+    if active_before != null and is_instance_valid(active_before) and active_before.has_method("is_boarded"):
+        if not bool(active_before.call("is_boarded")):
+            active_before.remove_from_group("active_controller")
+            active_before = null
+
     var was_on_boat := active_before is BoatController and (active_before as BoatController).is_boarded()
 
-    # Si un contrôleur est déjà actif (bateau ou véhicule), on conserve la logique
+    # Si un contrôleur réellement occupé est actif, on conserve la logique
     # standard de débarquement/descente avant toute nouvelle sélection.
     if active_before != null and is_instance_valid(active_before):
         var active_result := super.request_boat_interaction()
