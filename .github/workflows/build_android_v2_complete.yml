@@ -1,4 +1,4 @@
-name: Compiler CHK Pirate Warrior 2 v1 30/100
+name: Compiler CHK Pirate Warrior 2 v1 30/100 Hotfix 1
 
 on:
   workflow_dispatch:
@@ -18,7 +18,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: chk-pirate-warrior-2-v1-30-100-${{ github.ref }}
+  group: chk-pirate-warrior-2-v1-30-100-hotfix-1-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -176,8 +176,9 @@ jobs:
           fi
           grep -q 'CHK_PIRATE_WARRIOR_2_V5_RUNTIME_VEHICLES_VILLAGES_VARIETY_OK' godot-runtime-gameplay.log
           grep -q 'CHK_PIRATE_WARRIOR_2_V5_RUNTIME_FATAL_RESPAWN_OK' godot-runtime-gameplay.log
+          grep -q 'CHK_PIRATE_WARRIOR_2_V1_30_RUNTIME_BOAT_TROPHY_REVERSE_OK' godot-runtime-gameplay.log
 
-      - name: Exporter APK Android v1 30/100 validée
+      - name: Exporter APK Android v1 30/100 Hotfix 1 validée
         shell: bash
         env:
           GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /home/runner/.android/debug.keystore
@@ -188,16 +189,16 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/ci_export/build/android"
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
             --export-debug Android \
-            "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_v1_30_100_unsigned.apk" \
+            "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_v1_30_100_HOTFIX_1_unsigned.apk" \
             --verbose 2>&1 | tee godot-export.log
-          test -s "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_v1_30_100_unsigned.apk"
+          test -s "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_v1_30_100_HOTFIX_1_unsigned.apk"
 
       - name: Aligner signer et vérifier l'APK
         shell: bash
         run: |
           set -euo pipefail
-          SOURCE_APK="$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_v1_30_100_unsigned.apk"
-          FINAL_APK="$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_v1_30_100.apk"
+          SOURCE_APK="$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_v1_30_100_HOTFIX_1_unsigned.apk"
+          FINAL_APK="$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_v1_30_100_HOTFIX_1.apk"
           ZIPALIGN="$ANDROID_HOME/build-tools/34.0.0/zipalign"
           APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
           "$ZIPALIGN" -f -p 4 "$SOURCE_APK" "$GITHUB_WORKSPACE/artifact/aligned.apk"
@@ -210,20 +211,20 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs "$FINAL_APK"
           unzip -t "$FINAL_APK" >/dev/null
           APK_MB=$(du -m "$FINAL_APK" | cut -f1)
-          echo "APK finale v1 30/100: ${APK_MB} Mo"
+          echo "APK finale v1 30/100 Hotfix 1: ${APK_MB} Mo"
           if [ "$APK_MB" -lt 70 ]; then
             echo 'ERREUR: APK anormalement petit.'
             exit 5
           fi
           sha256sum "$FINAL_APK" | tee artifact/SHA256.txt
 
-      - name: Publier APK v1 30/100 et preuves d'exécution
+      - name: Publier APK v1 30/100 Hotfix 1 et preuves d'exécution
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: CHK-Pirate-Warrior-2-v1-30-100-APK
+          name: CHK-Pirate-Warrior-2-v1-30-100-HOTFIX-1-APK
           path: |
-            artifact/CHK_Pirate_Warrior_2_v1_30_100.apk
+            artifact/CHK_Pirate_Warrior_2_v1_30_100_HOTFIX_1.apk
             artifact/SHA256.txt
             artifact/GLB_BROKEN.txt
             godot-import.log
@@ -234,21 +235,21 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Publier l'APK v1 30/100 dans GitHub Releases
+      - name: Publier l'APK v1 30/100 Hotfix 1 dans GitHub Releases
         if: success() && github.event_name == 'push' && github.ref == 'refs/heads/agent/v5-living-islands-vehicles'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG='v1-30-100'
-          APK="$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_v1_30_100.apk"
+          TAG='v1-30-100-hotfix-1'
+          APK="$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_v1_30_100_HOTFIX_1.apk"
           test -s "$APK"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK#CHK_Pirate_Warrior_2_v1_30_100.apk" --clobber
+            gh release upload "$TAG" "$APK#CHK_Pirate_Warrior_2_v1_30_100_HOTFIX_1.apk" --clobber
           else
-            gh release create "$TAG" "$APK#CHK_Pirate_Warrior_2_v1_30_100.apk" \
+            gh release create "$TAG" "$APK#CHK_Pirate_Warrior_2_v1_30_100_HOTFIX_1.apk" \
               --target "$GITHUB_SHA" \
-              --title 'CHK Pirate Warrior 2 — v1 30/100' \
-              --notes 'Mise à jour Android v1 30/100 : correctifs de stabilité, trophée final renforcé, bateau/double bateau, marche arrière, HUD PV/pouvoir, pouvoirs visuels, identité Marvel/Pokémon, équipages libres et faune. APK compilée, alignée, signée et vérifiée automatiquement par GitHub Actions.'
+              --title 'CHK Pirate Warrior 2 — v1 30/100 Hotfix 1' \
+              --notes 'Hotfix Android v1 30/100 : sortie du quai orientée vers la mer, conservation du bateau piloté entre les royaumes, suppression du double bateau, récupération après respawn maritime, trophée final visible et récupérable, marche arrière tactile vérifiée. Cette APK conserve aussi le HUD PV/pouvoir, les pouvoirs visuels, l’identité Marvel/Pokémon, les équipages libres et la faune de v1 30/100. APK compilée, alignée, signée et vérifiée automatiquement par GitHub Actions.'
           fi

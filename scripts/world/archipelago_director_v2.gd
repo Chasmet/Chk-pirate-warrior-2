@@ -244,7 +244,14 @@ func respawn_player() -> void:
     if _player == null or not is_instance_valid(_player) or _current_index < 0:
         return
     var active := get_tree().get_first_node_in_group("active_controller")
-    if active != null and active.has_method("force_disembark_at"):
+    if active is BoatController and is_instance_valid(active):
+        var boat := active as BoatController
+        boat.force_reposition(_safe_boat_spawn(_current_index, boat.water_height), PI)
+        boat.force_disembark_at(_safe_port_spawn(_current_index), 0.0)
+        if _island_root != null and is_instance_valid(_island_root) and boat.get_parent() != _island_root:
+            boat.reparent(_island_root, true)
+        boat.moor_at_current_position()
+    elif active != null and active.has_method("force_disembark_at"):
         active.call("force_disembark_at", _safe_port_spawn(_current_index), 0.0)
     _place_player_at_safe_port(_current_index, true)
     _notify("Retour au port de l’île %02d." % (_current_index + 1))
@@ -277,6 +284,12 @@ func _safe_port_spawn(index: int) -> Vector3:
     var info := WorldCatalog.island(resolved)
     var size: Vector2 = info["size"]
     return _positions[resolved] + Vector3(0.0, 3.4, size.y * 0.45 + 12.0)
+
+func _safe_boat_spawn(index: int, resolved_water_height: float = -0.55) -> Vector3:
+    var resolved := clampi(index, 0, WorldCatalog.island_count() - 1)
+    var info := WorldCatalog.island(resolved)
+    var size: Vector2 = info["size"]
+    return _positions[resolved] + Vector3(3.4, resolved_water_height, size.y * 0.45 + 41.8)
 
 func _place_player_at_safe_port(index: int, save_now: bool) -> void:
     if _player == null or not is_instance_valid(_player):
@@ -372,15 +385,7 @@ func _ensure_final_reward() -> void:
     if _island_root.get_node_or_null("TropheeFinal") != null:
         return
     var info := WorldCatalog.island(10)
-    if not info.has("reward"):
-        return
-    var reward := _instantiate_asset(str(info["reward"]))
-    if reward == null:
-        return
-    reward.name = "TropheeFinal"
-    reward.position = Vector3(0.0, 7.0, -40.0)
-    reward.scale *= Vector3.ONE * 1.6
-    _island_root.add_child(reward)
+    _spawn_final_reward(info)
 
 func _update_final_reward_collection() -> void:
     if _current_index != 10 or GameState.final_reward_collected or _player == null or not is_instance_valid(_player):
@@ -454,4 +459,4 @@ func _preserve_active_boat_for_transition() -> void:
         return
     if active.get_parent() == self:
         return
-    active.reparent(self, true)
+    active.reparent_preserving_driver(self)

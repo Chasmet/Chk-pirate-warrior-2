@@ -206,6 +206,12 @@ func _spawn_enemy(path: String, local_position: Vector3, is_boss: bool, difficul
     super._spawn_enemy(path, local_position, is_boss, difficulty, display_name, archetype, variant_index)
 
 func _spawn_boat(info: Dictionary) -> void:
+    # Le bateau piloté est conservé par ArchipelagoDirectorV2 pendant une
+    # transition. Ne pas créer en plus le bateau de quai du nouveau royaume :
+    # c'était la cause structurelle des deux coques superposées à l'arrivée.
+    var active := get_tree().get_first_node_in_group("active_controller")
+    if active is BoatController and is_instance_valid(active) and (active as BoatController).is_boarded():
+        return
     super._spawn_boat(info)
     if _island_root == null or not is_instance_valid(_island_root):
         return
@@ -214,8 +220,12 @@ func _spawn_boat(info: Dictionary) -> void:
     if boat == null:
         return
     var size: Vector2 = info["size"]
-    boat.position = Vector3(5.0, boat.water_height, size.y * 0.45 + 38.0)
+    # Position définitive hors collision du quai. Le StabilityDirector conserve
+    # son correctif de migration pour les anciennes scènes/sauvegardes.
+    boat.position = Vector3(3.4, boat.water_height, size.y * 0.45 + 41.8)
+    boat.rotation.y = PI
     boat.velocity = Vector3.ZERO
+    boat.moor_at_current_position()
 
 func _safe_port_spawn(index: int) -> Vector3:
     var resolved: int = clampi(index, 0, WorldCatalog.island_count() - 1)

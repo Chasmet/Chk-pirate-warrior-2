@@ -56,6 +56,14 @@ func _repair_orphaned_player_controller() -> void:
     if _player == null or not is_instance_valid(_player):
         return
     var active := get_tree().get_first_node_in_group("active_controller")
+
+    # Un nœud encore présent dans le groupe mais sans conducteur est lui aussi
+    # un contrôleur fantôme. Il bloquait le héros tout en empêchant le mécanisme
+    # de récupération ci-dessous de s'exécuter.
+    if active != null and is_instance_valid(active) and active.has_method("is_boarded"):
+        if not bool(active.call("is_boarded")):
+            active.remove_from_group("active_controller")
+            active = null
     if active != null and is_instance_valid(active):
         return
 
@@ -98,6 +106,7 @@ func _repair_dock_boat_spawns() -> void:
             boat.velocity = Vector3.ZERO
             boat.boarding_radius = maxf(boat.boarding_radius, 9.0)
             boat.turn_speed = maxf(boat.turn_speed, 1.62)
+            boat.moor_at_current_position()
         boat.set_meta("v130_dock_spawn_checked", true)
 
 func _deduplicate_overlapping_boats() -> void:

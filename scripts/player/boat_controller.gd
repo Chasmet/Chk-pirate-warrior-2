@@ -27,6 +27,7 @@ var _boarding_anchor := Vector3.ZERO
 var _boarding_anchor_valid := false
 var _mooring_position := Vector3.ZERO
 var _moored := false
+var _reparenting_with_driver := false
 
 func _ready() -> void:
     add_to_group("boat")
@@ -34,6 +35,12 @@ func _ready() -> void:
     _build_deck_crew()
 
 func _exit_tree() -> void:
+    # reparent() provoque temporairement _exit_tree() même si le bateau reste
+    # dans la même SceneTree. Pendant une transition de royaume, ce n'est pas
+    # une suppression : le conducteur, sa collision et le contrôle doivent être
+    # conservés jusqu'au nouveau parent.
+    if _reparenting_with_driver:
+        return
     if not is_boarded():
         return
     var player: CharacterBody3D = _driver
@@ -67,6 +74,39 @@ func boarding_distance_to(world_position: Vector3) -> float:
     # depuis un quai dépend de la distance sur le plan de l'eau, pas de quelques
     # centimètres de houle sur l'axe Y.
     return Vector2(global_position.x - world_position.x, global_position.z - world_position.z).length()
+
+func moor_at_current_position() -> void:
+    # Immobilisation explicite du bateau de quai. Sans cet état, move_and_slide()
+    # peut appliquer de petites corrections de collision alors que personne ne
+    # pilote, jusqu'à rendre la coque inaccessible depuis le bout du ponton.
+    _mooring_position = global_position
+    _moored = true
+    _boarding_anchor_valid = false
+    _virtual_move = Vector2.ZERO
+    _forward_speed = 0.0
+    _steering_velocity = 0.0
+    velocity = Vector3.ZERO
+
+func reparent_preserving_driver(new_parent: Node) -> bool:
+    if new_parent == null or not is_instance_valid(new_parent) or get_parent() == new_parent:
+        return false
+    var player := _driver
+    var player_collision := _driver_collision
+    var was_boarded := is_boarded()
+    _reparenting_with_driver = true
+    reparent(new_parent, true)
+    _reparenting_with_driver = false
+    add_to_group("boat")
+    if was_boarded and player != null and is_instance_valid(player):
+        _driver = player
+        _driver_collision = player_collision
+        add_to_group("active_controller")
+        player.set_physics_process(false)
+        player.velocity = Vector3.ZERO
+        if _driver_collision != null and is_instance_valid(_driver_collision):
+            _driver_collision.set_deferred("disabled", true)
+        _sync_driver_to_deck()
+    return true
 
 func try_interact(player: CharacterBody3D) -> bool:
     if is_boarded():
@@ -152,16 +192,15 @@ func _find_safe_disembark_position() -> Dictionary:
     var right := global_transform.basis.x.normalized()
     var forward := -global_transform.basis.z.normalized()
 
-    # Priorité au quai devant la proue. Le bateau V1 30/100 est légèrement
-    # décalé sur le côté pour éviter le chevauchement de collision : le premier
-    # point ramène donc le joueur vers l'axe du quai avant de chercher ailleurs.
+    # Le bateau de quai pointe maintenant vers le large. Le ponton est donc à
+    # l'arrière de la coque : les premiers rayons cherchent le sol côté poupe,
+    # afin qu'INTERAGIR redépose toujours le héros sur le quai et jamais en mer.
     var offsets: Array[Vector3] = [
-        -right * 3.4 + forward * 7.2,
-        -right * 4.6 + forward * 7.0,
-        forward * 7.4,
-        right * 3.0 + forward * 7.0,
-        -right * 5.2 + forward * 5.0,
-        right * 5.2 + forward * 5.0,
+        -forward * 7.2,
+        -forward * 7.0 + right * 2.2,
+        -forward * 7.0 - right * 2.2,
+        -forward * 5.0 + right * 4.2,
+        -forward * 5.0 - right * 4.2,
         -right * 5.8,
         right * 5.8
     ]

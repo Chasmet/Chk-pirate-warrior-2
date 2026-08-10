@@ -118,6 +118,17 @@ func _run() -> void:
     _check(hero_switch_button != null, "le bouton CHANGER HÉROS est instancié")
     _check(inventory_button != null, "le bouton SAC tactile est instancié")
     _check(camera_reset_button != null, "le bouton RECENTRER CAMÉRA est instancié")
+    var combat_hud := get_tree().get_first_node_in_group("combat_hud_v1_30")
+    _check(combat_hud != null, "le HUD V1 30/100 des PV ennemis est actif")
+    _check(get_tree().root.find_child("EnemyHealthPanel", true, false) != null, "la barre de vie ennemie est instanciée")
+    _check(get_tree().root.find_child("AuraEnergieV130", true, false) != null, "l'aura de pouvoir du héros est visible")
+    if combat_hud != null:
+        var full_life_color: Color = combat_hud.call("_life_color", 1.0)
+        var half_life_color: Color = combat_hud.call("_life_color", 0.50)
+        var critical_life_color: Color = combat_hud.call("_life_color", 0.10)
+        _check(full_life_color.is_equal_approx(Color("39c66b")), "PV complets : barre verte")
+        _check(half_life_color.is_equal_approx(Color("f0c53d")), "PV à moitié : barre jaune")
+        _check(critical_life_color.is_equal_approx(Color("e34842")), "PV critiques : barre rouge")
 
     var viewport_width := get_viewport().get_visible_rect().size.x
     for button in [attack_button, ability_1_button, ability_2_button, dodge_button, jump_button, interact_button, hero_switch_button, inventory_button, camera_reset_button]:
@@ -162,12 +173,37 @@ func _run() -> void:
         await get_tree().physics_frame
     _check(player.is_on_floor(), "Cheikh retombe sur l'île après le saut")
 
+    # Régression V1 30/100 : joystick vers le bas doit produire une vraie marche
+    # arrière, pas un vecteur nul ni une seconde marche avant.
+    var camera := get_viewport().get_camera_3d()
+    var camera_forward := Vector3.FORWARD
+    if camera != null:
+        camera_forward = -camera.global_transform.basis.z
+        camera_forward.y = 0.0
+        camera_forward = camera_forward.normalized()
+    var backpedal_start := player.global_position
+    var backpedal_touch := InputEventScreenTouch.new()
+    backpedal_touch.index = 40
+    backpedal_touch.pressed = true
+    backpedal_touch.position = movement.global_position + movement.size * 0.5 + Vector2(0.0, movement.size.y * 0.38)
+    movement.call("_gui_input", backpedal_touch)
+    for _frame in range(42):
+        await get_tree().physics_frame
+    backpedal_touch.pressed = false
+    backpedal_touch.position = movement.global_position + movement.size * 0.5
+    movement.call("_gui_input", backpedal_touch)
+    var backpedal_delta := player.global_position - backpedal_start
+    backpedal_delta.y = 0.0
+    _check(backpedal_delta.length() > 1.25, "le joystick vers le bas déplace réellement le héros")
+    _check(backpedal_delta.dot(camera_forward) < -0.65, "le héros recule au lieu d'avancer une seconde fois")
+
     if attack_button != null:
         await _tap_button(attack_button, 20)
         _check(not Input.is_action_pressed("attack"), "ATTAQUE se presse et se relâche sans rester bloquée")
     if ability_1_button != null:
         await _tap_button(ability_1_button, 21)
         _check(not Input.is_action_pressed("ability_1"), "POUVOIR 1 se presse et se relâche")
+        _check(get_tree().root.find_child("ImpactPouvoir_*", true, false) != null, "POUVOIR 1 déclenche une onde d'énergie visible")
     if ability_2_button != null:
         await _tap_button(ability_2_button, 22)
         _check(not Input.is_action_pressed("ability_2"), "POUVOIR 2 se presse et se relâche")
@@ -273,7 +309,12 @@ func _run() -> void:
         _check(deck_crew != null and deck_crew.get_child_count() >= 2, "des matelots sont visibles sur le bateau du joueur")
     if boat != null and dock != null:
         var dock_tip := dock.to_global(Vector3(0.0, 1.4, 35.0))
-        _check(dock_tip.distance_to(boat.global_position) <= boat.boarding_radius, "le bateau est réellement accessible depuis le bout du quai")
+        _check(boat.boarding_distance_to(dock_tip) <= boat.boarding_radius, "le bateau est réellement accessible depuis le bout du quai")
+        var away_from_dock := boat.global_position - dock.global_position
+        away_from_dock.y = 0.0
+        var boat_forward := -boat.global_transform.basis.z
+        boat_forward.y = 0.0
+        _check(away_from_dock.normalized().dot(boat_forward.normalized()) > 0.72, "le bateau amarré pointe vers le large, pas dans le quai")
         player.global_position = dock_tip
         player.velocity = Vector3.ZERO
         for _frame in range(8):
@@ -294,10 +335,38 @@ func _run() -> void:
         for _frame in range(8):
             await get_tree().physics_frame
         var reboarded := world != null and bool(world.call("request_boat_interaction"))
-        _check(reboarded and boat.is_boarded(), "Cheikh peut remonter à bord pour tester le respawn maritime")
+        _check(reboarded and boat.is_boarded(), "Cheikh peut remonter à bord pour quitter le quai")
         if boat.is_boarded():
-            var deep_water := island.to_global(Vector3(260.0, boat.water_height, 680.0))
-            boat.force_reposition(deep_water, 0.0)
+            var dock_distance_before := Vector2(boat.global_position.x - dock.global_position.x, boat.global_position.z - dock.global_position.z).length()
+            var boat_touch := InputEventScreenTouch.new()
+            boat_touch.index = 41
+            boat_touch.pressed = true
+            boat_touch.position = movement.global_position + movement.size * 0.5 + Vector2(0.0, -movement.size.y * 0.38)
+            movement.call("_gui_input", boat_touch)
+            for _frame in range(80):
+                await get_tree().physics_frame
+            boat_touch.pressed = false
+            boat_touch.position = movement.global_position + movement.size * 0.5
+            movement.call("_gui_input", boat_touch)
+            var dock_distance_after := Vector2(boat.global_position.x - dock.global_position.x, boat.global_position.z - dock.global_position.z).length()
+            _check(dock_distance_after > dock_distance_before + 3.0, "JOYSTICK HAUT fait sortir le bateau du quai sans collision")
+
+            # Reproduit le passage Royaume de feu -> royaume suivant : le bateau
+            # piloté arrive au nouveau port avant que l'île soit reconstruite.
+            var island_two_info := WorldCatalog.island(1)
+            var island_two_center := WorldCatalog.world_positions()[1]
+            var island_two_size: Vector2 = island_two_info["size"]
+            var island_two_boat_spawn := island_two_center + Vector3(3.4, boat.water_height, island_two_size.y * 0.45 + 41.8)
+            boat.force_reposition(island_two_boat_spawn, PI)
+            world.call("_load_island", 1, false)
+            for _frame in range(16):
+                await get_tree().physics_frame
+            var boats_after_transition := get_tree().get_nodes_in_group("boat")
+            _check(boats_after_transition.size() == 1, "un changement de royaume ne crée plus un second bateau sur celui du joueur")
+            _check(boats_after_transition.size() == 1 and boats_after_transition[0] == boat, "le bateau conservé est bien celui que Cheikh pilotait")
+
+            var deep_water := island_two_center + Vector3(260.0, boat.water_height, island_two_size.y * 0.5 + 360.0)
+            boat.force_reposition(deep_water, PI)
             world.call("respawn_player")
             for _frame in range(90):
                 if player.is_on_floor():
@@ -308,6 +377,14 @@ func _run() -> void:
             _check(active_after_respawn == null, "le bateau ne reste pas contrôleur actif après le respawn")
             _check(player.is_physics_processing(), "la physique du héros est réactivée après le respawn maritime")
             _check(player.is_on_floor(), "le héros respawn réellement sur le port après une mort en mer")
+            var repaired_boat_spawn: Vector3 = world.call("_safe_boat_spawn", 1, boat.water_height)
+            _check(boat.global_position.distance_to(repaired_boat_spawn) < 1.5, "le bateau revient aussi au quai après le respawn maritime")
+
+    # Revenir au Royaume musical pour que la boucle ci-dessous couvre bien les
+    # onze identités de véhicules depuis l'île 1.
+    world.call("_load_island", 0, true)
+    for _frame in range(12):
+        await get_tree().physics_frame
 
     # Charge réellement chaque royaume actif. Ce test attrape les régressions
     # que l'audit de fichiers ne voit pas : mauvais signal island_changed,
@@ -326,6 +403,10 @@ func _run() -> void:
             tested_vehicle_styles[str(island_vehicle.get("style_key"))] = true
         _check(get_tree().root.find_children("Maison_%02d_*" % island_id, "StaticBody3D", true, false).size() >= 10, "île %02d : village chargé" % island_id)
         _check(get_tree().root.find_child("RolePNJ", true, false) != null, "île %02d : habitants et métiers chargés" % island_id)
+        if island_id == 5:
+            _check(get_tree().root.find_child("TourHeroiqueMarvel", true, false) != null, "île 05 : la grande tour du Royaume Marvel est visible")
+        elif island_id == 6:
+            _check(get_tree().root.find_child("PokeballGeante_*", true, false) != null, "île 06 : les Pokéballs géantes identifient le Royaume Pokémon")
         var models_on_island := {}
         for enemy_on_island in get_tree().get_nodes_in_group("enemy"):
             if not bool(enemy_on_island.get("boss")):
@@ -351,6 +432,21 @@ func _run() -> void:
         if final_boss != null:
             final_boss.receive_damage(final_boss.max_health * 0.55)
             _check(bool(final_boss.get("_phase_two")), "la grande boss entre réellement en phase 2")
+            final_boss.receive_damage(final_boss.max_health * 2.0)
+            for _frame in range(24):
+                await get_tree().physics_frame
+            _check(GameState.is_boss_defeated(11), "la défaite du grand boss final est enregistrée")
+            var trophy := get_tree().root.find_child("TropheeFinal", true, false) as Node3D
+            var trophy_beacon := get_tree().root.find_child("BaliseTropheeFinalV130", true, false) as Node3D
+            _check(trophy != null, "le trophée final apparaît réellement après la victoire")
+            _check(trophy_beacon != null, "une balise lumineuse rend le trophée final impossible à manquer")
+            _check(get_tree().root.find_child("SocleTropheeFinal", true, false) != null, "le trophée final possède toujours un socle visible")
+            if trophy != null:
+                player.global_position = trophy.global_position + Vector3.UP
+                player.velocity = Vector3.ZERO
+                for _frame in range(8):
+                    await get_tree().physics_frame
+                _check(GameState.final_reward_collected, "approcher du trophée termine réellement la campagne")
 
     if _failures == 0:
         # Marqueur historique conservé pour le workflow existant.
@@ -358,10 +454,11 @@ func _run() -> void:
         print("CHK_PIRATE_WARRIOR_2_V4_RUNTIME_ALL_TOUCH_AND_DAMAGE_OK")
         print("CHK_PIRATE_WARRIOR_2_V5_RUNTIME_VEHICLES_VILLAGES_VARIETY_OK")
         print("CHK_PIRATE_WARRIOR_2_V5_RUNTIME_FATAL_RESPAWN_OK")
+        print("CHK_PIRATE_WARRIOR_2_V1_30_RUNTIME_BOAT_TROPHY_REVERSE_OK")
     await _finish(main)
 
 func _finish(main: Node) -> void:
-    for action in ["jump", "attack", "ability_1", "ability_2", "dodge", "interact", "move_forward"]:
+    for action in ["jump", "attack", "ability_1", "ability_2", "dodge", "interact", "move_forward", "move_back"]:
         Input.action_release(action)
     if main != null and is_instance_valid(main):
         main.queue_free()
