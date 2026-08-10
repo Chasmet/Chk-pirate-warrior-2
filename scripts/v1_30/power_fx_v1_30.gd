@@ -30,8 +30,9 @@ func _bind_player() -> void:
     _player = get_tree().get_first_node_in_group("player") as CharacterBody3D
     if _player == null:
         return
-    if _player.has_signal("ability_used") and not _player.ability_used.is_connected(_on_ability_used):
-        _player.ability_used.connect(_on_ability_used)
+    var ability_callable := Callable(self, "_on_ability_used")
+    if _player.has_signal("ability_used") and not _player.is_connected("ability_used", ability_callable):
+        _player.connect("ability_used", ability_callable)
     _rebuild_aura()
 
 func _on_hero_changed(_hero_id: String) -> void:
