@@ -82,7 +82,7 @@ func _build_enemy_hud() -> void:
     _enemy_panel = PanelContainer.new()
     _enemy_panel.name = "EnemyHealthPanel"
     _enemy_panel.position = Vector2(0.0, 138.0)
-    _enemy_panel.size = Vector2(560.0, 78.0)
+    _enemy_panel.size = Vector2(560.0, 84.0)
     _enemy_panel.visible = false
     _enemy_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
     var panel_style := StyleBoxFlat.new()
@@ -90,23 +90,39 @@ func _build_enemy_hud() -> void:
     panel_style.border_color = Color("d7b34a")
     panel_style.set_border_width_all(2)
     panel_style.set_corner_radius_all(12)
+    panel_style.content_margin_left = 14.0
+    panel_style.content_margin_right = 14.0
+    panel_style.content_margin_top = 7.0
+    panel_style.content_margin_bottom = 9.0
     _enemy_panel.add_theme_stylebox_override("panel", panel_style)
     root.add_child(_enemy_panel)
 
+    var column := VBoxContainer.new()
+    column.name = "EnemyHealthContent"
+    column.custom_minimum_size = Vector2(532.0, 66.0)
+    column.add_theme_constant_override("separation", 5)
+    column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _enemy_panel.add_child(column)
+
     _enemy_name = Label.new()
-    _enemy_name.position = Vector2(14.0, 6.0)
-    _enemy_name.size = Vector2(532.0, 28.0)
+    _enemy_name.custom_minimum_size = Vector2(0.0, 27.0)
     _enemy_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     _enemy_name.add_theme_font_size_override("font_size", 18)
     _enemy_name.add_theme_color_override("font_color", Color("fff1bc"))
     _enemy_name.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.95))
     _enemy_name.add_theme_constant_override("shadow_offset_x", 2)
     _enemy_name.add_theme_constant_override("shadow_offset_y", 2)
-    _enemy_panel.add_child(_enemy_name)
+    column.add_child(_enemy_name)
+
+    var row := HBoxContainer.new()
+    row.custom_minimum_size = Vector2(0.0, 25.0)
+    row.add_theme_constant_override("separation", 8)
+    row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    column.add_child(row)
 
     _enemy_bar = ProgressBar.new()
-    _enemy_bar.position = Vector2(18.0, 39.0)
-    _enemy_bar.size = Vector2(430.0, 22.0)
+    _enemy_bar.custom_minimum_size = Vector2(350.0, 23.0)
+    _enemy_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     _enemy_bar.show_percentage = false
     _enemy_bar.max_value = 100.0
     _enemy_bar.value = 100.0
@@ -116,15 +132,15 @@ func _build_enemy_hud() -> void:
     bg.set_border_width_all(1)
     bg.set_corner_radius_all(8)
     _enemy_bar.add_theme_stylebox_override("background", bg)
-    _enemy_panel.add_child(_enemy_bar)
+    row.add_child(_enemy_bar)
 
     _enemy_value = Label.new()
-    _enemy_value.position = Vector2(454.0, 37.0)
-    _enemy_value.size = Vector2(92.0, 26.0)
+    _enemy_value.custom_minimum_size = Vector2(90.0, 24.0)
     _enemy_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+    _enemy_value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     _enemy_value.add_theme_font_size_override("font_size", 14)
     _enemy_value.add_theme_color_override("font_color", Color("f5ead0"))
-    _enemy_panel.add_child(_enemy_value)
+    row.add_child(_enemy_value)
 
     get_viewport().size_changed.connect(_layout_enemy_panel)
     _layout_enemy_panel.call_deferred()
@@ -134,14 +150,8 @@ func _layout_enemy_panel() -> void:
         return
     var viewport_size := get_viewport().get_visible_rect().size
     var width := clampf(viewport_size.x * 0.36, 430.0, 590.0)
-    _enemy_panel.size.x = width
+    _enemy_panel.size = Vector2(width, 84.0)
     _enemy_panel.position.x = (viewport_size.x - width) * 0.5
-    if _enemy_name != null:
-        _enemy_name.size.x = width - 28.0
-    if _enemy_bar != null:
-        _enemy_bar.size.x = maxf(290.0, width - 130.0)
-    if _enemy_value != null:
-        _enemy_value.position.x = width - 106.0
 
 func _refresh_enemy_bar() -> void:
     if _enemy_panel == null:
