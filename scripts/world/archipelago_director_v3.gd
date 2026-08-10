@@ -235,6 +235,44 @@ func on_boss_defeated(enemy: Node) -> void:
 func request_boat_interaction() -> bool:
     var active_before := get_tree().get_first_node_in_group("active_controller")
     var was_on_boat := active_before is BoatController and (active_before as BoatController).is_boarded()
+
+    # Si un contrôleur est déjà actif (bateau ou véhicule), on conserve la logique
+    # standard de débarquement/descente avant toute nouvelle sélection.
+    if active_before != null and is_instance_valid(active_before):
+        var active_result := super.request_boat_interaction()
+        if active_result:
+            return true
+        return false
+
+    if _player == null or not is_instance_valid(_player):
+        _player = get_tree().get_first_node_in_group("player") as CharacterBody3D
+    if _player == null:
+        return false
+
+    # Au port, le bateau doit être prioritaire sur un véhicule terrestre voisin.
+    # Chaque bateau garde son propre rayon d'embarquement : on ne gonfle donc pas
+    # artificiellement la portée d'interaction pour masquer un mauvais placement.
+    var best_boat: BoatController
+    var best_boat_distance := INF
+    for candidate in get_tree().get_nodes_in_group("boat"):
+        if not (candidate is BoatController) or not is_instance_valid(candidate):
+            continue
+        var boat := candidate as BoatController
+        if boat.is_boarded():
+            continue
+        var distance := boat.global_position.distance_to(_player.global_position)
+        if distance <= boat.boarding_radius and distance < best_boat_distance:
+            best_boat_distance = distance
+            best_boat = boat
+
+    if best_boat != null:
+        var boarded := best_boat.try_interact(_player)
+        if boarded and best_boat.is_boarded():
+            get_tree().call_group("hero_voice_director", "play_event", "embarquement")
+        return boarded
+
+    # Hors du rayon d'un bateau, le comportement historique reste intact pour
+    # permettre l'utilisation normale des véhicules terrestres.
     var result := super.request_boat_interaction()
     if not result:
         return false
