@@ -8,8 +8,13 @@ const CHECK_INTERVAL := 0.35
 const DUPLICATE_BOAT_RADIUS := 22.0
 const TROPHY_NAME := "TropheeFinal"
 const TROPHY_BEACON_NAME := "BaliseTropheeFinalV130"
-const DOCK_BOAT_FORWARD_OFFSET := 42.5
-const DOCK_BOAT_SIDE_OFFSET := 6.2
+# Quai : centre à +0,45*taille, longueur 38 m environ jusqu'à +35,5 m.
+# Bateau : collision 12 m de long (demi-longueur 6 m). À +41,8 m, l'avant de
+# coque reste à +35,8 m : ~30 cm d'eau séparent donc les deux collisions.
+# Le décalage latéral de 3,4 m maintient aussi le centre du bateau à moins de
+# 9 m du point d'embarquement du bout du quai, même avec l'écart vertical.
+const DOCK_BOAT_FORWARD_OFFSET := 41.8
+const DOCK_BOAT_SIDE_OFFSET := 3.4
 
 var _accumulator := 0.0
 var _player: CharacterBody3D
@@ -68,10 +73,9 @@ func _repair_orphaned_player_controller() -> void:
         _notify("Contrôle du héros restauré automatiquement.")
 
 func _repair_dock_boat_spawns() -> void:
-    # Le quai a une collision de 38 m centrée à +16,5 m : il atteint environ
-    # +35,5 m. Le bateau (12 m de long) était centré à +39 m et commençait donc
-    # avec sa coque dans le quai. On le décale légèrement vers le large une seule
-    # fois, sans jamais téléporter un bateau déjà piloté ou déplacé par le joueur.
+    # L'ancien spawn centré à +39 m faisait chevaucher la coque (12 m) et le quai.
+    # La position V1 30/100 garde un petit espace physique devant la coque tout en
+    # restant réellement accessible depuis le dernier segment du quai.
     var island_id := clampi(GameState.current_island, 1, WorldCatalog.island_count())
     var info := WorldCatalog.island(island_id - 1)
     var size: Vector2 = info["size"]
@@ -92,6 +96,7 @@ func _repair_dock_boat_spawns() -> void:
             boat.position.z = safe_z
             boat.position.y = -0.55
             boat.velocity = Vector3.ZERO
+            boat.boarding_radius = maxf(boat.boarding_radius, 9.0)
             boat.turn_speed = maxf(boat.turn_speed, 1.62)
         boat.set_meta("v130_dock_spawn_checked", true)
 
