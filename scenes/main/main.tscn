@@ -1,4 +1,4 @@
-[gd_scene load_steps=28 format=3]
+[gd_scene load_steps=29 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/hero_controller_v3.gd" id="1_hero"]
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera_v3.gd" id="2_camera"]
@@ -25,6 +25,7 @@
 [ext_resource type="Script" path="res://scripts/v1_30/power_fx_v1_30.gd" id="23_power_fx"]
 [ext_resource type="Script" path="res://scripts/v1_30/kingdom_identity_v1_30.gd" id="24_identity"]
 [ext_resource type="Script" path="res://scripts/audio/audio_director.gd" id="25_audio"]
+[ext_resource type="Script" path="res://scripts/v1_30/roaming_crews_fauna_v1_30.gd" id="26_crews_fauna"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.38
@@ -86,6 +87,9 @@ script = ExtResource("15_vehicles")
 
 [node name="WorldLifeDirector" type="Node3D" parent="."]
 script = ExtResource("7_life")
+
+[node name="RoamingCrewsFaunaV130" type="Node3D" parent="."]
+script = ExtResource("26_crews_fauna")
 
 [node name="EnemyRecoveryService" type="Node" parent="."]
 script = ExtResource("17_enemy_recovery")
