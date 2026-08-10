@@ -159,10 +159,19 @@ jobs:
           timeout 120s godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
             res://scenes/tests/runtime_grounded_gameplay_test.tscn 2>&1 | tee godot-runtime-gameplay.log || STATUS=$?
           STATUS=${STATUS:-0}
-          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|ÉCHEC RUNTIME" godot-runtime-gameplay.log; then
+          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|ÉCHEC RUNTIME" godot-runtime-gameplay.log > runtime-errors.log; then
+            echo '--- ERREURS RUNTIME GODOT ---'
+            cat runtime-errors.log
+            while IFS= read -r line; do
+              escaped="${line//'%'/'%25'}"
+              escaped="${escaped//$'\r'/'%0D'}"
+              escaped="${escaped//$'\n'/'%0A'}"
+              echo "::error title=Godot runtime V1 30/100::$escaped"
+            done < runtime-errors.log
             exit 4
           fi
           if [ "$STATUS" -ne 0 ]; then
+            echo "::error title=Godot runtime V1 30/100::Le scénario runtime s'est terminé avec le code $STATUS sans motif grep explicite."
             exit "$STATUS"
           fi
           grep -q 'CHK_PIRATE_WARRIOR_2_V5_RUNTIME_VEHICLES_VILLAGES_VARIETY_OK' godot-runtime-gameplay.log
@@ -219,6 +228,7 @@ jobs:
             artifact/GLB_BROKEN.txt
             godot-import.log
             godot-runtime-gameplay.log
+            runtime-errors.log
             godot-export.log
             v5-foundation-audit.log
           if-no-files-found: warn
