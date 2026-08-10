@@ -5,6 +5,7 @@ const DECKHAND_MODELS := [
     "res://assets/vrac/Adventurer by Quaternius - 5EGWBMpuXq.glb",
     "res://assets/vrac/solad 1 anime.glb"
 ]
+const MOORING_TRAVEL_LIMIT := 2.0
 
 @export var model_path := "res://assets/bateaux_glb/glb/navire_pirate_clair.glb"
 @export var cruise_speed := 24.0
@@ -22,6 +23,10 @@ var _forward_speed := 0.0
 var _steering_velocity := 0.0
 var _snapshot_accumulator := 0.0
 var _crew_root: Node3D
+var _boarding_anchor := Vector3.ZERO
+var _boarding_anchor_valid := false
+var _mooring_position := Vector3.ZERO
+var _moored := false
 
 func _ready() -> void:
     add_to_group("boat")
@@ -76,6 +81,9 @@ func board(player: CharacterBody3D) -> void:
     player.set_physics_process(false)
     player.velocity = Vector3.ZERO
     velocity = Vector3.ZERO
+    _boarding_anchor = global_position
+    _boarding_anchor_valid = true
+    _moored = false
     _forward_speed = 0.0
     _steering_velocity = 0.0
     _snapshot_accumulator = 0.0
@@ -117,6 +125,21 @@ func _release_driver_at(player: CharacterBody3D, world_position: Vector3, yaw: f
     _forward_speed = 0.0
     _steering_velocity = 0.0
     _snapshot_accumulator = 0.0
+
+    # Si le joueur embarque puis redescend sans avoir réellement navigué, le
+    # bateau reste amarré. Sans cela CharacterBody3D.move_and_slide() peut
+    # appliquer une correction de pénétration pendant les frames suivantes et
+    # éloigner la coque du quai, malgré une vitesse explicitement nulle.
+    if _boarding_anchor_valid:
+        var travelled := Vector2(global_position.x - _boarding_anchor.x, global_position.z - _boarding_anchor.z).length()
+        if travelled <= MOORING_TRAVEL_LIMIT:
+            _mooring_position = global_position
+            _moored = true
+        else:
+            _moored = false
+    else:
+        _moored = false
+    _boarding_anchor_valid = false
 
 func _find_safe_disembark_position() -> Dictionary:
     var space := get_world_3d().direct_space_state
@@ -175,6 +198,8 @@ func force_reposition(world_position: Vector3, yaw: float) -> void:
     _forward_speed = 0.0
     _steering_velocity = 0.0
     _virtual_move = Vector2.ZERO
+    _moored = false
+    _boarding_anchor_valid = false
     _sync_driver_to_deck()
     GameState.set_exact_snapshot(global_position, rotation.y, is_boarded())
 
@@ -184,6 +209,12 @@ func _physics_process(delta: float) -> void:
     global_position.y = water_height + wave
     if not is_boarded():
         _forward_speed = move_toward(_forward_speed, 0.0, 3.5 * delta)
+        if _moored:
+            global_position.x = _mooring_position.x
+            global_position.z = _mooring_position.z
+            velocity = Vector3.ZERO
+            _animate_hull(0.0, 0.0, delta)
+            return
         velocity = velocity.move_toward(Vector3.ZERO, 8.0 * delta)
         _animate_hull(0.0, 0.0, delta)
         move_and_slide()
