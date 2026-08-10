@@ -1,6 +1,7 @@
-# Bande-son traversée mer
+# Bande-son de traversée en mer
 
-Déposer ici la bande-son réelle de navigation maritime.
+La bande-son réelle est installée dans `traversee_mer.mp3` et se déclenche
+automatiquement lorsque le héros pilote le bateau.
 
 Noms reconnus automatiquement par `AudioDirectorV130` :
 - `traversee_mer.mp3`
@@ -9,6 +10,5 @@ Noms reconnus automatiquement par `AudioDirectorV130` :
 - `musique_mer.mp3`
 - `mer.mp3`
 
-Les formats `.ogg` et `.wav` sont également acceptés.
-
-Le jeu reste silencieux si aucun fichier réel n'est présent : aucun faux audio n'est généré.
+Les formats `.ogg` et `.wav` restent également acceptés pour un remplacement
+futur.

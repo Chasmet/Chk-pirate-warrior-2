@@ -33,6 +33,37 @@ func _run() -> void:
     _check(project_text.contains("config/icon=\"res://assets/interface/logo_chk_pirate_warrior_2.png\""), "logo configuré comme icône de projet")
     _check(project_text.contains("size/viewport_width=1280"), "viewport Android optimisé en 1280x720")
     _check(project_text.contains("size/viewport_height=720"), "hauteur viewport Android optimisée")
+    _check(project_text.contains("AudioDirector=\"*res://scripts/audio/audio_director.gd\""), "directeur audio persistant configuré une seule fois")
+
+    for island_id in range(1, 12):
+        var island_music_path := "res://assets/audio/bandes_son/ile_%02d/theme_principal.mp3" % island_id
+        _check(ResourceLoader.exists(island_music_path), "île %02d : bande-son principale importable" % island_id)
+    _check(ResourceLoader.exists("res://assets/audio/bandes_son/mer/traversee_mer.mp3"), "bande-son de traversée en mer importable")
+    _check(ResourceLoader.exists("res://assets/audio/menu_theme.mp3"), "musique du menu principal importable")
+    _check(ResourceLoader.exists("res://assets/audio/interface_theme.mp3"), "musique des interfaces importable")
+
+    for voice_filename in [
+        "arrivee_ile_01.mp3",
+        "attaque_01.mp3",
+        "attaque_02.mp3",
+        "bonjour_01.mp3",
+        "bonjour_02.mp3",
+        "coffre_trouve_01.mp3",
+        "coffre_trouve_02.mp3",
+        "douleur_01.mp3",
+        "douleur_02.mp3",
+        "embarquement_01.mp3",
+        "ennemi_repere_01.mp3",
+        "victoire_01.mp3",
+        "victoire_02.mp3"
+    ]:
+        _check(ResourceLoader.exists("res://assets/audio/personnages_principaux/nelvyn/" + voice_filename), "voix Nelvyn importable : " + voice_filename)
+
+    var audio_director_text := FileAccess.get_file_as_string("res://scripts/audio/audio_director.gd")
+    _check(audio_director_text.contains("func play_menu_audio"), "musique du menu reliée au directeur audio")
+    _check(audio_director_text.contains("func play_interface_audio"), "musique d'interface reliée au directeur audio")
+    _check(audio_director_text.contains("func start_gameplay_audio"), "passage menu vers musique de royaume implémenté")
+    _check(audio_director_text.contains("func play_sea_audio"), "passage automatique vers la musique de mer implémenté")
 
     var island_one := WorldCatalog.island(0)
     _check((island_one.get("soldiers", []) as Array).size() >= 4, "l'île 1 ne répète plus un seul modèle ennemi")
@@ -224,6 +255,7 @@ func _run() -> void:
     _check(main_scene_text.contains("world_life_director.gd"), "monde vivant actif")
     _check(main_scene_text.contains("island_vehicle_director.gd"), "véhicules chargés dans la scène principale")
     _check(main_scene_text.contains("island_settlement_director.gd"), "villages chargés dans la scène principale")
+    _check(not main_scene_text.contains("name=\"AudioDirectorV130\""), "aucun second lecteur audio ne double la musique de l'autoload")
 
     if failures == 0:
         print("CHK_PIRATE_WARRIOR_2_V4_FOUNDATION_AUDIT_OK")

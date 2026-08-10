@@ -3,6 +3,8 @@ extends Node
 
 const ISLAND_AUDIO_ROOT := "res://assets/audio/bandes_son"
 const SEA_AUDIO_FOLDER := "res://assets/audio/bandes_son/mer"
+const MENU_AUDIO_PATH := "res://assets/audio/menu_theme.mp3"
+const INTERFACE_AUDIO_PATH := "res://assets/audio/interface_theme.mp3"
 const MUSIC_FADE_SECONDS := 0.85
 const VOICE_DUCK_DB := -8.0
 const NORMAL_MUSIC_DB := -1.0
@@ -12,6 +14,7 @@ var transition_player: AudioStreamPlayer
 var ambience_player: AudioStreamPlayer
 var _current_music_path := ""
 var _sea_mode := false
+var _gameplay_active := false
 var _check_accumulator := 0.0
 var _fade_tween: Tween
 
@@ -27,7 +30,7 @@ func _ready() -> void:
     add_child(ambience_player)
 
     GameState.island_changed.connect(_on_island_changed)
-    play_island_audio.call_deferred(GameState.current_island)
+    play_menu_audio.call_deferred()
 
 func _process(delta: float) -> void:
     _check_accumulator += delta
@@ -45,9 +48,29 @@ func _new_music_player(node_name: String) -> AudioStreamPlayer:
     return player
 
 func _on_island_changed(island_id: int) -> void:
+    if not _gameplay_active:
+        return
     if not _is_player_on_boat():
         _sea_mode = false
         play_island_audio(island_id)
+
+func play_menu_audio() -> void:
+    _gameplay_active = false
+    _sea_mode = false
+    _crossfade_to(MENU_AUDIO_PATH)
+
+func play_interface_audio() -> void:
+    _gameplay_active = false
+    _sea_mode = false
+    _crossfade_to(INTERFACE_AUDIO_PATH)
+
+func start_gameplay_audio() -> void:
+    _gameplay_active = true
+    _sea_mode = _is_player_on_boat()
+    if _sea_mode:
+        play_sea_audio()
+    else:
+        play_island_audio(GameState.current_island)
 
 func play_island_audio(island_id: int = GameState.current_island) -> void:
     var folder := "%s/ile_%02d" % [ISLAND_AUDIO_ROOT, clampi(island_id, 1, 11)]
@@ -79,6 +102,8 @@ func play_sfx(path: String) -> void:
     player.play()
 
 func _update_navigation_music_state() -> void:
+    if not _gameplay_active:
+        return
     var on_boat := _is_player_on_boat()
     if on_boat == _sea_mode:
         return

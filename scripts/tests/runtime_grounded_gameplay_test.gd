@@ -40,8 +40,27 @@ func _run() -> void:
     var menu := get_tree().root.find_child("MainMenu", true, false)
     if menu != null:
         menu.queue_free()
+    AudioDirector.start_gameplay_audio()
 
     for _frame in range(120):
+        await get_tree().physics_frame
+
+    var audio_directors := get_tree().get_nodes_in_group("audio_director")
+    _check(audio_directors.size() == 1, "un seul directeur audio joue la musique")
+    var audio_director := audio_directors[0] if audio_directors.size() == 1 else null
+    if audio_director != null:
+        _check(str(audio_director.get("_current_music_path")) == "res://assets/audio/bandes_son/ile_01/theme_principal.mp3", "la vraie bande-son du Royaume musical démarre en jeu")
+
+    var voice_director := get_tree().get_first_node_in_group("hero_voice_director")
+    _check(voice_director != null, "le directeur des voix des héros est actif")
+    if voice_director != null:
+        GameState.set_hero("nelvyn")
+        await get_tree().physics_frame
+        var nelvyn_voice_started: bool = bool(voice_director.call("play_event", "bonjour", true))
+        var nelvyn_voice_player := voice_director.get_node_or_null("PlayableHeroVoice") as AudioStreamPlayer
+        _check(nelvyn_voice_started, "une vraie voix de Nelvyn peut être déclenchée")
+        _check(nelvyn_voice_player != null and nelvyn_voice_player.stream != null and nelvyn_voice_player.stream.resource_path.contains("/nelvyn/"), "Nelvyn utilise uniquement sa propre banque vocale")
+        GameState.set_hero("cheikh")
         await get_tree().physics_frame
 
     var player := get_tree().get_first_node_in_group("player") as CharacterBody3D
@@ -350,6 +369,8 @@ func _run() -> void:
             movement.call("_gui_input", boat_touch)
             var dock_distance_after := Vector2(boat.global_position.x - dock.global_position.x, boat.global_position.z - dock.global_position.z).length()
             _check(dock_distance_after > dock_distance_before + 3.0, "JOYSTICK HAUT fait sortir le bateau du quai sans collision")
+            if audio_director != null:
+                _check(str(audio_director.get("_current_music_path")) == "res://assets/audio/bandes_son/mer/traversee_mer.mp3", "embarquer déclenche la vraie bande-son de traversée en mer")
 
             # Reproduit le passage Royaume de feu -> royaume suivant : le bateau
             # piloté arrive au nouveau port avant que l'île soit reconstruite.
@@ -379,6 +400,11 @@ func _run() -> void:
             _check(player.is_on_floor(), "le héros respawn réellement sur le port après une mort en mer")
             var repaired_boat_spawn: Vector3 = world.call("_safe_boat_spawn", 1, boat.water_height)
             _check(boat.global_position.distance_to(repaired_boat_spawn) < 1.5, "le bateau revient aussi au quai après le respawn maritime")
+            for _frame in range(70):
+                await get_tree().physics_frame
+            if audio_director != null:
+                var landed_music_path := str(audio_director.get("_current_music_path"))
+                _check(landed_music_path == "res://assets/audio/bandes_son/ile_02/theme_principal.mp3", "débarquer au royaume suivant rétablit sa bande-son dédiée : " + landed_music_path)
 
     # Revenir au Royaume musical pour que la boucle ci-dessous couvre bien les
     # onze identités de véhicules depuis l'île 1.
@@ -455,6 +481,7 @@ func _run() -> void:
         print("CHK_PIRATE_WARRIOR_2_V5_RUNTIME_VEHICLES_VILLAGES_VARIETY_OK")
         print("CHK_PIRATE_WARRIOR_2_V5_RUNTIME_FATAL_RESPAWN_OK")
         print("CHK_PIRATE_WARRIOR_2_V1_30_RUNTIME_BOAT_TROPHY_REVERSE_OK")
+        print("CHK_PIRATE_WARRIOR_2_V1_30_HOTFIX_2_AUDIO_OK")
     await _finish(main)
 
 func _finish(main: Node) -> void:
