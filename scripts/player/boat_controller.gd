@@ -120,12 +120,30 @@ func _find_safe_disembark_position() -> Dictionary:
     var space := get_world_3d().direct_space_state
     var right := global_transform.basis.x.normalized()
     var forward := -global_transform.basis.z.normalized()
+
+    # Priorité au quai devant la proue. Le bateau V1 30/100 est légèrement
+    # décalé sur le côté pour éviter le chevauchement de collision : le premier
+    # point ramène donc le joueur vers l'axe du quai avant de chercher ailleurs.
     var offsets: Array[Vector3] = [
-        -right * 4.8 + forward * 5.0,
-        right * 4.8 + forward * 5.0,
-        -right * 5.4,
-        right * 5.4
+        -right * 3.4 + forward * 7.2,
+        -right * 4.6 + forward * 7.0,
+        forward * 7.4,
+        right * 3.0 + forward * 7.0,
+        -right * 5.2 + forward * 5.0,
+        right * 5.2 + forward * 5.0,
+        -right * 5.8,
+        right * 5.8
     ]
+
+    # Si le bateau est près d'une rive avec une orientation différente, on
+    # balaie aussi tout autour de la coque. Seules les collisions statiques
+    # (terrain, quai, rocher praticable) sont acceptées : jamais l'eau, un autre
+    # bateau ou un véhicule.
+    for radius in [6.0, 8.0, 10.0]:
+        for step in range(16):
+            var angle := TAU * float(step) / 16.0
+            offsets.append(Vector3(cos(angle) * radius, 0.0, sin(angle) * radius))
+
     for offset: Vector3 in offsets:
         var ray_start: Vector3 = global_position + offset + Vector3.UP * 12.0
         var ray_end: Vector3 = ray_start + Vector3.DOWN * 28.0
@@ -133,6 +151,9 @@ func _find_safe_disembark_position() -> Dictionary:
         query.exclude = [get_rid()]
         var hit := space.intersect_ray(query)
         if hit.is_empty():
+            continue
+        var collider = hit.get("collider")
+        if not (collider is StaticBody3D):
             continue
         var point: Vector3 = hit.get("position", Vector3.ZERO)
         if point.y <= water_height + 0.35:
