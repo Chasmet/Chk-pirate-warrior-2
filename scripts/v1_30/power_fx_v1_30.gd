@@ -141,7 +141,7 @@ func _spawn_energy_burst(index: int, ability: Dictionary) -> void:
     sphere.rings = 9
     flash.mesh = sphere
     flash.position.y = 0.95
-    flash.material_override = _energy_material(color.lightened(0.20), 3.8, 0.38)
+    flash.material_override = _energy_material(color.lerp(Color.WHITE, 0.20), 3.8, 0.38)
     burst.add_child(flash)
 
     var label := Label3D.new()
@@ -152,7 +152,7 @@ func _spawn_energy_burst(index: int, ability: Dictionary) -> void:
     label.no_depth_test = true
     label.font_size = 28
     label.outline_size = 7
-    label.modulate = color.lightened(0.25)
+    label.modulate = color.lerp(Color.WHITE, 0.25)
     label.outline_modulate = Color(0.0, 0.0, 0.0, 0.92)
     burst.add_child(label)
 
