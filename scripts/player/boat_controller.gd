@@ -75,6 +75,7 @@ func board(player: CharacterBody3D) -> void:
         _driver_collision.set_deferred("disabled", true)
     player.set_physics_process(false)
     player.velocity = Vector3.ZERO
+    velocity = Vector3.ZERO
     _forward_speed = 0.0
     _steering_velocity = 0.0
     _snapshot_accumulator = 0.0
@@ -112,6 +113,7 @@ func _release_driver_at(player: CharacterBody3D, world_position: Vector3, yaw: f
     _driver = null
     _driver_collision = null
     _virtual_move = Vector2.ZERO
+    velocity = Vector3.ZERO
     _forward_speed = 0.0
     _steering_velocity = 0.0
     _snapshot_accumulator = 0.0
