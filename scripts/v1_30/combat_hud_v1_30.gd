@@ -163,13 +163,16 @@ func _refresh_enemy_bar() -> void:
         return
 
     var target: Node3D
+    var target_is_boss := false
     var best_score := INF
     for node in get_tree().get_nodes_in_group("enemy"):
         if not (node is Node3D) or not is_instance_valid(node):
             continue
+        if not _has_property(node, "health") or not _has_property(node, "max_health"):
+            continue
         var enemy := node as Node3D
         var distance := _player.global_position.distance_to(enemy.global_position)
-        var is_boss := bool(enemy.get("boss"))
+        var is_boss := bool(enemy.get("boss")) if _has_property(enemy, "boss") else false
         var max_distance := BOSS_TRACK_DISTANCE if is_boss else ENEMY_TRACK_DISTANCE
         if distance > max_distance:
             continue
@@ -177,6 +180,7 @@ func _refresh_enemy_bar() -> void:
         if score < best_score:
             best_score = score
             target = enemy
+            target_is_boss = is_boss
 
     if target == null:
         _enemy_panel.visible = false
@@ -185,16 +189,24 @@ func _refresh_enemy_bar() -> void:
     var health := float(target.get("health"))
     var maximum := maxf(1.0, float(target.get("max_health")))
     var ratio := clampf(health / maximum, 0.0, 1.0)
-    var display_name := str(target.get("display_name"))
+    var display_name := str(target.get("display_name")) if _has_property(target, "display_name") else str(target.name)
     if display_name.is_empty():
         display_name = "ENNEMI"
-    var prefix := "GRAND BOSS" if bool(target.get("boss")) else _enemy_rank_prefix(display_name)
+    var prefix := "GRAND BOSS" if target_is_boss else _enemy_rank_prefix(display_name)
     _enemy_name.text = "%s • %s" % [prefix, display_name.to_upper()]
     _enemy_bar.max_value = maximum
     _enemy_bar.value = health
     _set_bar_fill(_enemy_bar, _life_color(ratio))
     _enemy_value.text = "%d / %d" % [roundi(health), roundi(maximum)]
     _enemy_panel.visible = true
+
+func _has_property(object: Object, property_name: String) -> bool:
+    if object == null:
+        return false
+    for property_info in object.get_property_list():
+        if str(property_info.get("name", "")) == property_name:
+            return true
+    return false
 
 func _enemy_rank_prefix(display_name: String) -> String:
     var lower := display_name.to_lower()
