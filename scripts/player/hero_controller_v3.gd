@@ -1,6 +1,8 @@
 class_name HeroControllerV3
 extends "res://scripts/player/hero_controller_v2.gd"
 
+@export var backpedal_rotation_threshold := 0.18
+
 func _ready() -> void:
     move_speed = 8.2
     run_speed = 11.0
@@ -11,6 +13,35 @@ func _ready() -> void:
     floor_constant_speed = true
     safe_margin = 0.055
     super._ready()
+
+func _physics_process(delta: float) -> void:
+    # Le contrôleur de base gère le vrai déplacement 360°. Après son mouvement,
+    # on corrige uniquement l'orientation quand le joueur tire franchement le
+    # joystick vers le bas : le héros recule alors en gardant son torse vers
+    # l'avant/caméra, au lieu de faire demi-tour et courir vers le joueur.
+    super._physics_process(delta)
+    _apply_backpedal_facing(delta)
+
+func _apply_backpedal_facing(delta: float) -> void:
+    if _dodge_time > 0.0 or _attack_lock > 0.0:
+        return
+    var keyboard_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+    var input_vec := _virtual_move
+    if keyboard_vec.length() > input_vec.length():
+        input_vec = keyboard_vec
+    if input_vec.y <= backpedal_rotation_threshold:
+        return
+
+    var camera := get_viewport().get_camera_3d()
+    if camera == null:
+        return
+    var facing := -camera.global_transform.basis.z
+    facing.y = 0.0
+    if facing.length_squared() <= 0.001:
+        return
+    facing = facing.normalized()
+    var target_angle := atan2(-facing.x, -facing.z)
+    rotation.y = lerp_angle(rotation.y, target_angle, minf(1.0, rotation_speed * 1.15 * delta))
 
 func _load_visuals() -> void:
     super._load_visuals()
