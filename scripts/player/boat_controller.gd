@@ -62,11 +62,17 @@ func set_virtual_move(value: Vector2) -> void:
 func is_boarded() -> bool:
     return _driver != null and is_instance_valid(_driver)
 
+func boarding_distance_to(world_position: Vector3) -> float:
+    # L'océan fait osciller la coque verticalement. La capacité à embarquer
+    # depuis un quai dépend de la distance sur le plan de l'eau, pas de quelques
+    # centimètres de houle sur l'axe Y.
+    return Vector2(global_position.x - world_position.x, global_position.z - world_position.z).length()
+
 func try_interact(player: CharacterBody3D) -> bool:
     if is_boarded():
         disembark()
         return true
-    if player == null or global_position.distance_to(player.global_position) > boarding_radius:
+    if player == null or boarding_distance_to(player.global_position) > boarding_radius:
         return false
     board(player)
     return true
