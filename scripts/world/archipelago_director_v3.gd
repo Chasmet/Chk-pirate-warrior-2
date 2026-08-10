@@ -236,59 +236,43 @@ func request_boat_interaction() -> bool:
     if _player == null or not is_instance_valid(_player):
         _player = get_tree().get_first_node_in_group("player") as CharacterBody3D
     if _player == null:
-        print("V130_INTERACT_DIAG no_player")
         return false
 
     var active_before := get_tree().get_first_node_in_group("active_controller")
-    var active_label := "none"
-    if active_before != null and is_instance_valid(active_before):
-        active_label = "%s:%s" % [active_before.get_class(), str(active_before.name)]
-        if active_before.has_method("is_boarded"):
-            active_label += ":boarded=%s" % str(bool(active_before.call("is_boarded")))
-    print("V130_INTERACT_DIAG player=%s active=%s" % [str(_player.global_position), active_label])
 
-    # Un ancien bateau/véhicule peut rester référencé dans le groupe actif alors
-    # qu'il n'a plus de conducteur. Le parent historique considère alors son
-    # simple disembark() comme une interaction réussie et empêche tout nouvel
-    # embarquement. On nettoie ce faux état avant de choisir un contrôleur.
+    # Nettoyage défensif : un ancien bateau/véhicule sans conducteur ne doit pas
+    # consommer INTERAGIR comme s'il était encore le contrôleur actif.
     if active_before != null and is_instance_valid(active_before) and active_before.has_method("is_boarded"):
         if not bool(active_before.call("is_boarded")):
-            print("V130_INTERACT_DIAG stale_active_removed=%s" % str(active_before.name))
             active_before.remove_from_group("active_controller")
             active_before = null
 
     var was_on_boat := active_before is BoatController and (active_before as BoatController).is_boarded()
 
-    # Si un contrôleur réellement occupé est actif, on conserve la logique
-    # standard de débarquement/descente avant toute nouvelle sélection.
     if active_before != null and is_instance_valid(active_before):
         var active_result := super.request_boat_interaction()
-        print("V130_INTERACT_DIAG active_path_result=%s" % str(active_result))
         if active_result:
             return true
         return false
 
-    # Au port, le bateau doit être prioritaire sur un véhicule terrestre voisin.
-    # Chaque bateau garde son propre rayon d'embarquement : on ne gonfle donc pas
-    # artificiellement la portée d'interaction pour masquer un mauvais placement.
+    # La houle ne doit pas modifier la capacité à embarquer : on mesure le plan
+    # X/Z via BoatController.boarding_distance_to(), tout en conservant le rayon
+    # réel de 9 m demandé pour l'accès depuis le quai.
     var best_boat: BoatController
     var best_boat_distance := INF
     for candidate in get_tree().get_nodes_in_group("boat"):
         if not (candidate is BoatController) or not is_instance_valid(candidate):
             continue
         var boat := candidate as BoatController
-        var distance := boat.global_position.distance_to(_player.global_position)
-        var horizontal := Vector2(boat.global_position.x - _player.global_position.x, boat.global_position.z - _player.global_position.z).length()
-        print("V130_INTERACT_DIAG boat=%s pos=%s dist=%.3f horizontal=%.3f radius=%.3f boarded=%s moored=%s velocity=%s" % [str(boat.name), str(boat.global_position), distance, horizontal, boat.boarding_radius, str(boat.is_boarded()), str(bool(boat.get("_moored"))), str(boat.velocity)])
         if boat.is_boarded():
             continue
+        var distance := boat.boarding_distance_to(_player.global_position)
         if distance <= boat.boarding_radius and distance < best_boat_distance:
             best_boat_distance = distance
             best_boat = boat
 
     if best_boat != null:
         var boarded := best_boat.try_interact(_player)
-        print("V130_INTERACT_DIAG chosen=%s result=%s now_boarded=%s" % [str(best_boat.name), str(boarded), str(best_boat.is_boarded())])
         if boarded and best_boat.is_boarded():
             get_tree().call_group("hero_voice_director", "play_event", "embarquement")
         return boarded
@@ -296,7 +280,6 @@ func request_boat_interaction() -> bool:
     # Hors du rayon d'un bateau, le comportement historique reste intact pour
     # permettre l'utilisation normale des véhicules terrestres.
     var result := super.request_boat_interaction()
-    print("V130_INTERACT_DIAG fallback_result=%s" % str(result))
     if not result:
         return false
     var active_after := get_tree().get_first_node_in_group("active_controller")
