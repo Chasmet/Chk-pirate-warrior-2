@@ -2,6 +2,7 @@ class_name IslandVehicleDirector
 extends Node3D
 
 const IslandVehicleScript = preload("res://scripts/player/island_vehicle.gd")
+const RideAssetVisualScript = preload("res://assets/cc0_rides/ride_asset_visual.gd")
 
 const VEHICLES := [
     [
@@ -102,6 +103,12 @@ func _rebuild_vehicles() -> void:
         vehicle.name = "Vehicule_%02d_%02d" % [_current_island, i + 1]
         vehicle.configure(specs[i])
         _vehicle_root.add_child(vehicle)
+
+        var ride_style := str(specs[i].get("style", ""))
+        if ride_style in ["4x4", "horse"]:
+            var upgraded_visual := RideAssetVisualScript.new()
+            upgraded_visual.name = "CC0RideVisual"
+            vehicle.add_child(upgraded_visual)
 
         var slot: Vector2 = VEHICLE_SLOTS[mini(i, VEHICLE_SLOTS.size() - 1)]
         # Le garage du quai garde les cinq moyens de transport assez espacés pour
