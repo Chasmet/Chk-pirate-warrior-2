@@ -55,11 +55,11 @@ func _spawn_crabs(info: Dictionary, center: Vector3) -> void:
         var local := Vector3(cos(angle) * size.x * 0.5 * radial, 0.0, sin(angle) * size.y * 0.5 * radial)
         var world := _snap_to_ground(center + local, 0.12)
         var crab := _make_crab(i)
+        _root.add_child(crab)
         crab.global_position = world
         crab.set_meta("home", world)
         crab.set_meta("phase", float(i) * 0.87)
         crab.set_meta("radius", rng.randf_range(2.2, 5.0))
-        _root.add_child(crab)
         _crabs.append(crab)
 
 func _make_crab(index: int) -> Node3D:

@@ -99,6 +99,7 @@ func _pick_local_position(rng: RandomNumberGenerator, island_size: Vector2, inde
 func _spawn_coin(key: String, world_position: Vector3, value: int, phase: float) -> void:
     var pickup := Node3D.new()
     pickup.name = "Piece_%s" % key
+    _root.add_child(pickup)
     pickup.global_position = world_position
     pickup.set_meta("collect_key", key)
     pickup.set_meta("value", value)
@@ -140,12 +141,12 @@ func _spawn_coin(key: String, world_position: Vector3, value: int, phase: float)
     halo.material_override = halo_material
     pickup.add_child(halo)
 
-    _root.add_child(pickup)
     _pickups.append(pickup)
 
 func _spawn_loot(key: String, world_position: Vector3, value: int, phase: float) -> void:
     var pickup := Node3D.new()
     pickup.name = "PetitButin_%s" % key
+    _root.add_child(pickup)
     pickup.global_position = world_position
     pickup.set_meta("collect_key", key)
     pickup.set_meta("value", value)
@@ -184,7 +185,6 @@ func _spawn_loot(key: String, world_position: Vector3, value: int, phase: float)
     ring.material_override = ring_material
     pickup.add_child(ring)
 
-    _root.add_child(pickup)
     _pickups.append(pickup)
 
 func _animate_pickups() -> void:
@@ -216,6 +216,7 @@ func _collect_nearby() -> void:
         if kind == "loot":
             GameState.add_xp(8 + _current_island * 2)
             _notify("PETIT BUTIN • +%d pièces" % value)
+            get_tree().call_group("hero_voice_director", "play_event", "coffre_trouve")
         _pickups.erase(pickup)
         pickup.queue_free()
         _save_timer = 0.75

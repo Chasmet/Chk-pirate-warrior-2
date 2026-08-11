@@ -1,6 +1,12 @@
 class_name BoatController
 extends CharacterBody3D
 
+const DECKHAND_MODELS := [
+    "res://assets/vrac/Adventurer by Quaternius - 5EGWBMpuXq.glb",
+    "res://assets/vrac/solad 1 anime.glb"
+]
+const MOORING_TRAVEL_LIMIT := 2.0
+
 @export var model_path := "res://assets/bateaux_glb/glb/navire_pirate_clair.glb"
 @export var cruise_speed := 24.0
 @export var boost_speed := 38.0
@@ -16,12 +22,25 @@ var _bobbing_time := 0.0
 var _forward_speed := 0.0
 var _steering_velocity := 0.0
 var _snapshot_accumulator := 0.0
+var _crew_root: Node3D
+var _boarding_anchor := Vector3.ZERO
+var _boarding_anchor_valid := false
+var _mooring_position := Vector3.ZERO
+var _moored := false
+var _reparenting_with_driver := false
 
 func _ready() -> void:
     add_to_group("boat")
     _load_visual()
+    _build_deck_crew()
 
 func _exit_tree() -> void:
+    # reparent() provoque temporairement _exit_tree() même si le bateau reste
+    # dans la même SceneTree. Pendant une transition de royaume, ce n'est pas
+    # une suppression : le conducteur, sa collision et le contrôle doivent être
+    # conservés jusqu'au nouveau parent.
+    if _reparenting_with_driver:
+        return
     if not is_boarded():
         return
     var player: CharacterBody3D = _driver
@@ -42,6 +61,7 @@ func setup(path: String) -> void:
     model_path = path
     if is_inside_tree():
         _load_visual()
+        _build_deck_crew()
 
 func set_virtual_move(value: Vector2) -> void:
     _virtual_move = value.limit_length(1.0)
@@ -49,11 +69,50 @@ func set_virtual_move(value: Vector2) -> void:
 func is_boarded() -> bool:
     return _driver != null and is_instance_valid(_driver)
 
+func boarding_distance_to(world_position: Vector3) -> float:
+    # L'océan fait osciller la coque verticalement. La capacité à embarquer
+    # depuis un quai dépend de la distance sur le plan de l'eau, pas de quelques
+    # centimètres de houle sur l'axe Y.
+    return Vector2(global_position.x - world_position.x, global_position.z - world_position.z).length()
+
+func moor_at_current_position() -> void:
+    # Immobilisation explicite du bateau de quai. Sans cet état, move_and_slide()
+    # peut appliquer de petites corrections de collision alors que personne ne
+    # pilote, jusqu'à rendre la coque inaccessible depuis le bout du ponton.
+    _mooring_position = global_position
+    _moored = true
+    _boarding_anchor_valid = false
+    _virtual_move = Vector2.ZERO
+    _forward_speed = 0.0
+    _steering_velocity = 0.0
+    velocity = Vector3.ZERO
+
+func reparent_preserving_driver(new_parent: Node) -> bool:
+    if new_parent == null or not is_instance_valid(new_parent) or get_parent() == new_parent:
+        return false
+    var player := _driver
+    var player_collision := _driver_collision
+    var was_boarded := is_boarded()
+    _reparenting_with_driver = true
+    reparent(new_parent, true)
+    _reparenting_with_driver = false
+    add_to_group("boat")
+    if was_boarded and player != null and is_instance_valid(player):
+        _driver = player
+        _driver_collision = player_collision
+        add_to_group("active_controller")
+        player.set_physics_process(false)
+        player.velocity = Vector3.ZERO
+        if _driver_collision != null and is_instance_valid(_driver_collision):
+            _driver_collision.set_deferred("disabled", true)
+        _sync_driver_to_deck()
+    return true
+
 func try_interact(player: CharacterBody3D) -> bool:
     if is_boarded():
         disembark()
         return true
-    if player == null or global_position.distance_to(player.global_position) > boarding_radius:
+    if player == null or boarding_distance_to(player.global_position) > boarding_radius:
         return false
     board(player)
     return true
@@ -67,6 +126,10 @@ func board(player: CharacterBody3D) -> void:
         _driver_collision.set_deferred("disabled", true)
     player.set_physics_process(false)
     player.velocity = Vector3.ZERO
+    velocity = Vector3.ZERO
+    _boarding_anchor = global_position
+    _boarding_anchor_valid = true
+    _moored = false
     _forward_speed = 0.0
     _steering_velocity = 0.0
     _snapshot_accumulator = 0.0
@@ -104,20 +167,53 @@ func _release_driver_at(player: CharacterBody3D, world_position: Vector3, yaw: f
     _driver = null
     _driver_collision = null
     _virtual_move = Vector2.ZERO
+    velocity = Vector3.ZERO
     _forward_speed = 0.0
     _steering_velocity = 0.0
     _snapshot_accumulator = 0.0
+
+    # Si le joueur embarque puis redescend sans avoir réellement navigué, le
+    # bateau reste amarré. Sans cela CharacterBody3D.move_and_slide() peut
+    # appliquer une correction de pénétration pendant les frames suivantes et
+    # éloigner la coque du quai, malgré une vitesse explicitement nulle.
+    if _boarding_anchor_valid:
+        var travelled := Vector2(global_position.x - _boarding_anchor.x, global_position.z - _boarding_anchor.z).length()
+        if travelled <= MOORING_TRAVEL_LIMIT:
+            _mooring_position = global_position
+            _moored = true
+        else:
+            _moored = false
+    else:
+        _moored = false
+    _boarding_anchor_valid = false
 
 func _find_safe_disembark_position() -> Dictionary:
     var space := get_world_3d().direct_space_state
     var right := global_transform.basis.x.normalized()
     var forward := -global_transform.basis.z.normalized()
+
+    # Le bateau de quai pointe maintenant vers le large. Le ponton est donc à
+    # l'arrière de la coque : les premiers rayons cherchent le sol côté poupe,
+    # afin qu'INTERAGIR redépose toujours le héros sur le quai et jamais en mer.
     var offsets: Array[Vector3] = [
-        -right * 4.8 + forward * 5.0,
-        right * 4.8 + forward * 5.0,
-        -right * 5.4,
-        right * 5.4
+        -forward * 7.2,
+        -forward * 7.0 + right * 2.2,
+        -forward * 7.0 - right * 2.2,
+        -forward * 5.0 + right * 4.2,
+        -forward * 5.0 - right * 4.2,
+        -right * 5.8,
+        right * 5.8
     ]
+
+    # Si le bateau est près d'une rive avec une orientation différente, on
+    # balaie aussi tout autour de la coque. Seules les collisions statiques
+    # (terrain, quai, rocher praticable) sont acceptées : jamais l'eau, un autre
+    # bateau ou un véhicule.
+    for radius in [6.0, 8.0, 10.0]:
+        for step in range(16):
+            var angle := TAU * float(step) / 16.0
+            offsets.append(Vector3(cos(angle) * radius, 0.0, sin(angle) * radius))
+
     for offset: Vector3 in offsets:
         var ray_start: Vector3 = global_position + offset + Vector3.UP * 12.0
         var ray_end: Vector3 = ray_start + Vector3.DOWN * 28.0
@@ -125,6 +221,9 @@ func _find_safe_disembark_position() -> Dictionary:
         query.exclude = [get_rid()]
         var hit := space.intersect_ray(query)
         if hit.is_empty():
+            continue
+        var collider = hit.get("collider")
+        if not (collider is StaticBody3D):
             continue
         var point: Vector3 = hit.get("position", Vector3.ZERO)
         if point.y <= water_height + 0.35:
@@ -144,6 +243,8 @@ func force_reposition(world_position: Vector3, yaw: float) -> void:
     _forward_speed = 0.0
     _steering_velocity = 0.0
     _virtual_move = Vector2.ZERO
+    _moored = false
+    _boarding_anchor_valid = false
     _sync_driver_to_deck()
     GameState.set_exact_snapshot(global_position, rotation.y, is_boarded())
 
@@ -153,6 +254,12 @@ func _physics_process(delta: float) -> void:
     global_position.y = water_height + wave
     if not is_boarded():
         _forward_speed = move_toward(_forward_speed, 0.0, 3.5 * delta)
+        if _moored:
+            global_position.x = _mooring_position.x
+            global_position.z = _mooring_position.z
+            velocity = Vector3.ZERO
+            _animate_hull(0.0, 0.0, delta)
+            return
         velocity = velocity.move_toward(Vector3.ZERO, 8.0 * delta)
         _animate_hull(0.0, 0.0, delta)
         move_and_slide()
@@ -262,6 +369,79 @@ func _collect_meshes(node: Node, output: Array[MeshInstance3D]) -> void:
         output.append(node as MeshInstance3D)
     for child in node.get_children():
         _collect_meshes(child, output)
+
+func _build_deck_crew() -> void:
+    if _crew_root != null and is_instance_valid(_crew_root):
+        _crew_root.queue_free()
+    _crew_root = Node3D.new()
+    _crew_root.name = "MatelotsDuBord"
+    add_child(_crew_root)
+    for i in range(DECKHAND_MODELS.size()):
+        var deckhand := _instantiate_character(str(DECKHAND_MODELS[i]))
+        if deckhand == null:
+            deckhand = _fallback_deckhand(i)
+        deckhand.name = "Matelot_%02d" % (i + 1)
+        _crew_root.add_child(deckhand)
+        _normalize_character(deckhand, 1.70)
+        deckhand.position = Vector3(-1.28 if i == 0 else 1.28, 1.24, -1.25 if i == 0 else 1.45)
+        deckhand.rotation.y = PI if i == 0 else 0.0
+
+func _instantiate_character(path: String) -> Node3D:
+    if path.is_empty() or not ResourceLoader.exists(path):
+        return null
+    var resource: Resource = load(path)
+    if resource is PackedScene:
+        var instance := (resource as PackedScene).instantiate()
+        if instance is Node3D:
+            return instance as Node3D
+        instance.queue_free()
+    return null
+
+func _normalize_character(root: Node3D, target_height: float) -> void:
+    var meshes: Array[MeshInstance3D] = []
+    _collect_meshes(root, meshes)
+    if meshes.is_empty():
+        return
+    var min_y := INF
+    var max_y := -INF
+    var inverse := root.global_transform.affine_inverse()
+    for mesh_instance in meshes:
+        if mesh_instance.mesh == null:
+            continue
+        var box := mesh_instance.get_aabb()
+        var transform := inverse * mesh_instance.global_transform
+        for endpoint in range(8):
+            var point: Vector3 = transform * box.get_endpoint(endpoint)
+            min_y = minf(min_y, point.y)
+            max_y = maxf(max_y, point.y)
+    var height := max_y - min_y
+    if height <= 0.01:
+        return
+    var factor := clampf(target_height / height, 0.015, 24.0)
+    root.scale *= Vector3.ONE * factor
+    root.position.y -= min_y * factor
+
+func _fallback_deckhand(index: int) -> Node3D:
+    var root := Node3D.new()
+    var body := MeshInstance3D.new()
+    var capsule := CapsuleMesh.new()
+    capsule.radius = 0.28
+    capsule.height = 1.25
+    body.mesh = capsule
+    body.position.y = 0.78
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color("4c6070") if index == 0 else Color("7a5537")
+    body.material_override = material
+    root.add_child(body)
+    var head := MeshInstance3D.new()
+    var sphere := SphereMesh.new()
+    sphere.radius = 0.21
+    sphere.height = 0.42
+    head.mesh = sphere
+    head.position.y = 1.53
+    head.material_override = material
+    root.add_child(head)
+    return root
 
 func _create_fallback_visual() -> void:
     var mesh_instance := MeshInstance3D.new()

@@ -1,11 +1,47 @@
 class_name HeroControllerV3
 extends "res://scripts/player/hero_controller_v2.gd"
 
+@export var backpedal_rotation_threshold := 0.18
+
 func _ready() -> void:
     move_speed = 8.2
     run_speed = 11.0
     rotation_speed = 16.0
+    floor_snap_length = 0.72
+    floor_max_angle = deg_to_rad(50.0)
+    floor_stop_on_slope = true
+    floor_constant_speed = true
+    safe_margin = 0.055
     super._ready()
+
+func _physics_process(delta: float) -> void:
+    # Le contrôleur de base gère le vrai déplacement 360°. Après son mouvement,
+    # on corrige uniquement l'orientation quand le joueur tire franchement le
+    # joystick vers le bas : le héros recule alors en gardant son torse vers
+    # l'avant/caméra, au lieu de faire demi-tour et courir vers le joueur.
+    super._physics_process(delta)
+    _apply_backpedal_facing(delta)
+
+func _apply_backpedal_facing(delta: float) -> void:
+    if _dodge_time > 0.0 or _attack_lock > 0.0:
+        return
+    var keyboard_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+    var input_vec := _virtual_move
+    if keyboard_vec.length() > input_vec.length():
+        input_vec = keyboard_vec
+    if input_vec.y <= backpedal_rotation_threshold:
+        return
+
+    var camera := get_viewport().get_camera_3d()
+    if camera == null:
+        return
+    var facing := -camera.global_transform.basis.z
+    facing.y = 0.0
+    if facing.length_squared() <= 0.001:
+        return
+    facing = facing.normalized()
+    var target_angle := atan2(-facing.x, -facing.z)
+    rotation.y = lerp_angle(rotation.y, target_angle, minf(1.0, rotation_speed * 1.15 * delta))
 
 func _load_visuals() -> void:
     super._load_visuals()
@@ -74,3 +110,23 @@ func _normalize_weapon_visual() -> void:
     if parent_scaled_by_hero and _visual_scale_factor > 0.001:
         local_factor /= _visual_scale_factor
     weapon_node.scale = Vector3.ONE * local_factor
+
+func basic_attack() -> void:
+    super.basic_attack()
+    # Réplique courte, aléatoire et limitée par le directeur vocal : jamais à chaque coup.
+    get_tree().call_group("hero_voice_director", "play_event", "attaque")
+
+func use_ability(index: int) -> bool:
+    var used := super.use_ability(index)
+    if used:
+        # Tant qu'aucune prise "pouvoir" dédiée n'existe, les phrases d'attaque
+        # servent aussi aux capacités offensives, avec le même anti-spam.
+        get_tree().call_group("hero_voice_director", "play_event", "attaque")
+    return used
+
+func receive_damage(amount: float) -> void:
+    var health_before := health
+    super.receive_damage(amount)
+    # Le son part uniquement si le coup a réellement traversé l'invulnérabilité.
+    if health < health_before:
+        get_tree().call_group("hero_voice_director", "play_event", "douleur")

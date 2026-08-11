@@ -64,17 +64,19 @@ func request_boat_interaction() -> bool:
     if active != null and active.has_method("disembark"):
         active.disembark()
         return true
-    var best_boat: Node3D
+    var best_controller: Node3D
     var best_distance := INF
-    for boat in get_tree().get_nodes_in_group("boat"):
-        if boat is Node3D:
-            var d: float = (boat as Node3D).global_position.distance_to(_player.global_position)
+    for group_name in ["boat", "island_vehicle"]:
+        for candidate in get_tree().get_nodes_in_group(group_name):
+            if not (candidate is Node3D) or not is_instance_valid(candidate):
+                continue
+            var d: float = (candidate as Node3D).global_position.distance_to(_player.global_position)
             if d < best_distance:
                 best_distance = d
-                best_boat = boat as Node3D
-    if best_boat != null and best_distance <= 9.0 and best_boat.has_method("try_interact"):
-        return bool(best_boat.try_interact(_player))
-    _notify("Approche-toi d'un bateau pour embarquer.")
+                best_controller = candidate as Node3D
+    if best_controller != null and best_distance <= 9.0 and best_controller.has_method("try_interact"):
+        return bool(best_controller.try_interact(_player))
+    _notify("Approche-toi d'un bateau ou d'un véhicule pour l'utiliser.")
     return false
 
 func _nearest_island_index(world_position: Vector3) -> int:
@@ -354,18 +356,31 @@ func _scatter_real_props(info: Dictionary) -> void:
 func _spawn_population_and_enemies(info: Dictionary) -> void:
     var size: Vector2 = info["size"]
     var soldier_paths: Array = info.get("soldiers", [])
+    var soldier_names: Array = info.get("soldier_names", [])
+    var soldier_archetypes: Array = info.get("soldier_archetypes", [])
     if not soldier_paths.is_empty():
         for i in range(soldier_count):
-            var path := str(soldier_paths[i % soldier_paths.size()])
+            var variant := i % soldier_paths.size()
+            var path := str(soldier_paths[variant])
+            var display_name := str(soldier_names[variant % soldier_names.size()]) if not soldier_names.is_empty() else "Force locale"
+            var archetype := str(soldier_archetypes[variant % soldier_archetypes.size()]) if not soldier_archetypes.is_empty() else "melee"
             var angle := TAU * float(i) / float(maxi(1, soldier_count))
             var radius := minf(size.x, size.y) * (0.12 + float(i % 3) * 0.045)
-            _spawn_enemy(path, Vector3(cos(angle) * radius, 10.0, sin(angle) * radius), false, 0.8 + float(info["id"]) * 0.12)
+            _spawn_enemy(path, Vector3(cos(angle) * radius, 10.0, sin(angle) * radius), false, 0.8 + float(info["id"]) * 0.12, display_name, archetype, variant)
     if ResourceLoader.exists(str(info["boss"])):
-        _spawn_enemy(str(info["boss"]), Vector3(0.0, 12.0, -size.y * 0.18), true, 1.0 + float(info["id"]) * 0.16)
+        _spawn_enemy(
+            str(info["boss"]),
+            Vector3(0.0, 12.0, -size.y * 0.18),
+            true,
+            1.0 + float(info["id"]) * 0.16,
+            str(info.get("boss_name", "Boss")),
+            str(info.get("boss_archetype", "boss_brute")),
+            0
+        )
 
-func _spawn_enemy(path: String, local_position: Vector3, is_boss: bool, difficulty: float) -> void:
+func _spawn_enemy(path: String, local_position: Vector3, is_boss: bool, difficulty: float, display_name: String = "", archetype: String = "melee", variant_index: int = 0) -> void:
     var enemy := CharacterBody3D.new()
-    enemy.name = "Boss" if is_boss else "Ennemi"
+    enemy.name = ("Boss" if is_boss else "Ennemi") + "_%02d" % variant_index
     enemy.set_script(WorldEnemyScript)
     var collision := CollisionShape3D.new()
     var shape := CapsuleShape3D.new()
@@ -375,11 +390,7 @@ func _spawn_enemy(path: String, local_position: Vector3, is_boss: bool, difficul
     collision.position.y = shape.height * 0.5
     enemy.add_child(collision)
     enemy.position = local_position
-    enemy.set("model_path", path)
-    enemy.set("boss", is_boss)
-    enemy.set("max_health", (620.0 if is_boss else 105.0) * difficulty)
-    enemy.set("health", (620.0 if is_boss else 105.0) * difficulty)
-    enemy.set("attack_damage", (22.0 if is_boss else 8.0) * difficulty)
+    enemy.call("configure", path, is_boss, difficulty, display_name, archetype, variant_index)
     _island_root.add_child(enemy)
 
 func _spawn_boat(info: Dictionary) -> void:
@@ -399,18 +410,144 @@ func _spawn_boat(info: Dictionary) -> void:
     # Le bateau était à plus de 80 m du bout du quai de l'île 1 alors que la
     # portée d'embarquement est de 9 m. Il est désormais amarré au quai.
     boat.position = Vector3(7.0, -0.55, size.y * 0.45 + 39.0)
+    # Le quai se trouve derrière le bateau (+Z depuis le centre du royaume).
+    # Godot considère -Z comme l'avant : un demi-tour est donc nécessaire pour
+    # que JOYSTICK HAUT éloigne immédiatement la coque du ponton.
+    boat.rotation.y = PI
     _island_root.add_child(boat)
+    boat.call_deferred("moor_at_current_position")
 
 func _spawn_final_reward(info: Dictionary) -> void:
     if not info.has("reward") or _island_root == null:
         return
-    var reward := _instantiate_asset(str(info["reward"]))
-    if reward == null:
+    if _island_root.get_node_or_null("TropheeFinal") != null:
         return
+
+    # Le nœud de récompense reste présent même si le GLB est mis en quarantaine
+    # pendant l'export Android. Le joueur obtient alors un trophée procédural
+    # visible au lieu d'une fin de jeu impossible à terminer.
+    var reward := Node3D.new()
     reward.name = "TropheeFinal"
+    reward.add_to_group("final_reward")
     reward.position = Vector3(0.0, 7.0, -40.0)
-    reward.scale *= Vector3.ONE * 1.6
     _island_root.add_child(reward)
+
+    _build_final_reward_pedestal(reward)
+    var visual := _instantiate_asset(str(info["reward"]))
+    if visual != null:
+        visual.name = "ModeleTropheeGLB"
+        reward.add_child(visual)
+        if not _normalize_final_reward_visual(visual, 3.4):
+            visual.queue_free()
+            _build_final_reward_fallback(reward)
+    else:
+        _build_final_reward_fallback(reward)
+
+func _normalize_final_reward_visual(root: Node3D, target_height: float) -> bool:
+    var meshes: Array[MeshInstance3D] = []
+    _collect_final_reward_meshes(root, meshes)
+    if meshes.is_empty():
+        return false
+
+    var inverse := root.global_transform.affine_inverse()
+    var min_corner := Vector3(INF, INF, INF)
+    var max_corner := Vector3(-INF, -INF, -INF)
+    for mesh_instance in meshes:
+        if mesh_instance.mesh == null:
+            continue
+        var box := mesh_instance.get_aabb()
+        var transform := inverse * mesh_instance.global_transform
+        for endpoint in range(8):
+            var point: Vector3 = transform * box.get_endpoint(endpoint)
+            min_corner = Vector3(
+                minf(min_corner.x, point.x),
+                minf(min_corner.y, point.y),
+                minf(min_corner.z, point.z)
+            )
+            max_corner = Vector3(
+                maxf(max_corner.x, point.x),
+                maxf(max_corner.y, point.y),
+                maxf(max_corner.z, point.z)
+            )
+    var size := max_corner - min_corner
+    if not size.is_finite() or size.y <= 0.001:
+        return false
+
+    var factor := clampf(target_height / size.y, 0.002, 80.0)
+    var center_xz := Vector3((min_corner.x + max_corner.x) * 0.5, min_corner.y, (min_corner.z + max_corner.z) * 0.5)
+    root.scale *= Vector3.ONE * factor
+    root.position = Vector3(-center_xz.x * factor, 0.42 - center_xz.y * factor, -center_xz.z * factor)
+    return true
+
+func _collect_final_reward_meshes(node: Node, output: Array[MeshInstance3D]) -> void:
+    if node is MeshInstance3D:
+        output.append(node as MeshInstance3D)
+    for child in node.get_children():
+        _collect_final_reward_meshes(child, output)
+
+func _build_final_reward_pedestal(parent: Node3D) -> void:
+    var pedestal := MeshInstance3D.new()
+    pedestal.name = "SocleTropheeFinal"
+    var mesh := CylinderMesh.new()
+    mesh.top_radius = 1.25
+    mesh.bottom_radius = 1.55
+    mesh.height = 0.42
+    mesh.radial_segments = 20
+    pedestal.mesh = mesh
+    pedestal.position.y = 0.21
+    pedestal.material_override = _final_reward_material(Color("c89728"), 1.1)
+    parent.add_child(pedestal)
+
+func _build_final_reward_fallback(parent: Node3D) -> void:
+    var fallback := Node3D.new()
+    fallback.name = "TropheeProceduralSecours"
+    parent.add_child(fallback)
+
+    var stem := MeshInstance3D.new()
+    stem.name = "PiedTrophee"
+    var stem_mesh := CylinderMesh.new()
+    stem_mesh.top_radius = 0.16
+    stem_mesh.bottom_radius = 0.24
+    stem_mesh.height = 1.25
+    stem_mesh.radial_segments = 14
+    stem.mesh = stem_mesh
+    stem.position.y = 1.02
+    stem.material_override = _final_reward_material(Color("ffd34f"), 1.8)
+    fallback.add_child(stem)
+
+    var cup := MeshInstance3D.new()
+    cup.name = "CoupeTrophee"
+    var cup_mesh := CylinderMesh.new()
+    cup_mesh.top_radius = 0.92
+    cup_mesh.bottom_radius = 0.42
+    cup_mesh.height = 1.15
+    cup_mesh.radial_segments = 20
+    cup.mesh = cup_mesh
+    cup.position.y = 2.16
+    cup.material_override = _final_reward_material(Color("ffe16a"), 2.2)
+    fallback.add_child(cup)
+
+    var crown := MeshInstance3D.new()
+    crown.name = "CouronneTrophee"
+    var crown_mesh := TorusMesh.new()
+    crown_mesh.inner_radius = 0.82
+    crown_mesh.outer_radius = 1.02
+    crown_mesh.rings = 24
+    crown_mesh.ring_segments = 8
+    crown.mesh = crown_mesh
+    crown.position.y = 2.76
+    crown.material_override = _final_reward_material(Color("fff0a1"), 2.5)
+    fallback.add_child(crown)
+
+func _final_reward_material(color: Color, emission_energy: float) -> StandardMaterial3D:
+    var material := StandardMaterial3D.new()
+    material.albedo_color = color
+    material.metallic = 0.72
+    material.roughness = 0.22
+    material.emission_enabled = true
+    material.emission = color.darkened(0.22)
+    material.emission_energy_multiplier = emission_energy
+    return material
 
 func _instantiate_asset(path: String) -> Node3D:
     if not ResourceLoader.exists(path):

@@ -6,6 +6,27 @@ const MERCHANT_MODEL := "res://assets/vrac/King by Quaternius - I1gTjmuK2m.glb"
 const TREASURE_MODEL := "res://assets/decors_glb/glb/coffre_pirate.glb"
 const WRECK_MODEL := "res://assets/bateaux_glb/glb/epave_navire.glb"
 
+const CIVILIAN_MODELS := [
+    CIVILIAN_MODEL,
+    "res://assets/vrac/solad 1 anime.glb",
+    "res://assets/vrac/solad 2 anime .glb",
+    "res://assets/vrac/solad  3 anime.glb",
+    "res://assets/vrac/chef_militaire_anime_compresse.glb",
+    "res://assets/vrac/guerrier_solitaire_anime_compresse.glb"
+]
+
+const CIVILIAN_ROLES := [
+    "Marchand du port", "Matelot du quai", "Pêcheuse", "Charpentier naval",
+    "Garde du port", "Habitante", "Musicien ambulant", "Cartographe",
+    "Cuisinier", "Exploratrice", "Forgeron", "Capitaine en repos"
+]
+
+const CREW_MEMBER_MODELS := [
+    CIVILIAN_MODEL,
+    "res://assets/vrac/solad 1 anime.glb",
+    "res://assets/vrac/solad 2 anime .glb"
+]
+
 const CREWS := [
     {
         "id": "equipage_1",
@@ -129,25 +150,35 @@ func _rebuild_local_life() -> void:
 func _spawn_citizens(center: Vector3, island_size: Vector2) -> void:
     var count := clampi(active_citizen_budget, 0, 14)
     for i in range(count):
-        var path := MERCHANT_MODEL if i == 0 else CIVILIAN_MODEL
+        var path := MERCHANT_MODEL if i == 0 else str(CIVILIAN_MODELS[(i - 1) % CIVILIAN_MODELS.size()])
+        var role := str(CIVILIAN_ROLES[i % CIVILIAN_ROLES.size()])
         var citizen := Node3D.new()
-        citizen.name = "Marchand" if i == 0 else "Habitant_%02d" % i
+        citizen.name = "Marchand" if i == 0 else "PNJ_%02d_%s" % [i, role.replace(" ", "_")]
         _root.add_child(citizen)
-        var candidate := center + Vector3(
-            sin(float(i) * 2.31) * island_size.x * 0.14,
-            6.0,
-            cos(float(i) * 1.77) * island_size.y * 0.13
-        )
+        var candidate: Vector3
+        if i < 5:
+            # Marchand, matelot, pêcheuse, charpentier et garde donnent enfin
+            # une présence claire au quai d'embarquement.
+            candidate = center + Vector3(-28.0 + float(i) * 14.0, 7.0, island_size.y * (0.305 - float(i % 2) * 0.025))
+        else:
+            candidate = center + Vector3(
+                sin(float(i) * 2.31) * island_size.x * 0.14,
+                7.0,
+                cos(float(i) * 1.77) * island_size.y * 0.13
+            )
         citizen.global_position = _snap_to_ground(candidate, 0.08)
         citizen.set_meta("home", citizen.global_position)
         citizen.set_meta("phase", float(i) * 0.73)
-        citizen.set_meta("radius", 8.0 + float(i % 4) * 4.5)
+        citizen.set_meta("radius", 0.0 if i < 5 else 8.0 + float(i % 4) * 4.5)
+        citizen.set_meta("walk_speed", 0.0 if i < 5 else 1.15 + float(i % 3) * 0.18)
+        citizen.set_meta("role", role)
         var visual := _instantiate_asset(path)
         if visual != null:
             citizen.add_child(visual)
             _normalize_model(visual, 1.75 if i > 0 else 1.95)
         else:
             citizen.add_child(_humanoid_fallback(Color("536b78") if i > 0 else Color("b58a42")))
+        _add_role_label(citizen, role, Color("f2d27a") if i < 5 else Color("d6edf4"))
         _citizens.append(citizen)
         if i == 0:
             _merchant = citizen
@@ -220,6 +251,20 @@ func _spawn_crews(center: Vector3, island_size: Vector2) -> void:
             _normalize_model(captain, 1.85)
             captain.position = Vector3(0.0, 2.1, 0.4)
 
+        for crew_index in range(3):
+            var crew_member := _instantiate_asset(str(CREW_MEMBER_MODELS[(i + crew_index) % CREW_MEMBER_MODELS.size()]))
+            if crew_member == null:
+                crew_member = _humanoid_fallback(Color("4c6070"))
+            crew_member.name = "Matelot_%02d" % (crew_index + 1)
+            ship_root.add_child(crew_member)
+            _normalize_model(crew_member, 1.72)
+            crew_member.position = [
+                Vector3(-1.35, 2.0, -0.8),
+                Vector3(1.35, 2.0, -0.5),
+                Vector3(0.0, 2.0, 1.55)
+            ][crew_index]
+            crew_member.rotation.y = PI
+
         _crew_ships.append(ship_root)
         _crew_attack_cooldowns[str(spec["id"])] = 0.0
 
@@ -248,12 +293,15 @@ func _animate_citizens(_delta: float) -> void:
         var home: Vector3 = citizen.get_meta("home", citizen.global_position)
         var phase := float(citizen.get_meta("phase", 0.0))
         var radius := float(citizen.get_meta("radius", 10.0))
+        var walk_speed := float(citizen.get_meta("walk_speed", 1.4))
+        if radius <= 0.01 or walk_speed <= 0.01:
+            continue
         var angle := _time * (0.08 + float(i % 3) * 0.018) + phase
         var target := home + Vector3(cos(angle) * radius, 0.0, sin(angle * 0.83) * radius)
         var direction := target - citizen.global_position
         direction.y = 0.0
         if direction.length_squared() > 0.05:
-            citizen.global_position += direction.normalized() * minf(direction.length(), 1.4 * get_process_delta_time())
+            citizen.global_position += direction.normalized() * minf(direction.length(), walk_speed * get_process_delta_time())
             citizen.rotation.y = lerp_angle(citizen.rotation.y, atan2(-direction.x, -direction.z), 0.08)
 
 func _animate_fauna(_delta: float) -> void:
@@ -414,6 +462,19 @@ func _collect_meshes(node: Node, output: Array[MeshInstance3D]) -> void:
         output.append(node as MeshInstance3D)
     for child in node.get_children():
         _collect_meshes(child, output)
+
+func _add_role_label(parent: Node3D, role: String, color: Color) -> void:
+    var label := Label3D.new()
+    label.name = "RolePNJ"
+    label.text = role.to_upper()
+    label.position = Vector3(0.0, 2.25, 0.0)
+    label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    label.no_depth_test = true
+    label.font_size = 20
+    label.outline_size = 7
+    label.modulate = color
+    label.outline_modulate = Color(0.0, 0.0, 0.0, 0.90)
+    parent.add_child(label)
 
 func _humanoid_fallback(color: Color) -> Node3D:
     var root := Node3D.new()

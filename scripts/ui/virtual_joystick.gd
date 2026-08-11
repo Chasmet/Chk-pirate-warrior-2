@@ -4,6 +4,7 @@ extends Control
 @export var deadzone := 0.12
 @export var camera_speed := 2.4
 @export var draw_visuals := true
+@export var response_curve := 1.35
 
 var _touch_id: int = -1
 var _mouse_active: bool = false
@@ -20,6 +21,11 @@ func _exit_tree() -> void:
     if mode == "movement":
         _send_move_to_controller(Vector2.ZERO)
         _release_movement_actions()
+
+func cancel_input() -> void:
+    _touch_id = -1
+    _mouse_active = false
+    _reset()
 
 func _gui_input(event: InputEvent) -> void:
     # InputEventScreenTouch/ScreenDrag utilisent les coordonnées du viewport.
@@ -71,9 +77,18 @@ func _update_from_position(local_position: Vector2) -> void:
     if delta.length() > radius:
         delta = delta.normalized() * radius
     _knob = center + delta
-    _value = delta / radius
-    if _value.length() < deadzone:
+
+    var raw := delta / radius
+    var magnitude := clampf(raw.length(), 0.0, 1.0)
+    if magnitude <= deadzone:
         _value = Vector2.ZERO
+    else:
+        # Zone morte remappée puis courbe douce : petits mouvements précis près
+        # du centre, mais 100 % de vitesse conservé en bord de joystick.
+        var normalized_strength := clampf((magnitude - deadzone) / maxf(0.001, 1.0 - deadzone), 0.0, 1.0)
+        var curved_strength := pow(normalized_strength, maxf(0.5, response_curve))
+        _value = raw.normalized() * curved_strength
+
     if mode == "movement":
         _send_move_to_controller(_value)
         _apply_movement_actions(_value)

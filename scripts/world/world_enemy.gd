@@ -8,6 +8,9 @@ extends CharacterBody3D
 @export var attack_radius := 2.4
 @export var attack_damage := 8.0
 @export var boss := false
+@export var display_name := ""
+@export var archetype := "melee"
+@export var variant_index := 0
 
 var health := 100.0
 var _visual: Node3D
@@ -17,6 +20,12 @@ var _death_reported := false
 var _objective_marker: Node3D
 var _marker_base_y := 0.0
 var _marker_time := 0.0
+var _attack_interval := 1.65
+var _preferred_distance := 0.0
+var _attack_windup := 0.0
+var _attack_queued := false
+var _phase_two := false
+var _strafe_sign := 1.0
 
 func _ready() -> void:
     add_to_group("enemy")
@@ -25,22 +34,85 @@ func _ready() -> void:
     _load_visual()
     _ensure_objective_marker()
 
-func configure(path: String, is_boss: bool, difficulty: float = 1.0) -> void:
+func configure(path: String, is_boss: bool, difficulty: float = 1.0, enemy_name: String = "", combat_archetype: String = "melee", visual_variant: int = 0) -> void:
     model_path = path
     boss = is_boss
+    display_name = enemy_name if not enemy_name.is_empty() else ("Boss" if boss else "Force locale")
+    archetype = combat_archetype
+    variant_index = visual_variant
     max_health = (620.0 if boss else 105.0) * maxf(0.75, difficulty)
-    health = max_health
     move_speed = (2.8 if boss else 3.5) + minf(1.5, difficulty * 0.15)
     attack_damage = (22.0 if boss else 8.0) * maxf(0.8, difficulty)
-    detection_radius = 45.0 if boss else 30.0
+    detection_radius = 52.0 if boss else 34.0
+    attack_radius = 3.1 if boss else 2.4
+    _attack_interval = 1.35 if boss else 1.65
+    _preferred_distance = 0.0
+    _strafe_sign = -1.0 if visual_variant % 2 == 0 else 1.0
+    _apply_archetype_stats()
+    health = max_health
     if is_inside_tree():
         _load_visual()
         _ensure_objective_marker()
+        _refresh_nameplate()
+
+func _apply_archetype_stats() -> void:
+    match archetype:
+        "guard":
+            max_health *= 1.42
+            move_speed *= 0.76
+            attack_damage *= 0.92
+            attack_radius = 2.8
+            _attack_interval = 1.78
+        "charger":
+            max_health *= 0.92
+            move_speed *= 1.30
+            attack_damage *= 1.20
+            _attack_interval = 1.58
+        "ranged":
+            max_health *= 0.82
+            move_speed *= 0.92
+            attack_damage *= 0.78
+            attack_radius = 11.5
+            _preferred_distance = 7.2
+            _attack_interval = 1.95
+        "duelist":
+            max_health *= 0.90
+            move_speed *= 1.18
+            attack_damage *= 1.04
+            attack_radius = 2.7
+            _attack_interval = 1.02
+        "boss_guard":
+            max_health *= 1.38
+            move_speed *= 0.76
+            attack_damage *= 1.05
+            attack_radius = 3.7
+            _attack_interval = 1.55
+        "boss_ranged":
+            max_health *= 1.08
+            move_speed *= 0.94
+            attack_damage *= 0.88
+            attack_radius = 15.0
+            _preferred_distance = 9.5
+            _attack_interval = 1.72
+        "boss_duelist":
+            max_health *= 0.96
+            move_speed *= 1.24
+            attack_damage *= 1.10
+            attack_radius = 3.25
+            _attack_interval = 0.92
+        "boss_brute":
+            max_health *= 1.24
+            move_speed *= 0.84
+            attack_damage *= 1.26
+            attack_radius = 3.8
+            _attack_interval = 1.46
 
 func receive_damage(amount: float) -> void:
     if _death_reported or amount <= 0.0:
         return
     health = maxf(0.0, health - amount)
+    if boss and not _phase_two and health <= max_health * 0.50:
+        _enter_phase_two()
     if health <= 0.0:
         _death_reported = true
         if boss:
@@ -51,6 +123,10 @@ func receive_damage(amount: float) -> void:
 
 func _physics_process(delta: float) -> void:
     _attack_cooldown = maxf(0.0, _attack_cooldown - delta)
+    if _attack_queued:
+        _attack_windup = maxf(0.0, _attack_windup - delta)
+        if _attack_windup <= 0.0:
+            _perform_attack()
     _marker_time += delta
     if _objective_marker != null and is_instance_valid(_objective_marker):
         _objective_marker.position.y = _marker_base_y + sin(_marker_time * 2.7) * 0.16
@@ -64,19 +140,56 @@ func _physics_process(delta: float) -> void:
     var flat_delta := _player.global_position - global_position
     flat_delta.y = 0.0
     var distance := flat_delta.length()
-    if distance <= detection_radius and distance > attack_radius:
-        var direction := flat_delta.normalized()
-        velocity.x = direction.x * move_speed
-        velocity.z = direction.z * move_speed
-        rotation.y = lerp_angle(rotation.y, atan2(-direction.x, -direction.z), minf(1.0, 8.0 * delta))
+    if distance <= detection_radius and not _attack_queued:
+        var direction := flat_delta.normalized() if distance > 0.01 else Vector3.FORWARD
+        var desired := Vector3.ZERO
+        if _preferred_distance > 0.0:
+            if distance > attack_radius * 0.92:
+                desired = direction
+            elif distance < _preferred_distance * 0.70:
+                desired = -direction
+            else:
+                desired = direction.cross(Vector3.UP).normalized() * _strafe_sign * 0.72
+        elif distance > attack_radius:
+            desired = direction
+            if archetype == "charger" and distance < detection_radius * 0.55:
+                desired *= 1.34
+        if desired.length_squared() > 0.01:
+            velocity.x = desired.x * move_speed
+            velocity.z = desired.z * move_speed
+            rotation.y = lerp_angle(rotation.y, atan2(-direction.x, -direction.z), minf(1.0, 8.0 * delta))
+        else:
+            velocity.x = move_toward(velocity.x, 0.0, move_speed * 7.0 * delta)
+            velocity.z = move_toward(velocity.z, 0.0, move_speed * 7.0 * delta)
     else:
         velocity.x = move_toward(velocity.x, 0.0, move_speed * 6.0 * delta)
         velocity.z = move_toward(velocity.z, 0.0, move_speed * 6.0 * delta)
-    if distance <= attack_radius and _attack_cooldown <= 0.0:
-        _attack_cooldown = 1.2 if boss else 1.65
-        if _player.has_method("receive_damage"):
-            _player.receive_damage(attack_damage)
+    if distance <= attack_radius and _attack_cooldown <= 0.0 and not _attack_queued:
+        _attack_cooldown = _attack_interval
+        _attack_queued = true
+        _attack_windup = 0.52 if archetype in ["guard", "boss_guard", "boss_brute"] else 0.28
+        _set_telegraph(true)
     move_and_slide()
+
+func _perform_attack() -> void:
+    _attack_queued = false
+    _set_telegraph(false)
+    if _player == null or not is_instance_valid(_player):
+        return
+    var flat_delta := _player.global_position - global_position
+    flat_delta.y = 0.0
+    if flat_delta.length() <= attack_radius + (2.2 if boss else 1.0) and _player.has_method("receive_damage"):
+        _player.call("receive_damage", attack_damage)
+
+func _enter_phase_two() -> void:
+    _phase_two = true
+    move_speed *= 1.22
+    attack_damage *= 1.18
+    _attack_interval *= 0.76
+    _refresh_nameplate()
+    var hud := get_tree().get_first_node_in_group("hud")
+    if hud != null and hud.has_method("show_subtitle"):
+        hud.call("show_subtitle", "BOSS • %s ENTRE EN PHASE 2" % display_name.to_upper(), 2.8)
 
 func _load_visual() -> void:
     if _visual != null and is_instance_valid(_visual):
@@ -138,7 +251,8 @@ func _fallback_visual() -> void:
     body.mesh = mesh
     body.position.y = mesh.height * 0.55
     var material := StandardMaterial3D.new()
-    material.albedo_color = Color("9b302d") if boss else Color("5f4036")
+    var fallback_colors := [Color("5f4036"), Color("4c5966"), Color("78513a"), Color("4d567c")]
+    material.albedo_color = Color("9b302d") if boss else fallback_colors[variant_index % fallback_colors.size()]
     body.material_override = material
     add_child(body)
     _visual = body
@@ -179,7 +293,7 @@ func _ensure_objective_marker() -> void:
     # Nom lisible à distance : le GPS ne doit plus pointer vers une cible anonyme.
     var nameplate := Label3D.new()
     nameplate.name = "EnemyNameplate"
-    nameplate.text = "BOSS" if boss else "ENNEMI"
+    nameplate.text = _nameplate_text()
     nameplate.position = Vector3(0.0, 0.72, 0.0)
     nameplate.billboard = BaseMaterial3D.BILLBOARD_ENABLED
     nameplate.no_depth_test = true
@@ -188,6 +302,39 @@ func _ensure_objective_marker() -> void:
     nameplate.modulate = marker_color
     nameplate.outline_modulate = Color(0.0, 0.0, 0.0, 0.92)
     _objective_marker.add_child(nameplate)
+
+func _nameplate_text() -> String:
+    var prefix := "GRAND BOSS" if boss else ("COMMANDANT 1" if display_name.to_lower().contains("commandant 1") else ("COMMANDANT 2" if display_name.to_lower().contains("commandant 2") else _archetype_label()))
+    var phase := " • PHASE 2" if _phase_two else ""
+    return "%s%s\n%s" % [prefix, phase, display_name.to_upper()]
+
+func _archetype_label() -> String:
+    match archetype:
+        "guard":
+            return "GARDE"
+        "charger":
+            return "CHARGEUR"
+        "ranged":
+            return "TIREUR"
+        "duelist":
+            return "DUELLISTE"
+        _:
+            return "ENNEMI"
+
+func _refresh_nameplate() -> void:
+    if _objective_marker == null or not is_instance_valid(_objective_marker):
+        return
+    var nameplate := _objective_marker.get_node_or_null("EnemyNameplate") as Label3D
+    if nameplate != null:
+        nameplate.text = _nameplate_text()
+
+func _set_telegraph(active: bool) -> void:
+    if _objective_marker == null or not is_instance_valid(_objective_marker):
+        return
+    var nameplate := _objective_marker.get_node_or_null("EnemyNameplate") as Label3D
+    if nameplate != null:
+        nameplate.modulate = Color("fff176") if active else (Color("ffb347") if boss else Color("ff5c4d"))
+    _objective_marker.scale = Vector3.ONE * (1.22 if active else 1.0)
 
 func _marker_material(color: Color) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()

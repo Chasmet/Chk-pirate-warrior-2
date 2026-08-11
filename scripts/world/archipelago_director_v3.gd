@@ -196,16 +196,22 @@ func _terrain_palette(island_id: int, base_color: Color) -> Dictionary:
         _:
             return {"core": base_color, "coast": Color("c8ad72"), "rock": Color("55514a")}
 
-func _spawn_enemy(path: String, local_position: Vector3, is_boss: bool, difficulty: float) -> void:
+func _spawn_enemy(path: String, local_position: Vector3, is_boss: bool, difficulty: float, display_name: String = "", archetype: String = "melee", variant_index: int = 0) -> void:
     # Depuis l'ajout des vraies collines/falaises, Y=10 n'est plus une hauteur
     # de spawn valide : certaines forces apparaissaient sous une colline alors
     # que le GPS les suivait. On pose maintenant chaque ennemi sur le relief réel.
     var info := current_island_data()
     var ground_y := _terrain_height_at(info, local_position.x, local_position.z)
     local_position.y = ground_y + (0.22 if is_boss else 0.12)
-    super._spawn_enemy(path, local_position, is_boss, difficulty)
+    super._spawn_enemy(path, local_position, is_boss, difficulty, display_name, archetype, variant_index)
 
 func _spawn_boat(info: Dictionary) -> void:
+    # Le bateau piloté est conservé par ArchipelagoDirectorV2 pendant une
+    # transition. Ne pas créer en plus le bateau de quai du nouveau royaume :
+    # c'était la cause structurelle des deux coques superposées à l'arrivée.
+    var active := get_tree().get_first_node_in_group("active_controller")
+    if active is BoatController and is_instance_valid(active) and (active as BoatController).is_boarded():
+        return
     super._spawn_boat(info)
     if _island_root == null or not is_instance_valid(_island_root):
         return
@@ -214,8 +220,12 @@ func _spawn_boat(info: Dictionary) -> void:
     if boat == null:
         return
     var size: Vector2 = info["size"]
-    boat.position = Vector3(5.0, boat.water_height, size.y * 0.45 + 38.0)
+    # Position définitive hors collision du quai. Le StabilityDirector conserve
+    # son correctif de migration pour les anciennes scènes/sauvegardes.
+    boat.position = Vector3(3.4, boat.water_height, size.y * 0.45 + 41.8)
+    boat.rotation.y = PI
     boat.velocity = Vector3.ZERO
+    boat.moor_at_current_position()
 
 func _safe_port_spawn(index: int) -> Vector3:
     var resolved: int = clampi(index, 0, WorldCatalog.island_count() - 1)
@@ -224,3 +234,66 @@ func _safe_port_spawn(index: int) -> Vector3:
     var local_z: float = size.y * 0.34
     var ground_y := _terrain_height_at(info, 0.0, local_z)
     return _positions[resolved] + Vector3(0.0, ground_y + 1.2, local_z)
+
+func on_boss_defeated(enemy: Node) -> void:
+    var island_id := maxi(1, GameState.current_island)
+    var was_already_defeated := GameState.is_boss_defeated(island_id)
+    super.on_boss_defeated(enemy)
+    if not was_already_defeated and GameState.is_boss_defeated(island_id):
+        get_tree().call_group("hero_voice_director", "play_event", "victoire")
+
+func request_boat_interaction() -> bool:
+    if _player == null or not is_instance_valid(_player):
+        _player = get_tree().get_first_node_in_group("player") as CharacterBody3D
+    if _player == null:
+        return false
+
+    var active_before := get_tree().get_first_node_in_group("active_controller")
+
+    # Nettoyage défensif : un ancien bateau/véhicule sans conducteur ne doit pas
+    # consommer INTERAGIR comme s'il était encore le contrôleur actif.
+    if active_before != null and is_instance_valid(active_before) and active_before.has_method("is_boarded"):
+        if not bool(active_before.call("is_boarded")):
+            active_before.remove_from_group("active_controller")
+            active_before = null
+
+    var was_on_boat := active_before is BoatController and (active_before as BoatController).is_boarded()
+
+    if active_before != null and is_instance_valid(active_before):
+        var active_result := super.request_boat_interaction()
+        if active_result:
+            return true
+        return false
+
+    # La houle ne doit pas modifier la capacité à embarquer : on mesure le plan
+    # X/Z via BoatController.boarding_distance_to(), tout en conservant le rayon
+    # réel de 9 m demandé pour l'accès depuis le quai.
+    var best_boat: BoatController
+    var best_boat_distance := INF
+    for candidate in get_tree().get_nodes_in_group("boat"):
+        if not (candidate is BoatController) or not is_instance_valid(candidate):
+            continue
+        var boat := candidate as BoatController
+        if boat.is_boarded():
+            continue
+        var distance := boat.boarding_distance_to(_player.global_position)
+        if distance <= boat.boarding_radius and distance < best_boat_distance:
+            best_boat_distance = distance
+            best_boat = boat
+
+    if best_boat != null:
+        var boarded := best_boat.try_interact(_player)
+        if boarded and best_boat.is_boarded():
+            get_tree().call_group("hero_voice_director", "play_event", "embarquement")
+        return boarded
+
+    # Hors du rayon d'un bateau, le comportement historique reste intact pour
+    # permettre l'utilisation normale des véhicules terrestres.
+    var result := super.request_boat_interaction()
+    if not result:
+        return false
+    var active_after := get_tree().get_first_node_in_group("active_controller")
+    var is_on_boat_now := active_after is BoatController and (active_after as BoatController).is_boarded()
+    if not was_on_boat and is_on_boat_now:
+        get_tree().call_group("hero_voice_director", "play_event", "embarquement")
+    return true

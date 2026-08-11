@@ -22,15 +22,21 @@ func _apply_dynamic_camera(immediate: bool, delta: float = 0.016) -> void:
         return
     var active_controller: Node = get_tree().get_first_node_in_group("active_controller")
     var boat_mode: bool = active_controller is BoatController and (active_controller as BoatController).is_boarded()
+    var vehicle_mode := active_controller != null
     var target_arm: float = BOAT_ARM if boat_mode else LAND_ARM
     var target_height: float = BOAT_HEIGHT if boat_mode else LAND_HEIGHT
+    if not boat_mode and active_controller != null:
+        if active_controller.has_method("camera_distance"):
+            target_arm = float(active_controller.call("camera_distance"))
+        if active_controller.has_method("camera_height"):
+            target_height = float(active_controller.call("camera_height"))
     var arm: SpringArm3D = get_node_or_null("SpringArm3D") as SpringArm3D
     if arm != null:
         arm.spring_length = target_arm if immediate else lerpf(arm.spring_length, target_arm, 1.0 - exp(-4.2 * delta))
     vertical_offset = target_height if immediate else lerpf(vertical_offset, target_height, 1.0 - exp(-4.2 * delta))
-    if boat_mode != _camera_mode_boat:
-        _camera_mode_boat = boat_mode
-        if boat_mode:
+    if vehicle_mode != _camera_mode_boat:
+        _camera_mode_boat = vehicle_mode
+        if vehicle_mode:
             pitch = deg_to_rad(-13.0)
         else:
             pitch = deg_to_rad(-14.0)

@@ -10,6 +10,9 @@ config/icon="res://assets/interface/logo_chk_pirate_warrior_2.png"
 GameState="*res://scripts/systems/game_state.gd"
 AudioDirector="*res://scripts/audio/audio_director.gd"
 
+[audio]
+default_bus_layout="res://default_bus_layout.tres"
+
 [display/window]
 size/viewport_width=1280
 size/viewport_height=720

@@ -1,15 +1,12 @@
 class_name GameplayUXOverlay
 extends CanvasLayer
 
-const TouchActionButtonScript = preload("res://scripts/ui/touch_action_button.gd")
-
 var _root: Control
 var _coin_panel: PanelContainer
 var _coin_label: Label
 var _nav_panel: PanelContainer
 var _nav_label: Label
 var _arrow: Polygon2D
-var _bag_button: TouchActionButton
 var _feedback_label: Label
 var _feedback_timer: Timer
 var _player: Node3D
@@ -74,14 +71,6 @@ func _build_ui() -> void:
     _arrow.color = Color("f4c95d")
     _root.add_child(_arrow)
 
-    _bag_button = TouchActionButtonScript.new() as TouchActionButton
-    _bag_button.name = "BackpackButton"
-    _bag_button.configure("SAC", &"", true, 16)
-    _bag_button.custom_minimum_size = Vector2(104.0, 104.0)
-    _bag_button.size = Vector2(104.0, 104.0)
-    _bag_button.activated.connect(_toggle_bag)
-    _root.add_child(_bag_button)
-
     _feedback_label = _make_label("", 18)
     _feedback_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     _feedback_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -123,9 +112,6 @@ func _layout() -> void:
     _nav_label.size = Vector2(nav_w - 50.0, 42.0)
     _arrow.position = Vector2(nav_x + 24.0, nav_y + 21.0)
 
-    # SAC regroupé avec HÉROS mais au-dessus de la ligne SAUT / INTERAGIR.
-    _bag_button.position = Vector2(612.0, maxf(278.0, h - 342.0))
-
     _feedback_label.position = Vector2((w - 420.0) * 0.5, nav_y + 48.0)
     _feedback_label.size = Vector2(420.0, 42.0)
 
@@ -147,8 +133,6 @@ func _on_island_changed(_island_id: int) -> void:
 func _refresh_wallet() -> void:
     if _coin_label != null:
         _coin_label.text = "PIÈCES  %d" % GameState.coins
-    if _bag_button != null:
-        _bag_button.set_button_text("SAC\n%d" % GameState.coins)
 
 func _show_feedback(text: String) -> void:
     _feedback_label.text = text
@@ -202,11 +186,15 @@ func _refresh_interact_label() -> void:
     if active is BoatController and (active as BoatController).is_boarded():
         interact.call("set_button_text", "DÉBARQUER")
         return
+    if active != null:
+        interact.call("set_button_text", "DESCENDRE")
+        return
     if _player == null:
         interact.call("set_button_text", "INTERAGIR")
         return
-    var nearest_boat := _nearest_boat_distance()
-    if nearest_boat <= 13.0:
+    if _nearest_group_distance("island_vehicle") <= 8.0:
+        interact.call("set_button_text", "CONDUIRE")
+    elif _nearest_boat_distance() <= 13.0:
         interact.call("set_button_text", "EMBARQUER")
     else:
         interact.call("set_button_text", "INTERAGIR")
@@ -223,6 +211,15 @@ func _nearest_boat_distance() -> float:
     var fallback := get_tree().root.find_child(expected_name, true, false)
     if fallback is Node3D:
         best = minf(best, _player.global_position.distance_to((fallback as Node3D).global_position))
+    return best
+
+func _nearest_group_distance(group_name: StringName) -> float:
+    if _player == null:
+        return INF
+    var best := INF
+    for node in get_tree().get_nodes_in_group(group_name):
+        if node is Node3D and is_instance_valid(node):
+            best = minf(best, _player.global_position.distance_to((node as Node3D).global_position))
     return best
 
 func _update_navigation() -> void:

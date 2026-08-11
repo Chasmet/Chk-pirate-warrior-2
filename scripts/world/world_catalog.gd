@@ -24,7 +24,16 @@ const ISLANDS := [
         "folder": "res://assets/royaumes/01_royaume_musical",
         "visual": "res://assets/royaumes/01_royaume_musical/visuel ile 1.png",
         "boss": "res://assets/royaumes/01_royaume_musical/boss musique ultime.glb",
-        "soldiers": ["res://assets/royaumes/01_royaume_musical/solda ile 1 .glb"],
+        "boss_name": "Maestro Ultime",
+        "boss_archetype": "boss_duelist",
+        "soldiers": [
+            "res://assets/royaumes/01_royaume_musical/solda ile 1 .glb",
+            "res://assets/vrac/solad 1 anime.glb",
+            "res://assets/vrac/solad 2 anime .glb",
+            "res://assets/vrac/solad  3 anime.glb"
+        ],
+        "soldier_names": ["Garde rythmique", "Éclaireur tempo", "Tambour de fer", "Duelliste mélodique"],
+        "soldier_archetypes": ["guard", "ranged", "charger", "duelist"],
         "ship": "res://assets/bateaux_glb/iles_animes/glb/ile_01_corsaire_du_rivage_anime.glb",
         "population": true,
         "fog": false
@@ -40,7 +49,15 @@ const ISLANDS := [
         "folder": "res://assets/royaumes/02_royaume_sucrerie",
         "visual": "res://assets/royaumes/02_royaume_sucrerie/visuel ile 2.png",
         "boss": "res://assets/royaumes/02_royaume_sucrerie/boss gardien du fromage.glb",
-        "soldiers": ["res://assets/royaumes/02_royaume_sucrerie/solda commandant 3 ourson.glb"],
+        "boss_name": "Gardien du Fromage",
+        "boss_archetype": "boss_guard",
+        "soldiers": [
+            "res://assets/royaumes/02_royaume_sucrerie/solda commandant 3 ourson.glb",
+            "res://assets/vrac/ourson vrac équipe.glb",
+            "res://assets/vrac/solad 2 anime .glb"
+        ],
+        "soldier_names": ["Commandant Ourson", "Ourson confiseur", "Archer dragée"],
+        "soldier_archetypes": ["guard", "charger", "ranged"],
         "ship": "res://assets/bateaux_glb/iles_animes/glb/ile_02_requin_noir_anime.glb",
         "population": true,
         "fog": false
@@ -56,7 +73,15 @@ const ISLANDS := [
         "folder": "res://assets/royaumes/03_royaume_nourriture",
         "visual": "res://assets/royaumes/03_royaume_nourriture/visuel royaume 3.jpg",
         "boss": "res://assets/royaumes/03_royaume_nourriture/big_mom 3 ème commandan.glb",
-        "soldiers": ["res://assets/royaumes/03_royaume_nourriture/baguette 2.eme commandant_anime_compresse.glb"],
+        "boss_name": "Matriarche Gourmande",
+        "boss_archetype": "boss_brute",
+        "soldiers": [
+            "res://assets/royaumes/03_royaume_nourriture/baguette 2.eme commandant_anime_compresse.glb",
+            "res://assets/vrac/chef_militaire_anime_compresse.glb",
+            "res://assets/vrac/solad 1 anime.glb"
+        ],
+        "soldier_names": ["Commandant Baguette", "Chef de la garde", "Pilleur du marché"],
+        "soldier_archetypes": ["duelist", "guard", "charger"],
         "ship": "res://assets/bateaux_glb/iles_animes/glb/ile_03_galion_gourmand_anime.glb",
         "population": true,
         "fog": false
@@ -72,7 +97,15 @@ const ISLANDS := [
         "folder": "res://assets/royaumes/04_royaume_fantastique",
         "visual": "res://assets/royaumes/04_royaume_fantastique/visuel ile 4 royaume fantastique.png",
         "boss": "res://assets/royaumes/04_royaume_fantastique/boss ile 4.glb",
-        "soldiers": ["res://assets/royaumes/04_royaume_fantastique/1 er commandant robot.glb"],
+        "boss_name": "Gardien Fantastique",
+        "boss_archetype": "boss_ranged",
+        "soldiers": [
+            "res://assets/royaumes/04_royaume_fantastique/1 er commandant robot.glb",
+            "res://assets/vrac/winged-knight.glb",
+            "res://assets/vrac/guerrier_solitaire_anime_compresse.glb"
+        ],
+        "soldier_names": ["Commandant Robot", "Chevalier ailé", "Guerrier runique"],
+        "soldier_archetypes": ["guard", "ranged", "duelist"],
         "ship": "res://assets/bateaux_glb/iles_animes/glb/ile_04_roc_des_mers_anime.glb",
         "population": true,
         "fog": true
@@ -88,7 +121,15 @@ const ISLANDS := [
         "folder": "res://assets/royaumes/05_royaume_marvel",
         "visual": "res://assets/royaumes/05_royaume_marvel/visuel ile 5.png",
         "boss": "res://assets/royaumes/05_royaume_marvel/boss ultime Boruto.glb",
-        "soldiers": ["res://assets/royaumes/05_royaume_marvel/himawarie 1 er commedan .glb"],
+        "boss_name": "Boruto Ultime",
+        "boss_archetype": "boss_duelist",
+        "soldiers": [
+            "res://assets/royaumes/05_royaume_marvel/himawarie 1 er commedan .glb",
+            "res://assets/vrac/guerrier_solitaire_anime_compresse.glb",
+            "res://assets/vrac/chef_militaire_anime_compresse.glb"
+        ],
+        "soldier_names": ["Commandante Himawari", "Justicier solitaire", "Chef de patrouille"],
+        "soldier_archetypes": ["ranged", "duelist", "guard"],
         "ship": "res://assets/bateaux_glb/iles_animes/glb/ile_05_volcan_rouge_anime.glb",
         "population": true,
         "fog": false
@@ -104,7 +145,16 @@ const ISLANDS := [
         "folder": "res://assets/royaumes/06_royaume_pokemon",
         "visual": "res://assets/royaumes/06_royaume_pokemon/visuel royaume 6.png",
         "boss": "res://assets/royaumes/06_royaume_pokemon/brok boss .glb",
-        "soldiers": ["res://assets/royaumes/06_royaume_pokemon/brok boss .glb"],
+        "boss_name": "Brok, Maître de l'Arène",
+        "boss_archetype": "boss_brute",
+        "soldiers": [
+            "res://assets/vrac/celestial-centaur.glb",
+            "res://assets/vrac/blossom-treant.glb",
+            "res://assets/vrac/mage_centeaure_anime_compresse.glb",
+            "res://assets/vrac/ourson vrac équipe.glb"
+        ],
+        "soldier_names": ["Centaure céleste", "Tréant fleuri", "Mage centaure", "Ourson dresseur"],
+        "soldier_archetypes": ["charger", "guard", "ranged", "duelist"],
         "ship": "res://assets/bateaux_glb/iles_animes/glb/ile_06_brume_des_marais_anime.glb",
         "population": true,
         "fog": false
@@ -120,7 +170,15 @@ const ISLANDS := [
         "folder": "res://assets/royaumes/07_ile_des_pirates",
         "visual": "res://assets/royaumes/07_ile_des_pirates/visuel royaume 7.jpg",
         "boss": "res://assets/royaumes/07_ile_des_pirates/baggy boss .glb",
-        "soldiers": ["res://assets/royaumes/07_ile_des_pirates/jigen_anime_compresse.glb"],
+        "boss_name": "Baggy le Corsaire",
+        "boss_archetype": "boss_ranged",
+        "soldiers": [
+            "res://assets/royaumes/07_ile_des_pirates/jigen_anime_compresse.glb",
+            "res://assets/vrac/miwak_anime png 9 for_compresse-1.glb",
+            "res://assets/vrac/solad  3 anime.glb"
+        ],
+        "soldier_names": ["Commandant Jigen", "Bretteur Miwak", "Canonnier corsaire"],
+        "soldier_archetypes": ["charger", "duelist", "ranged"],
         "ship": "res://assets/bateaux_glb/iles_animes/glb/ile_07_forteresse_flottante_anime.glb",
         "population": true,
         "fog": false
@@ -135,8 +193,16 @@ const ISLANDS := [
         "weather": "neige",
         "folder": "res://assets/royaumes/08_royaume_des_neiges",
         "visual": "res://assets/royaumes/08_royaume_des_neiges/visuel royaume 8.jpg",
-        "boss": "res://assets/royaumes/08_royaume_des_neiges/solda pharaon.glb",
-        "soldiers": ["res://assets/royaumes/08_royaume_des_neiges/solda pharaon.glb"],
+        "boss": "res://assets/vrac/winged-knight.glb",
+        "boss_name": "Gardien du Blizzard",
+        "boss_archetype": "boss_guard",
+        "soldiers": [
+            "res://assets/royaumes/08_royaume_des_neiges/solda pharaon.glb",
+            "res://assets/vrac/solad 2 anime .glb",
+            "res://assets/vrac/celestial-centaur.glb"
+        ],
+        "soldier_names": ["Garde pharaon des neiges", "Archer du givre", "Centaure polaire"],
+        "soldier_archetypes": ["guard", "ranged", "charger"],
         "ship": "res://assets/bateaux_glb/iles_animes/glb/ile_08_jungle_emeraude_anime.glb",
         "population": true,
         "fog": true
@@ -152,10 +218,15 @@ const ISLANDS := [
         "folder": "res://assets/royaumes/09_royaume_de_feu",
         "visual": "res://assets/royaumes/09_royaume_de_feu/visuel royaume 9.jpg",
         "boss": "res://assets/royaumes/09_royaume_de_feu/boss Sangoku.glb",
+        "boss_name": "Sangoku des Flammes",
+        "boss_archetype": "boss_duelist",
         "soldiers": [
             "res://assets/royaumes/09_royaume_de_feu/logan 1 er commandant de goku.glb",
-            "res://assets/royaumes/09_royaume_de_feu/zian_anime 2 ème commandant.glb"
+            "res://assets/royaumes/09_royaume_de_feu/zian_anime 2 ème commandant.glb",
+            "res://assets/vrac/chef_militaire_anime_compresse.glb"
         ],
+        "soldier_names": ["Commandant Logan", "Commandant Zian", "Garde des braises"],
+        "soldier_archetypes": ["charger", "duelist", "guard"],
         "ship": "res://assets/bateaux_glb/iles_animes/glb/ile_09_abysses_bleus_anime.glb",
         "population": true,
         "fog": false
@@ -171,10 +242,15 @@ const ISLANDS := [
         "folder": "res://assets/royaumes/10_royaume_de_la_terre",
         "visual": "res://assets/royaumes/10_royaume_de_la_terre/visuel royaume 10.jpg",
         "boss": "res://assets/royaumes/10_royaume_de_la_terre/brok boss .glb",
+        "boss_name": "Brok, Colosse de Terre",
+        "boss_archetype": "boss_brute",
         "soldiers": [
             "res://assets/royaumes/10_royaume_de_la_terre/Shelly solda .glb",
-            "res://assets/royaumes/10_royaume_de_la_terre/drako_ameliore_anime_compresse.glb"
+            "res://assets/royaumes/10_royaume_de_la_terre/drako_ameliore_anime_compresse.glb",
+            "res://assets/vrac/commandant_arbre_anime_compresse.glb"
         ],
+        "soldier_names": ["Soldate Shelly", "Drako amélioré", "Commandant Arbre"],
+        "soldier_archetypes": ["ranged", "charger", "guard"],
         "ship": "res://assets/bateaux_glb/iles_animes/glb/ile_10_galion_royal_anime.glb",
         "population": true,
         "fog": false
@@ -190,10 +266,15 @@ const ISLANDS := [
         "folder": "res://assets/royaumes/11_royaume_trouble_final",
         "visual": "res://assets/royaumes/11_royaume_trouble_final/visuel royaume 11.jpg",
         "boss": "res://assets/royaumes/11_royaume_trouble_final/grande boss sorcière des cauchemars.glb",
+        "boss_name": "Grande Sorcière des Cauchemars",
+        "boss_archetype": "boss_ranged",
         "soldiers": [
             "res://assets/royaumes/11_royaume_trouble_final/boss sorcière.glb",
-            "res://assets/royaumes/11_royaume_trouble_final/ymu_sama_ 1er commandant de la grande boss sorcière.glb"
+            "res://assets/royaumes/11_royaume_trouble_final/ymu_sama_ 1er commandant de la grande boss sorcière.glb",
+            "res://assets/vrac/winged-knight.glb"
         ],
+        "soldier_names": ["Sorcière gardienne", "Commandant Ymu Sama", "Garde spectral ailé"],
+        "soldier_archetypes": ["ranged", "duelist", "guard"],
         "reward": "res://assets/royaumes/11_royaume_trouble_final/trophée jeux fin du jeux.glb",
         "ship": "res://assets/bateaux_glb/iles_animes/glb/ile_11_spectre_des_souvenirs_anime.glb",
         "population": false,

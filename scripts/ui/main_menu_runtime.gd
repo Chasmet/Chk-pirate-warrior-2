@@ -11,6 +11,7 @@ func _ready() -> void:
     layer = 100
     get_tree().paused = true
     _build_menu()
+    AudioDirector.play_menu_audio()
 
 func _build_menu() -> void:
     _root = Control.new()
@@ -106,7 +107,7 @@ func _build_hero_panel() -> void:
     var close := Button.new()
     close.text = "FERMER"
     close.custom_minimum_size = Vector2(0, 52)
-    close.pressed.connect(func(): _hero_panel.visible = false)
+    close.pressed.connect(_close_hero_panel)
     box.add_child(close)
 
 func _build_difficulty_panel() -> void:
@@ -162,7 +163,7 @@ func _build_difficulty_panel() -> void:
     back.anchor_top = 0.82
     back.anchor_bottom = 0.89
     back.add_theme_font_size_override("font_size", 20)
-    back.pressed.connect(func(): _difficulty_panel.visible = false)
+    back.pressed.connect(_close_difficulty_panel)
     _difficulty_panel.add_child(back)
 
 func _add_difficulty_card(parent: HBoxContainer, title_text: String, description: String, difficulty_id: String) -> void:
@@ -207,10 +208,23 @@ func _add_hero_button(parent: Control, text_value: String, hero_id: String) -> v
 
 func _toggle_hero_panel() -> void:
     _hero_panel.visible = not _hero_panel.visible
+    if _hero_panel.visible:
+        AudioDirector.play_interface_audio()
+    else:
+        AudioDirector.play_menu_audio()
 
 func _open_difficulty() -> void:
     _hero_panel.visible = false
     _difficulty_panel.visible = true
+    AudioDirector.play_interface_audio()
+
+func _close_hero_panel() -> void:
+    _hero_panel.visible = false
+    AudioDirector.play_menu_audio()
+
+func _close_difficulty_panel() -> void:
+    _difficulty_panel.visible = false
+    AudioDirector.play_menu_audio()
 
 func _start_new_game(difficulty_id: String) -> void:
     GameState.new_game(GameState.selected_hero, difficulty_id)
@@ -233,6 +247,7 @@ func _restore_world_from_state() -> void:
 
 func _start_game() -> void:
     get_tree().paused = false
+    AudioDirector.start_gameplay_audio()
     var tween := create_tween()
     tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
     tween.tween_property(_root, "modulate:a", 0.0, 0.35)

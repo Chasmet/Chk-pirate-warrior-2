@@ -4,26 +4,29 @@ L'audio est séparé en trois zones principales.
 
 ## 1. `bandes_son/`
 
-Un dossier par île : `ile_01` à `ile_11`.
+Un dossier par île : `ile_01` à `ile_11`. Les onze musiques réelles sont
+installées sous le nom `theme_principal.mp3`.
 
 Fichiers prévus dans chaque dossier :
 
-- `theme_principal.ogg` : musique d'exploration ;
+- `theme_principal.mp3` : musique d'exploration actuellement active ;
 - `ambiance.ogg` : ambiance de l'île ;
 - `combat.ogg` : musique de combat ;
 - `boss.ogg` : musique de boss.
 
-Tu peux déposer progressivement tes propres bandes son dans ces dossiers. Le jeu charge automatiquement les fichiers quand ils existent.
+La traversée maritime utilise `bandes_son/mer/traversee_mer.mp3`. Le jeu passe
+automatiquement de la musique du royaume à celle de la mer avec un fondu.
 
 ## 2. `personnages_principaux/`
 
-Trois dossiers réservés aux vrais enregistrements :
+Trois dossiers contiennent les vrais enregistrements :
 
 - `cheikh/`
 - `yvane/`
 - `nelvyn/`
 
-Les README de chaque héros indiquent les noms conseillés (`bonjour.ogg`, `attaque_01.ogg`, `pouvoir_01.ogg`, etc.).
+Cheikh, Yvane et Nelvyn possèdent chacun leur banque séparée. Le jeu ne réutilise
+jamais la voix d'un autre héros quand une réplique manque.
 
 ## 3. `pnj_accueil/`
 
@@ -37,6 +40,7 @@ Les 33 premières salutations sont générées automatiquement en français pour
 
 ## Formats
 
-- voix et musiques : `.ogg` recommandé ;
+- voix courtes et musiques actuellement intégrées : `.mp3` ;
+- `.ogg` reste accepté pour de futurs ajouts ;
 - sources brutes : `.wav` accepté ;
-- éviter les MP3 très lourds pour la version Android.
+- compresser les futurs fichiers pour limiter la taille de l'APK Android.
