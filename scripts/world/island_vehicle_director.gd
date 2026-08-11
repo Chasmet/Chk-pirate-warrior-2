@@ -50,6 +50,12 @@ const VEHICLES := [
     ]
 ]
 
+const VEHICLE_SLOTS := [
+    Vector2(-18.0, 0.325), Vector2(18.0, 0.325),
+    Vector2(-34.0, 0.282), Vector2(34.0, 0.282),
+    Vector2(0.0, 0.245)
+]
+
 var _vehicle_root: Node3D
 var _current_island := -1
 var _rebuild_serial := 0
@@ -87,18 +93,60 @@ func _rebuild_vehicles() -> void:
     var info := WorldCatalog.island(_current_island - 1)
     var center: Vector3 = WorldCatalog.world_positions()[_current_island - 1]
     var island_size: Vector2 = info["size"]
-    var specs: Array = VEHICLES[_current_island - 1]
+    var base_specs: Array = VEHICLES[_current_island - 1]
+    var specs: Array = base_specs.duplicate(true)
+    specs.append_array(_mobility_specs(_current_island))
+
     for i in range(specs.size()):
         var vehicle := IslandVehicleScript.new() as IslandVehicle
         vehicle.name = "Vehicule_%02d_%02d" % [_current_island, i + 1]
         vehicle.configure(specs[i])
         _vehicle_root.add_child(vehicle)
-        var side := -1.0 if i == 0 else 1.0
-        # Le couloir central est réservé à la circulation par les directeurs de
-        # décor. L'ancien emplacement de l'île 1 faisait face à MaisonMusicale_02.
-        var candidate := center + Vector3(side * (13.5 + float(_current_island) * 0.15), 70.0, island_size.y * (0.325 - float(i) * 0.012))
+
+        var slot: Vector2 = VEHICLE_SLOTS[mini(i, VEHICLE_SLOTS.size() - 1)]
+        # Le garage du quai garde les cinq moyens de transport assez espacés pour
+        # qu'un véhicule fraîchement conduit ne puisse pas apparaître dans un autre.
+        var candidate := center + Vector3(slot.x, 70.0, island_size.y * slot.y)
         vehicle.global_position = _snap_to_ground(candidate) + Vector3.UP * 0.18
-        vehicle.rotation.y = PI if i == 0 else PI + 0.18
+        vehicle.rotation.y = PI + clampf(slot.x / 180.0, -0.20, 0.20)
+
+func _mobility_specs(island_id: int) -> Array:
+    var island_specs: Array = VEHICLES[island_id - 1]
+    var reference: Dictionary = island_specs[0]
+    var main: Color = reference.get("main_color", Color("4d5b47"))
+    var accent: Color = reference.get("accent_color", Color("e0b44f"))
+    return [
+        {
+            "name": "Quad d'exploration",
+            "style": "quad",
+            "main_color": main.lightened(0.06),
+            "accent_color": accent,
+            "maximum_speed": 21.0,
+            "reverse_speed": 7.0,
+            "acceleration": 15.0,
+            "turn_speed": 2.20
+        },
+        {
+            "name": "4x4 d'expédition",
+            "style": "4x4",
+            "main_color": main.darkened(0.04),
+            "accent_color": accent.lightened(0.06),
+            "maximum_speed": 18.5,
+            "reverse_speed": 6.2,
+            "acceleration": 11.5,
+            "turn_speed": 1.48
+        },
+        {
+            "name": "Cheval du royaume",
+            "style": "horse",
+            "main_color": Color("7a5135").lerp(main, 0.18),
+            "accent_color": accent,
+            "maximum_speed": 13.2,
+            "reverse_speed": 3.6,
+            "acceleration": 10.5,
+            "turn_speed": 2.35
+        }
+    ]
 
 func _snap_to_ground(world_position: Vector3) -> Vector3:
     if get_world_3d() == null:
