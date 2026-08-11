@@ -60,6 +60,15 @@ func _run() -> void:
         var nelvyn_voice_player := voice_director.get_node_or_null("PlayableHeroVoice") as AudioStreamPlayer
         _check(nelvyn_voice_started, "une vraie voix de Nelvyn peut être déclenchée")
         _check(nelvyn_voice_player != null and nelvyn_voice_player.stream != null and nelvyn_voice_player.stream.resource_path.contains("/nelvyn/"), "Nelvyn utilise uniquement sa propre banque vocale")
+        _check(nelvyn_voice_player != null and nelvyn_voice_player.bus == &"Voice", "Nelvyn utilise le bus Voice séparé de la musique")
+        _check(nelvyn_voice_player != null and nelvyn_voice_player.volume_db >= 2.0, "le gain de la voix jouable est renforcé sur téléphone")
+        for _audio_frame in range(3):
+            await get_tree().process_frame
+        var music_bus_index := AudioServer.get_bus_index(&"Music")
+        var voice_bus_index := AudioServer.get_bus_index(&"Voice")
+        _check(music_bus_index >= 0 and voice_bus_index >= 0, "les bus Music et Voice sont réellement chargés")
+        if music_bus_index >= 0:
+            _check(AudioServer.get_bus_volume_db(music_bus_index) <= -18.0, "la musique baisse immédiatement pendant la voix de Nelvyn")
         GameState.set_hero("cheikh")
         await get_tree().physics_frame
 
@@ -482,6 +491,7 @@ func _run() -> void:
         print("CHK_PIRATE_WARRIOR_2_V5_RUNTIME_FATAL_RESPAWN_OK")
         print("CHK_PIRATE_WARRIOR_2_V1_30_RUNTIME_BOAT_TROPHY_REVERSE_OK")
         print("CHK_PIRATE_WARRIOR_2_V1_30_HOTFIX_2_AUDIO_OK")
+        print("CHK_PIRATE_WARRIOR_2_V1_30_HOTFIX_3_VOICE_MIX_OK")
     await _finish(main)
 
 func _finish(main: Node) -> void:

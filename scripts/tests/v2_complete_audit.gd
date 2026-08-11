@@ -34,6 +34,12 @@ func _run() -> void:
     _check(project_text.contains("size/viewport_width=1280"), "viewport Android optimisé en 1280x720")
     _check(project_text.contains("size/viewport_height=720"), "hauteur viewport Android optimisée")
     _check(project_text.contains("AudioDirector=\"*res://scripts/audio/audio_director.gd\""), "directeur audio persistant configuré une seule fois")
+    _check(project_text.contains("default_bus_layout=\"res://default_bus_layout.tres\""), "layout audio Music et Voice configuré")
+    _check(ResourceLoader.exists("res://default_bus_layout.tres"), "layout des bus audio importable")
+
+    var bus_layout_text := FileAccess.get_file_as_string("res://default_bus_layout.tres")
+    _check(bus_layout_text.contains("bus/1/name = &\"Music\""), "bus Music séparé présent")
+    _check(bus_layout_text.contains("bus/2/name = &\"Voice\""), "bus Voice séparé présent")
 
     for island_id in range(1, 12):
         var island_music_path := "res://assets/audio/bandes_son/ile_%02d/theme_principal.mp3" % island_id
@@ -64,6 +70,14 @@ func _run() -> void:
     _check(audio_director_text.contains("func play_interface_audio"), "musique d'interface reliée au directeur audio")
     _check(audio_director_text.contains("func start_gameplay_audio"), "passage menu vers musique de royaume implémenté")
     _check(audio_director_text.contains("func play_sea_audio"), "passage automatique vers la musique de mer implémenté")
+    _check(audio_director_text.contains("_update_voice_ducking(delta)"), "ducking voix calculé à chaque image")
+    _check(audio_director_text.contains("VOICE_DUCK_DB := -20.0"), "musique suffisamment abaissée pendant les dialogues")
+    _check(audio_director_text.contains("AudioServer.set_bus_volume_db"), "ducking appliqué au bus Music complet")
+    _check(audio_director_text.contains("AudioServer.set_bus_layout"), "layout audio chargé explicitement sur Android")
+
+    var voice_director_text := FileAccess.get_file_as_string("res://scripts/audio/hero_voice_director.gd")
+    _check(voice_director_text.contains("VOICE_PLAYER_DB := 2.5"), "gain des trois héros renforcé")
+    _check(voice_director_text.contains("_player.bus = \"Voice\""), "voix jouables routées vers le bus Voice")
 
     var island_one := WorldCatalog.island(0)
     _check((island_one.get("soldiers", []) as Array).size() >= 4, "l'île 1 ne répète plus un seul modèle ennemi")

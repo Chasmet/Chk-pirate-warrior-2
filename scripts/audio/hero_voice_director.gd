@@ -6,6 +6,7 @@ extends Node
 # encore été enregistré pour le personnage sélectionné, le jeu reste silencieux.
 const VOICE_ROOT := "res://assets/audio/personnages_principaux"
 const MAX_VARIANTS := 6
+const VOICE_PLAYER_DB := 2.5
 
 const PRIORITIES := {
     "attaque": 10,
@@ -49,7 +50,9 @@ func _ready() -> void:
     _player = AudioStreamPlayer.new()
     _player.name = "PlayableHeroVoice"
     _player.bus = "Voice" if AudioServer.get_bus_index("Voice") >= 0 else "Master"
-    _player.volume_db = -1.5
+    # Les MP3 sont normalisés à -16 LUFS / -3 dBTP. Ce petit gain conserve une
+    # marge anti-saturation tout en garantissant une voix nette sur téléphone.
+    _player.volume_db = VOICE_PLAYER_DB
     _player.finished.connect(_on_voice_finished)
     add_child(_player)
 
