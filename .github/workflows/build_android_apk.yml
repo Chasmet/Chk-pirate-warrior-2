@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - agent/full-game-rebuild-v1
+      - agent/v8-godot47-mcp-phone
 
 permissions:
   contents: read
