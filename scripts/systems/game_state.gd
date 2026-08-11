@@ -229,7 +229,64 @@ func exact_position_vector() -> Vector3:
         return Vector3.INF
     return Vector3(float(exact_position[0]), float(exact_position[1]), float(exact_position[2]))
 
+func multiplayer_snapshot() -> Dictionary:
+    return {
+        "snapshot_version": 1,
+        "island": current_island,
+        "inventory": inventory.duplicate(true),
+        "difficulty": difficulty,
+        "discovered_islands": discovered_islands.duplicate(),
+        "defeated_bosses": defeated_bosses.duplicate(true),
+        "quest_progress": quest_progress.duplicate(true),
+        "crew_reputation": crew_reputation.duplicate(true),
+        "coins": coins,
+        "xp": xp,
+        "level": level,
+        "boat_level": boat_level,
+        "world_time": world_time,
+        "final_unlocked": final_unlocked,
+        "final_reward_collected": final_reward_collected
+    }
+
+func apply_multiplayer_snapshot(data: Dictionary) -> void:
+    if data.is_empty():
+        return
+    var previous_island := current_island
+    current_island = clampi(int(data.get("island", current_island)), 1, 11)
+    inventory = data.get("inventory", inventory).duplicate(true) if data.get("inventory", inventory) is Dictionary else inventory
+    var network_difficulty := str(data.get("difficulty", difficulty))
+    difficulty = network_difficulty if DIFFICULTIES.has(network_difficulty) else difficulty
+    var network_discovered = data.get("discovered_islands", discovered_islands)
+    if network_discovered is Array:
+        discovered_islands = network_discovered.duplicate()
+    var network_bosses = data.get("defeated_bosses", defeated_bosses)
+    if network_bosses is Dictionary:
+        defeated_bosses = network_bosses.duplicate(true)
+    var network_quests = data.get("quest_progress", quest_progress)
+    if network_quests is Dictionary:
+        quest_progress = network_quests.duplicate(true)
+    var network_reputation = data.get("crew_reputation", crew_reputation)
+    if network_reputation is Dictionary:
+        crew_reputation = network_reputation.duplicate(true)
+    coins = maxi(0, int(data.get("coins", coins)))
+    xp = maxi(0, int(data.get("xp", xp)))
+    level = clampi(int(data.get("level", level)), 1, 50)
+    boat_level = clampi(int(data.get("boat_level", boat_level)), 1, 5)
+    world_time = clampf(float(data.get("world_time", world_time)), 0.0, 1.0)
+    final_unlocked = bool(data.get("final_unlocked", final_unlocked)) or _first_ten_bosses_defeated()
+    final_reward_collected = bool(data.get("final_reward_collected", final_reward_collected))
+    _apply_hero_capacity()
+    inventory_changed.emit(inventory.duplicate(true))
+    difficulty_changed.emit(difficulty)
+    progression_changed.emit()
+    if previous_island != current_island:
+        island_changed.emit(current_island)
+
 func quick_save() -> void:
+    var network := get_node_or_null("/root/NetworkManager")
+    if network != null and network.has_method("can_write_campaign_save"):
+        if not bool(network.call("can_write_campaign_save")):
+            return
     var data := {
         "save_version": 2,
         "hero": selected_hero,

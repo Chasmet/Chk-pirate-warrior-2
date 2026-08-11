@@ -43,9 +43,6 @@ func _apply_backward_and_turn_facing(delta: float) -> void:
     if input_vec.length() <= 0.05:
         return
 
-    # Plein arrière : on ne force plus le héros à rester face caméra. Il pivote
-    # très vite vers la direction demandée, ce qui donne un demi-tour net sans
-    # glissade latérale.
     if input_vec.y >= quick_turn_input_threshold and input_vec.length() >= quick_turn_input_threshold:
         var turn_direction := _camera_relative_direction(input_vec)
         if turn_direction.length_squared() > 0.001:
@@ -54,8 +51,6 @@ func _apply_backward_and_turn_facing(delta: float) -> void:
             rotation.y = lerp_angle(rotation.y, turn_angle, minf(1.0, rotation_speed * quick_turn_speed_multiplier * delta))
         return
 
-    # Arrière partiel : recul contrôlé. Les diagonales restent possibles, donc le
-    # joueur peut corriger sa trajectoire en reculant sans être bloqué sur un axe.
     if input_vec.y <= backpedal_rotation_threshold or input_vec.length() > backpedal_max_strength:
         return
     var camera := get_viewport().get_camera_3d()
@@ -78,8 +73,6 @@ func set_mounted_pose(mount_style: String) -> void:
     _mount_visual_position = hero_model.position
     _mount_visual_rotation = hero_model.rotation
 
-    # On tente d'abord les animations réellement présentes dans le GLB. En leur
-    # absence, l'animation idle reste une solution propre et stable sur Android.
     if mount_style == "horse":
         if not _play_animation_by_keywords(["ride", "horse", "riding", "sit"], true):
             _play_animation_by_keywords(["idle", "stand"], true)
@@ -89,7 +82,6 @@ func set_mounted_pose(mount_style: String) -> void:
             _play_animation_by_keywords(["idle", "stand"], true)
         hero_model.position = _mount_visual_position + Vector3(0.0, -0.30, 0.02)
 
-    # Évite les armes et sacs qui traversent le volant, le guidon ou la selle.
     if backpack_node != null and is_instance_valid(backpack_node):
         backpack_node.visible = false
     if weapon_node != null and is_instance_valid(weapon_node):
@@ -116,21 +108,11 @@ func _load_visuals() -> void:
 func _align_loaded_hero_visual() -> void:
     if hero_model == null or not is_instance_valid(hero_model):
         return
-
-    # Les trois GLB joueurs ont été exportés face +Z, alors que le contrôleur
-    # Godot considère -Z comme l'avant. Cheikh était déjà corrigé ; les captures
-    # Android montrent que Yvane et Nelvyn regardaient encore la caméra quand ils
-    # avançaient, ce qui plaçait aussi leur sac sur le torse. On aligne donc les
-    # trois visuels sur le même repère de déplacement, sans toucher au CharacterBody.
     var hero_id := str(GameState.selected_hero).to_lower()
     if hero_id in ["cheikh", "yvane", "nelvyn"]:
         hero_model.rotation_degrees.y += 180.0
 
 func _attach_backpack(backpack_visual: Node3D) -> void:
-    # L'ancre +Z est le dos du contrôleur puisque l'avant de déplacement est -Z.
-    # Une fois les trois modèles réalignés ci-dessus, le sac se retrouve donc bien
-    # derrière le personnage. L'orientation propre du GLB de chaque sac reste
-    # spécifique : Cheikh à 180° (déjà validé), Yvane/Nelvyn à 0°.
     var anchor := Node3D.new()
     anchor.name = "BackpackAnchor"
     add_child(anchor)
@@ -177,21 +159,48 @@ func _normalize_weapon_visual() -> void:
     weapon_node.scale = Vector3.ONE * local_factor
 
 func basic_attack() -> void:
+    if NetworkManager.is_client():
+        var attack_name := str(hero_data.get("base_attack", "Attaque"))
+        print("%s: %s" % [hero_data.get("display_name", "Héros"), attack_name])
+        _attack_lock = 0.48
+        _play_animation_by_keywords(["attack", "punch", "slash", "hit", "swing"], false)
+        NetworkManager.request_combat("basic", -1)
+        get_tree().call_group("hero_voice_director", "play_event", "attaque")
+        return
+
     super.basic_attack()
-    # Réplique courte, aléatoire et limitée par le directeur vocal : jamais à chaque coup.
+    if NetworkManager.is_host():
+        NetworkManager.host_broadcast_combat("basic", -1, global_position)
     get_tree().call_group("hero_voice_director", "play_event", "attaque")
 
 func use_ability(index: int) -> bool:
+    if NetworkManager.is_client():
+        var abilities: Array = hero_data.get("abilities", [])
+        if index < 0 or index >= abilities.size() or cooldowns[index] > 0.0:
+            return false
+        var ability: Dictionary = abilities[index]
+        var cost := float(ability.get("energy", 0.0))
+        if energy < cost:
+            return false
+        energy -= cost
+        cooldowns[index] = float(ability.get("cooldown", 1.0))
+        energy_changed.emit(energy, max_energy)
+        ability_used.emit(index, ability)
+        _attack_lock = 0.65
+        _play_animation_by_keywords(["attack", "skill", "power", "slash", "punch"], false)
+        NetworkManager.request_combat("ability", index)
+        get_tree().call_group("hero_voice_director", "play_event", "attaque")
+        return true
+
     var used := super.use_ability(index)
     if used:
-        # Tant qu'aucune prise "pouvoir" dédiée n'existe, les phrases d'attaque
-        # servent aussi aux capacités offensives, avec le même anti-spam.
+        if NetworkManager.is_host():
+            NetworkManager.host_broadcast_combat("ability", index, global_position)
         get_tree().call_group("hero_voice_director", "play_event", "attaque")
     return used
 
 func receive_damage(amount: float) -> void:
     var health_before := health
     super.receive_damage(amount)
-    # Le son part uniquement si le coup a réellement traversé l'invulnérabilité.
     if health < health_before:
         get_tree().call_group("hero_voice_director", "play_event", "douleur")
