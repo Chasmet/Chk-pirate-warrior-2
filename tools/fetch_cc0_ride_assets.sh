@@ -8,16 +8,20 @@ TMP_DIR="${RUNNER_TEMP:-/tmp}/chk_cc0_rides"
 KENNEY_COMMIT="f5241ebdf00c25bc951bf4fdb7950bb1b78b4bcc"
 KENNEY_MODEL="vehicle-truck-green.glb"
 KENNEY_URL="https://raw.githubusercontent.com/KenneyNL/Starter-Kit-Racing/${KENNEY_COMMIT}/models/${KENNEY_MODEL}"
+KENNEY_COLORMAP_URL="https://raw.githubusercontent.com/KenneyNL/Starter-Kit-Racing/${KENNEY_COMMIT}/models/Textures/colormap.png"
 ANIMASIM_VERSION="0.2.1"
 ANIMASIM_WHEEL_SHA256="d111ffc9782f09872846b09ac7868d41e126ef72e3153d9d0173d401be3277a3"
 
 rm -rf "$TMP_DIR"
-mkdir -p "$ASSET_DIR" "$TMP_DIR"
+mkdir -p "$ASSET_DIR/Textures" "$TMP_DIR"
 
 printf '%s\n' '=== CC0 rides: Kenney 4x4 ==='
 curl --fail --location --retry 3 --retry-delay 2 \
   "$KENNEY_URL" \
   --output "$ASSET_DIR/4x4_kenney.glb"
+curl --fail --location --retry 3 --retry-delay 2 \
+  "$KENNEY_COLORMAP_URL" \
+  --output "$ASSET_DIR/Textures/colormap.png"
 
 printf '%s\n' '=== CC0 rides: Quaternius horse via AnimaSim redistribution ==='
 python3 -m pip download \
@@ -45,19 +49,28 @@ if [ -z "$HORSE_PATH" ]; then
 fi
 cp "$HORSE_PATH" "$ASSET_DIR/horse_quaternius.glb"
 
-python3 - "$ASSET_DIR/4x4_kenney.glb" "$ASSET_DIR/horse_quaternius.glb" <<'PY'
+python3 - "$ASSET_DIR/4x4_kenney.glb" "$ASSET_DIR/horse_quaternius.glb" "$ASSET_DIR/Textures/colormap.png" <<'PY'
 from pathlib import Path
 import sys
 
-for raw in sys.argv[1:]:
+for raw in sys.argv[1:3]:
     path = Path(raw)
     data = path.read_bytes()
     if len(data) < 32 or data[:4] != b'glTF':
         raise SystemExit(f"GLB invalide: {path}")
     print(f"OK {path.name}: {len(data) / 1024:.1f} KiB")
+
+texture = Path(sys.argv[3])
+texture_data = texture.read_bytes()
+if len(texture_data) < 32 or texture_data[:8] != b'\x89PNG\r\n\x1a\n':
+    raise SystemExit(f"Texture PNG invalide: {texture}")
+print(f"OK {texture.name}: {len(texture_data) / 1024:.1f} KiB")
 PY
 
-sha256sum "$ASSET_DIR/4x4_kenney.glb" "$ASSET_DIR/horse_quaternius.glb" \
+sha256sum \
+  "$ASSET_DIR/4x4_kenney.glb" \
+  "$ASSET_DIR/Textures/colormap.png" \
+  "$ASSET_DIR/horse_quaternius.glb" \
   | tee "$ASSET_DIR/FETCHED_SHA256.txt"
 
 printf '%s\n' 'Assets CC0 prêts pour import Godot.'
