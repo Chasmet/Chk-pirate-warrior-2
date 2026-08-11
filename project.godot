@@ -1,8 +1,9 @@
-; CHK Pirate Warrior 2 - Godot 4
+; CHK Pirate Warrior 2 - Godot 4.7
 config_version=5
 
 [application]
 config/name="CHK Pirate Warrior 2"
+config/features=PackedStringArray("4.7", "GL Compatibility")
 run/main_scene="res://scenes/main/main.tscn"
 config/icon="res://assets/interface/logo_chk_pirate_warrior_2.png"
 
@@ -22,6 +23,9 @@ size/window_height_override=720
 stretch/mode="canvas_items"
 stretch/aspect="expand"
 handheld/orientation=0
+
+[editor_plugins]
+enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg", "res://addons/chk_mcp_relay/plugin.cfg")
 
 [rendering]
 renderer/rendering_method="gl_compatibility"
