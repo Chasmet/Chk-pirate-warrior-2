@@ -1,0 +1,85 @@
+name: V6 - Valider puis compiler APK
+
+on:
+  push:
+    branches:
+      - agent/v6-controls-rides-visuals
+    paths:
+      - 'project.godot'
+      - 'scenes/**'
+      - 'scripts/**'
+      - 'data/**'
+      - '.github/workflows/v6_validate_and_build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  validate-v6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Récupérer V6
+        uses: actions/checkout@v4
+
+      - name: Installer Godot 4.4 stable
+        shell: bash
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip -O /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.4-stable_linux.x86_64
+          sudo ln -sf /tmp/godot/Godot_v4.4-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Alléger les imports pour la validation syntaxique
+        shell: bash
+        run: |
+          mkdir -p /tmp/chk_heavy_assets
+          find . -maxdepth 1 -type f -name '*.glb' -exec mv {} /tmp/chk_heavy_assets/ \;
+          for d in assets/royaumes assets/vrac assets/bateaux_glb assets/decors_glb assets/interface assets/audio assets/equipements; do
+            if [ -d "$d" ]; then touch "$d/.gdignore"; fi
+          done
+
+      - name: Parser scripts et scènes V6
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path . --editor --quit 2>&1 | tee v6-godot-validate.log
+          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access" v6-godot-validate.log; then
+            echo 'Erreur Godot détectée dans la V6.'
+            exit 3
+          fi
+
+      - name: Vérifier les ajouts V6
+        shell: bash
+        run: |
+          grep -q 'quick_turn_input_threshold' scripts/player/hero_controller_v3.gd
+          grep -q '"style": "quad"' scripts/world/island_vehicle_director.gd
+          grep -q '"style": "4x4"' scripts/world/island_vehicle_director.gd
+          grep -q '"style": "horse"' scripts/world/island_vehicle_director.gd
+          grep -q 'MultiMeshInstance3D' scripts/world/island_vegetation_director.gd
+          grep -q 'active_citizen_budget = 14' scenes/main/main.tscn
+
+      - name: Publier le journal de validation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: V6-Godot-Validation
+          path: v6-godot-validate.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  dispatch-full-apk:
+    needs: validate-v6
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lancer le workflow APK complet sur la branche V6
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build_android_apk.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF_NAME"
+          echo "Compilation APK complète demandée pour $GITHUB_REF_NAME"
