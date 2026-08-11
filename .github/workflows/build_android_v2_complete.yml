@@ -125,6 +125,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
           VOICE_COUNT=0
           while IFS= read -r VOICE_FILE; do
             METRICS=$(ffmpeg -nostdin -hide_banner -i "$VOICE_FILE" -af volumedetect -f null - 2>&1)
