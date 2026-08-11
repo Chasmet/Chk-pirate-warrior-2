@@ -1,7 +1,7 @@
 @tool
 extends EditorPlugin
 
-const REMOTE_URL := "wss://chk-pirate-godot-mcp.onrender.com/relay/chk-pirate-warrior-2"
+const REMOTE_URL := "wss://chk-pirate-godot-mcp.onrender.com/relay/godot"
 const DEFAULT_LOCAL_PORT := 9080
 const RECONNECT_MS := 3000
 const HEARTBEAT_MS := 20000
@@ -20,7 +20,7 @@ var _local_port := DEFAULT_LOCAL_PORT
 func _enter_tree() -> void:
 	set_process(true)
 	_local_port = _discover_local_port()
-	print("[CHK MCP] Phone relay enabled. Local Godot MCP port: %d" % _local_port)
+	print("[GODOT MCP] Phone relay enabled. Local Godot MCP port: %d" % _local_port)
 	_try_connect_remote(true)
 	_try_connect_local(true)
 
@@ -56,17 +56,17 @@ func _process(_delta: float) -> void:
 func _handle_state_changes() -> void:
 	var remote_open := _remote.get_ready_state() == WebSocketPeer.STATE_OPEN
 	if remote_open and not _remote_was_open:
-		print("[CHK MCP] Connected to ChatGPT relay.")
+		print("[GODOT MCP] Connected to ChatGPT relay.")
 		_send_hello()
 	elif not remote_open and _remote_was_open:
-		print("[CHK MCP] ChatGPT relay disconnected; reconnecting automatically.")
+		print("[GODOT MCP] ChatGPT relay disconnected; reconnecting automatically.")
 	_remote_was_open = remote_open
 
 	var local_open := _local.get_ready_state() == WebSocketPeer.STATE_OPEN
 	if local_open and not _local_was_open:
-		print("[CHK MCP] Connected to official Godot MCP on 127.0.0.1:%d." % _local_port)
+		print("[GODOT MCP] Connected to official Godot MCP on 127.0.0.1:%d." % _local_port)
 	elif not local_open and _local_was_open:
-		print("[CHK MCP] Official Godot MCP local connection closed; reconnecting.")
+		print("[GODOT MCP] Official Godot MCP local connection closed; reconnecting.")
 	_local_was_open = local_open
 
 
@@ -79,7 +79,7 @@ func _try_connect_remote(immediate: bool) -> void:
 	_last_remote_attempt = Time.get_ticks_msec()
 	var err := _remote.connect_to_url(REMOTE_URL)
 	if err != OK:
-		print("[CHK MCP] Remote relay connection error: %s" % error_string(err))
+		print("[GODOT MCP] Remote relay connection error: %s" % error_string(err))
 
 
 func _try_connect_local(immediate: bool) -> void:
@@ -92,7 +92,7 @@ func _try_connect_local(immediate: bool) -> void:
 	var url := "ws://127.0.0.1:%d" % _local_port
 	var err := _local.connect_to_url(url)
 	if err != OK:
-		print("[CHK MCP] Local MCP connection error on %s: %s" % [url, error_string(err)])
+		print("[GODOT MCP] Local MCP connection error on %s: %s" % [url, error_string(err)])
 
 
 func _discover_local_port() -> int:
@@ -159,7 +159,7 @@ func _send_hello() -> void:
 	_send_remote({
 		"type": "hello",
 		"metadata": {
-			"project": ProjectSettings.get_setting("application/config/name", "CHK Pirate Warrior 2"),
+			"project": ProjectSettings.get_setting("application/config/name", "Projet Godot"),
 			"project_path": ProjectSettings.globalize_path("res://"),
 			"godot_version": "%s.%s.%s" % [version.get("major", 0), version.get("minor", 0), version.get("patch", 0)],
 			"platform": OS.get_name(),
