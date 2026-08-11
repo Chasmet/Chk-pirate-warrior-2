@@ -9,6 +9,9 @@ on:
       - 'scenes/**'
       - 'scripts/**'
       - 'data/**'
+      - 'assets/cc0_rides/**'
+      - 'tools/**'
+      - '.github/workflows/build_android_apk.yml'
       - '.github/workflows/v6_validate_and_build.yml'
   workflow_dispatch:
 
@@ -59,6 +62,10 @@ jobs:
           grep -q '"style": "quad"' scripts/world/island_vehicle_director.gd
           grep -q '"style": "4x4"' scripts/world/island_vehicle_director.gd
           grep -q '"style": "horse"' scripts/world/island_vehicle_director.gd
+          grep -q 'RideAssetVisualScript' scripts/world/island_vehicle_director.gd
+          grep -q '4x4_kenney.glb' assets/cc0_rides/ride_asset_visual.gd
+          grep -q 'horse_quaternius.glb' assets/cc0_rides/ride_asset_visual.gd
+          grep -q 'KENNEY_COLORMAP_URL' tools/fetch_cc0_ride_assets.sh
           grep -q 'MultiMeshInstance3D' scripts/world/island_vegetation_director.gd
           grep -q 'active_citizen_budget = 14' scenes/main/main.tscn
 
