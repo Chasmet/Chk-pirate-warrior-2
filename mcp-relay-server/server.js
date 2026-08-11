@@ -10,9 +10,8 @@ import { z } from "zod";
 const PORT = Number(process.env.PORT ?? 3000);
 const MCP_TOKEN = String(process.env.MCP_TOKEN ?? "").trim();
 const MCP_TOKEN_SHA256 = "64ba5a4381cdffd7d833d652c63e6a98a30c004eba749d7bef50804fde38040f";
-const PROJECT_ID = String(process.env.PROJECT_ID ?? "chk-pirate-warrior-2").trim();
-const RELAY_PATH = `/relay/${PROJECT_ID}`;
 const REQUEST_TIMEOUT_MS = Number(process.env.GODOT_REQUEST_TIMEOUT_MS ?? 120000);
+const RELAY_PATHS = new Set(["/relay/godot", "/relay/chk-pirate-warrior-2"]);
 
 const app = express();
 app.use(express.json({ limit: "20mb" }));
@@ -54,13 +53,13 @@ function rejectPending(message) {
 }
 
 function sendRelayJson(value) {
-  if (!relayReady()) throw new Error("Godot Android n'est pas connecté au relais MCP.");
+  if (!relayReady()) throw new Error("Aucun éditeur Godot n'est connecté au relais MCP.");
   relay.send(JSON.stringify(value));
 }
 
 async function callGodot(method, params = {}) {
   if (!relayReady()) {
-    throw new Error("Godot Android n'est pas connecté. Ouvre le projet V8 dans l'éditeur Godot 4.7+ sur le téléphone.");
+    throw new Error("Aucun projet Godot n'est actuellement connecté. Ouvre un projet équipé du relais Godot MCP dans l'éditeur Godot 4.7+.");
   }
   const id = randomUUID();
   const payload = { jsonrpc: "2.0", id, method, params };
@@ -127,7 +126,7 @@ wss.on("connection", (ws, request) => {
     if (relay === ws) {
       relay = null;
       relayMetadata = null;
-      rejectPending("La connexion avec l'éditeur Godot Android a été fermée.");
+      rejectPending("La connexion avec l'éditeur Godot a été fermée.");
     }
     console.log("[relay] Godot disconnected");
   });
@@ -143,7 +142,7 @@ httpServer.on("upgrade", (request, socket, head) => {
     socket.destroy();
     return;
   }
-  if (pathname !== RELAY_PATH) {
+  if (!RELAY_PATHS.has(pathname)) {
     socket.destroy();
     return;
   }
@@ -161,9 +160,9 @@ setInterval(() => {
 
 function statusSnapshot() {
   return {
-    service: "CHK Pirate Warrior 2 Godot MCP relay",
-    project_id: PROJECT_ID,
+    service: "Godot MCP Android relay",
     godot_connected: Boolean(relayReady()),
+    active_project: relayMetadata?.project ?? null,
     connected_at_millis: relayConnectedAt || null,
     last_seen_at_millis: relayLastSeenAt || null,
     godot: relayMetadata,
@@ -172,11 +171,11 @@ function statusSnapshot() {
 }
 
 function createMcpServer() {
-  const server = new McpServer({ name: "chk-pirate-godot-android", version: "1.0.0" });
+  const server = new McpServer({ name: "godot-android", version: "1.1.0" });
 
   server.registerTool("godot_status", {
-    title: "État de Godot sur le téléphone",
-    description: "Vérifie si l'éditeur Godot 4.7+ du téléphone est actuellement relié à ChatGPT.",
+    title: "État de Godot",
+    description: "Vérifie quel projet Godot est actuellement connecté et disponible pour ChatGPT.",
     inputSchema: {},
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false, idempotentHint: true },
   }, async () => {
@@ -189,7 +188,7 @@ function createMcpServer() {
 
   server.registerTool("godot_run", {
     title: "Piloter Godot 4.7",
-    description: "Exécute une commande du Godot MCP/CLI 0.8.x dans l'éditeur Godot réellement ouvert sur le téléphone. Utiliser d'abord engine.search/engine.docs pour découvrir l'API, puis scene.*, node.*, spatial.*, physics.*, runtime.*, input.*, audio.*, material.*, animation.*, editor.*, project.* selon le besoin. Les paramètres sont transmis tels quels au serveur JSON-RPC local du plugin officiel.",
+    description: "Exécute une commande du Godot MCP/CLI 0.8.x dans le projet actuellement ouvert dans l'éditeur Godot connecté. Fonctionne pour CHK Pirate Warrior 2 comme pour de futurs projets Godot équipés du relais.",
     inputSchema: {
       method: z.string().trim().min(1).max(160).describe("Méthode Godot MCP, par exemple engine.search, scene.get_tree ou node.get."),
       params: z.record(z.string(), z.unknown()).optional().describe("Paramètres de la commande Godot MCP."),
@@ -199,7 +198,7 @@ function createMcpServer() {
     try {
       const result = await callGodot(method, params ?? {});
       return {
-        structuredContent: { method, result },
+        structuredContent: { method, project: relayMetadata?.project ?? null, result },
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
     } catch (error) {
@@ -228,7 +227,7 @@ function mcpError(res, status, message) {
 }
 
 app.get("/", (_req, res) => {
-  res.json({ ok: true, ...statusSnapshot(), mcp: MCP_TOKEN ? "configured" : "missing MCP_TOKEN" });
+  res.json({ ok: true, ...statusSnapshot(), mcp: MCP_TOKEN ? "configured" : "token-hash-fallback" });
 });
 app.get("/status", (_req, res) => res.json(statusSnapshot()));
 
@@ -279,6 +278,6 @@ app.get("/mcp/:token", handleMcpSession);
 app.delete("/mcp/:token", handleMcpSession);
 
 httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log(`CHK Godot MCP relay listening on :${PORT}`);
-  console.log(`Relay path: ${RELAY_PATH}`);
+  console.log(`Godot MCP relay listening on :${PORT}`);
+  console.log("Relay paths: /relay/godot (current), /relay/chk-pirate-warrior-2 (compatibility)");
 });
