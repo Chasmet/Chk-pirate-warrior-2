@@ -27,25 +27,40 @@ func _layout_v3() -> void:
 
     # Carte joueur compacte à gauche, sans superposition nom/niveau/barres/valeurs.
     if stats_panel != null:
-        var stats_w := clampf(w * 0.29, 350.0, 390.0)
+        var stats_w := clampf(w * 0.29, 360.0, 400.0)
         stats_panel.position = Vector2(HUD_SAFE_LEFT, 12.0)
-        stats_panel.size = Vector2(stats_w, 154.0)
-        hero_label.position = Vector2(14.0, 8.0)
-        hero_label.size = Vector2(stats_w - 112.0, 30.0)
-        hero_label.add_theme_font_size_override("font_size", 21)
-        level_label.position = Vector2(stats_w - 90.0, 10.0)
-        level_label.size = Vector2(74.0, 26.0)
+        stats_panel.size = Vector2(stats_w, 226.0)
+        hero_label.add_theme_font_size_override("font_size", 16)
+        hero_label.position = Vector2(14.0, 6.0)
+        hero_label.size = Vector2(stats_w - 104.0, 50.0)
+        hero_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+        level_label.add_theme_font_size_override("font_size", 11)
+        level_label.position = Vector2(stats_w - 82.0, 10.0)
+        level_label.size = Vector2(66.0, 42.0)
         level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-        level_label.add_theme_font_size_override("font_size", 13)
-        for bar in [health_bar, energy_bar, aura_bar]:
+        level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+        var row_y := [62.0, 116.0, 170.0]
+        var captions := ["VIE", "ÉNERGIE", "AURA"]
+        var bars := [health_bar, energy_bar, aura_bar]
+        var values := [health_value_label, energy_value_label, aura_value_label]
+        for i in range(3):
+            var caption := _find_stats_caption(captions[i])
+            if caption != null:
+                caption.add_theme_font_size_override("font_size", 11)
+                caption.position = Vector2(12.0, row_y[i])
+                caption.size = Vector2(58.0, 44.0)
+                caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+            var bar = bars[i]
             if bar != null:
-                bar.position.x = 82.0
-                bar.size.x = maxf(145.0, stats_w - 184.0)
-        for value_label in [health_value_label, energy_value_label, aura_value_label]:
+                bar.position = Vector2(76.0, row_y[i])
+                bar.size = Vector2(maxf(150.0, stats_w - 176.0), 44.0)
+            var value_label = values[i]
             if value_label != null:
-                value_label.position.x = stats_w - 91.0
-                value_label.size.x = 76.0
-                value_label.add_theme_font_size_override("font_size", 12)
+                value_label.add_theme_font_size_override("font_size", 10)
+                value_label.position = Vector2(stats_w - 88.0, row_y[i])
+                value_label.size = Vector2(72.0, 44.0)
+                value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
     # Dimensions carte calculées avant la mission pour réserver sa zone à droite.
     var map_w := clampf(w * 0.27, 300.0, 350.0)
@@ -80,15 +95,20 @@ func _layout_v3() -> void:
         var mission_width := minf(520.0, available)
         var mission_x := left_limit + maxf(0.0, (available - mission_width) * 0.5)
         mission_panel.position = Vector2(mission_x, 10.0)
-        mission_panel.size = Vector2(mission_width, 118.0)
-        mission_title.position = Vector2(12.0, 8.0)
-        mission_title.size = Vector2(mission_width - 24.0, 28.0)
+        mission_panel.size = Vector2(mission_width, 166.0)
+        mission_title.add_theme_font_size_override("font_size", 15)
+        mission_title.position = Vector2(14.0, 7.0)
+        mission_title.size = Vector2(mission_width - 28.0, 48.0)
         mission_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-        mission_title.add_theme_font_size_override("font_size", 16)
-        mission_text.position = Vector2(12.0, 43.0)
-        mission_text.size = Vector2(mission_width - 24.0, 64.0)
-        mission_text.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+        mission_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+        mission_title.clip_text = true
         mission_text.add_theme_font_size_override("font_size", 12)
+        mission_text.position = Vector2(18.0, 62.0)
+        mission_text.size = Vector2(mission_width - 36.0, 92.0)
+        mission_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+        mission_text.max_lines_visible = 3
+        mission_text.text_overrun_behavior = TextServer.OVERRUN_TRIM_WORD_ELLIPSIS
+        mission_text.clip_text = true
 
     # Vraie carte d'archipel visible en permanence sous les boutons.
     if map_panel != null:
@@ -97,13 +117,15 @@ func _layout_v3() -> void:
         map_panel.size = Vector2(map_w, map_h)
         var minimap := map_panel.get_node_or_null("ArchipelagoMinimap") as Control
         if minimap != null:
-            minimap.position = Vector2(8.0, 32.0)
-            minimap.size = Vector2(map_w - 16.0, map_h - 40.0)
+            minimap.position = Vector2(8.0, 52.0)
+            minimap.size = Vector2(map_w - 16.0, map_h - 60.0)
             minimap.queue_redraw()
         var title := map_panel.get_node_or_null("ArchipelagoMapTitle") as Label
         if title != null:
-            title.size = Vector2(map_w - 20.0, 24.0)
-            title.add_theme_font_size_override("font_size", 14)
+            title.add_theme_font_size_override("font_size", 11)
+            title.position = Vector2(10.0, 2.0)
+            title.size = Vector2(map_w - 20.0, 36.0)
+            title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
     if subtitle_panel != null:
         var subtitle_width := minf(500.0, w * 0.40)
@@ -129,6 +151,14 @@ func _place_hud_button(text_value: String, pos: Vector2, button_size: Vector2) -
     button.size = button_size
     button.custom_minimum_size = button_size
     button.add_theme_font_size_override("font_size", 14)
+
+func _find_stats_caption(text_value: String) -> Label:
+    if stats_panel == null:
+        return null
+    for child in stats_panel.get_children():
+        if child is Label and (child as Label).text == text_value:
+            return child as Label
+    return null
 
 func _find_button_by_text(node: Node, text_value: String) -> Button:
     if node is Button and (node as Button).text == text_value:

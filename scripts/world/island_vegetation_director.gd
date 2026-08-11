@@ -4,6 +4,7 @@ extends Node3D
 @export var bush_budget := 40
 @export var flower_budget := 28
 @export var grass_cluster_budget := 52
+@export var arrival_grass_blade_budget := 720
 
 var _root: Node3D
 var _current_island := -1
@@ -30,16 +31,83 @@ func _rebuild(serial: int) -> void:
     _root.name = "VegetationRoyaume_%02d" % _current_island
     add_child(_root)
 
+    var info := WorldCatalog.island(_current_island - 1)
+    var center := WorldCatalog.world_positions()[_current_island - 1]
+    var size: Vector2 = info["size"]
+    _spawn_arrival_grass(
+        center,
+        size,
+        info,
+        260 if _current_island == 11 else arrival_grass_blade_budget,
+        _current_island == 11
+    )
+
     if _current_island == 11:
         _spawn_troubled_growth()
         return
 
-    var info := WorldCatalog.island(_current_island - 1)
-    var center := WorldCatalog.world_positions()[_current_island - 1]
-    var size: Vector2 = info["size"]
     _spawn_bushes(center, size, info)
     _spawn_flowers(center, size, info)
     _spawn_grass_clusters(center, size, info)
+
+func _spawn_arrival_grass(center: Vector3, size: Vector2, info: Dictionary, blade_count: int, troubled: bool) -> void:
+    # Les anciennes touffes étaient réparties sur 1 à 3 km : le budget existait
+    # bien, mais presque rien n'était visible autour du joueur. Cette ceinture
+    # concentre des centaines de brindilles le long de l'arrivée et de la route
+    # du port dans un seul MultiMesh, donc un seul draw call sur Android.
+    var resolved_count := maxi(0, blade_count)
+    if resolved_count == 0:
+        return
+
+    var blade_mesh := BoxMesh.new()
+    blade_mesh.size = Vector3(0.035, 0.62, 0.075)
+
+    var multi := MultiMesh.new()
+    multi.transform_format = MultiMesh.TRANSFORM_3D
+    multi.use_colors = true
+    multi.mesh = blade_mesh
+    multi.instance_count = resolved_count
+
+    var base_color: Color = info.get("color", Color("4f7f4c"))
+    var rng := RandomNumberGenerator.new()
+    rng.seed = 61000 + _current_island * 263
+    var blades_per_patch := 10
+    var patch_origin := center
+
+    for i in range(resolved_count):
+        var local_blade := i % blades_per_patch
+        if local_blade == 0:
+            var side := -1.0 if int(i / blades_per_patch) % 2 == 0 else 1.0
+            var x_offset := side * rng.randf_range(16.0, minf(155.0, size.x * 0.16))
+            var z_offset := rng.randf_range(size.y * 0.18, size.y * 0.415)
+            patch_origin = _snap_to_ground(center + Vector3(x_offset, 8.0, z_offset), 0.0)
+
+        var angle := rng.randf_range(0.0, TAU)
+        var radius := sqrt(rng.randf()) * rng.randf_range(0.35, 2.4)
+        var height_scale := rng.randf_range(0.58, 1.28)
+        var width_scale := rng.randf_range(0.72, 1.12)
+        var tilt := rng.randf_range(-0.18, 0.18)
+        var basis := Basis.from_euler(Vector3(tilt, angle, rng.randf_range(-0.12, 0.12)))
+        basis = basis.scaled(Vector3(width_scale, height_scale, 1.0))
+        var origin := patch_origin + Vector3(cos(angle) * radius, 0.31 * height_scale, sin(angle) * radius)
+        multi.set_instance_transform(i, Transform3D(basis, origin))
+        var shade := rng.randf_range(-0.08, 0.12)
+        var blade_color := Color("38433b") if troubled else (base_color.lightened(shade) if shade >= 0.0 else base_color.darkened(-shade))
+        multi.set_instance_color(i, blade_color)
+
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color.WHITE
+    material.vertex_color_use_as_albedo = true
+    material.roughness = 0.98
+
+    var grass := MultiMeshInstance3D.new()
+    grass.name = "ArriveeHerbeDenseMultiMesh"
+    grass.multimesh = multi
+    grass.material_override = material
+    grass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    grass.visibility_range_end = 260.0
+    grass.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+    _root.add_child(grass)
 
 func _spawn_bushes(center: Vector3, size: Vector2, info: Dictionary) -> void:
     var rng := RandomNumberGenerator.new()

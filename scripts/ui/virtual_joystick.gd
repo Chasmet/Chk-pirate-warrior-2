@@ -1,10 +1,10 @@
 extends Control
 
 @export_enum("movement", "camera") var mode := "movement"
-@export var deadzone := 0.08
+@export var deadzone := 0.04
 @export var camera_speed := 2.4
 @export var draw_visuals := true
-@export var response_curve := 1.12
+@export var response_curve := 0.88
 
 var _touch_id: int = -1
 var _mouse_active: bool = false
@@ -26,6 +26,9 @@ func cancel_input() -> void:
     _touch_id = -1
     _mouse_active = false
     _reset()
+
+func get_input_value() -> Vector2:
+    return _value
 
 func _gui_input(event: InputEvent) -> void:
     # InputEventScreenTouch/ScreenDrag utilisent les coordonnées du viewport.
@@ -139,15 +142,27 @@ func _center() -> Vector2:
     return Vector2(diameter * 0.5, diameter * 0.5)
 
 func _radius() -> float:
-    return maxf(20.0, minf(size.x, size.y) * 0.46)
+    # La force maximale est atteinte avant le bord physique. Le pouce n'a plus
+    # besoin d'aller toucher la limite basse de l'écran pour obtenir le recul.
+    return maxf(20.0, minf(size.x, size.y) * 0.39)
+
+func _outer_radius() -> float:
+    return maxf(24.0, minf(size.x, size.y) * 0.46)
 
 func _draw() -> void:
     if not draw_visuals:
         return
     var center: Vector2 = _center()
-    var radius: float = _radius()
-    draw_circle(center, radius, Color(0.015, 0.04, 0.06, 0.62))
-    draw_arc(center, radius, 0.0, TAU, 64, Color(0.88, 0.67, 0.25, 0.95), 5.0, true)
-    var knob_radius: float = radius * 0.42
+    var outer_radius := _outer_radius()
+    var radius := _radius()
+    draw_circle(center, outer_radius, Color(0.015, 0.04, 0.06, 0.62))
+    draw_arc(center, outer_radius, 0.0, TAU, 64, Color(0.88, 0.67, 0.25, 0.95), 5.0, true)
+    # Repères visibles des quatre directions, notamment BAS / recul.
+    var tick_color := Color(0.93, 0.76, 0.36, 0.78)
+    for direction in [Vector2.UP, Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT]:
+        draw_line(center + direction * (outer_radius - 16.0), center + direction * (outer_radius - 5.0), tick_color, 4.0, true)
+    if _value.length_squared() > 0.001:
+        draw_line(center, _knob, Color(0.25, 0.72, 0.95, 0.62), 8.0, true)
+    var knob_radius: float = radius * 0.38
     draw_circle(_knob, knob_radius, Color(0.02, 0.08, 0.11, 0.90))
     draw_arc(_knob, knob_radius, 0.0, TAU, 48, Color(0.88, 0.67, 0.25, 0.90), 3.0, true)

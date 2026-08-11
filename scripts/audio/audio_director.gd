@@ -12,11 +12,14 @@ const VOICE_DUCK_DB := -20.0
 const NORMAL_MUSIC_BUS_DB := 0.0
 const NORMAL_MUSIC_PLAYER_DB := -1.0
 const MUSIC_RECOVERY_DB_PER_SECOND := 14.0
+const NETWORK_TRANSPORT_LEAD_SECONDS := 0.06
+const NETWORK_DRIFT_TOLERANCE_SECONDS := 0.42
 
 var music_player: AudioStreamPlayer
 var transition_player: AudioStreamPlayer
 var ambience_player: AudioStreamPlayer
 var _current_music_path := ""
+var _pending_music_path := ""
 var _sea_mode := false
 var _gameplay_active := false
 var _check_accumulator := 0.0
@@ -68,6 +71,10 @@ func _new_music_player(node_name: String) -> AudioStreamPlayer:
 func _on_island_changed(island_id: int) -> void:
     if not _gameplay_active:
         return
+    if NetworkManager.is_client():
+        # En coop, l'hôte est l'horloge musicale. Le snapshot de campagne du
+        # client ne doit pas redémarrer sa piste quelques millisecondes après.
+        return
     if not _is_player_on_boat():
         _sea_mode = false
         play_island_audio(island_id)
@@ -106,6 +113,72 @@ func play_sea_audio() -> void:
     ])
     _crossfade_to(music_path)
 
+func multiplayer_music_snapshot() -> Dictionary:
+    var snapshot_player := music_player
+    var snapshot_path := _current_music_path
+    if not _pending_music_path.is_empty() and transition_player != null and transition_player.playing:
+        # Pendant un fondu, la piste audible à l'arrivée est déjà la cible. Un
+        # téléphone qui rejoint à cet instant ne doit pas repartir sur le menu.
+        snapshot_player = transition_player
+        snapshot_path = _pending_music_path
+    var playback_position := 0.0
+    if snapshot_player != null and snapshot_player.playing:
+        playback_position = snapshot_player.get_playback_position()
+    return {
+        "path": snapshot_path,
+        "position": playback_position,
+        "sea_mode": _sea_mode,
+        "island": GameState.current_island,
+        "gameplay": _gameplay_active
+    }
+
+func synchronize_multiplayer_music(state: Dictionary, hard_sync: bool = false) -> void:
+    if state.is_empty() or not bool(state.get("gameplay", true)):
+        return
+    var path := str(state.get("path", ""))
+    if not path.begins_with("res://assets/audio/") or not ResourceLoader.exists(path):
+        return
+    var stream := load(path) as AudioStream
+    if stream == null:
+        return
+    _set_loop(stream, true)
+
+    var target_position := maxf(0.0, float(state.get("position", 0.0)) + NETWORK_TRANSPORT_LEAD_SECONDS)
+    var stream_length := stream.get_length()
+    if stream_length > 0.05:
+        target_position = fposmod(target_position, stream_length)
+
+    var path_changed := path != _current_music_path or music_player.stream == null
+    if path_changed:
+        if _fade_tween != null and _fade_tween.is_valid():
+            _fade_tween.kill()
+        transition_player.stop()
+        transition_player.stream = null
+        music_player.stop()
+        music_player.stream = stream
+        music_player.volume_db = NORMAL_MUSIC_PLAYER_DB
+        music_player.play(target_position)
+        _current_music_path = path
+        _pending_music_path = ""
+    elif not music_player.playing:
+        music_player.play(target_position)
+    else:
+        var current_position := music_player.get_playback_position()
+        var drift := absf(current_position - target_position)
+        if stream_length > 0.05:
+            drift = minf(drift, absf(stream_length - drift))
+        if hard_sync or drift > NETWORK_DRIFT_TOLERANCE_SECONDS:
+            music_player.seek(target_position)
+
+    _gameplay_active = true
+    _sea_mode = bool(state.get("sea_mode", false))
+    if _sea_mode:
+        ambience_player.stop()
+    else:
+        var island_id := clampi(int(state.get("island", GameState.current_island)), 1, 11)
+        var folder := "%s/ile_%02d" % [ISLAND_AUDIO_ROOT, island_id]
+        _play_stream(ambience_player, _find_named_audio(folder, ["ambiance", "ambience", "atmosphere"]), true)
+
 func play_sfx(path: String) -> void:
     if not ResourceLoader.exists(path):
         return
@@ -122,6 +195,8 @@ func play_sfx(path: String) -> void:
 func _update_navigation_music_state() -> void:
     if not _gameplay_active:
         return
+    if NetworkManager.is_client():
+        return
     var on_boat := _is_player_on_boat()
     if on_boat == _sea_mode:
         return
@@ -136,7 +211,7 @@ func _is_player_on_boat() -> bool:
     return active is BoatController and is_instance_valid(active) and (active as BoatController).is_boarded()
 
 func _crossfade_to(path: String) -> void:
-    if path.is_empty() or path == _current_music_path:
+    if path.is_empty() or path == _current_music_path or path == _pending_music_path:
         return
     if not ResourceLoader.exists(path):
         return
@@ -150,6 +225,8 @@ func _crossfade_to(path: String) -> void:
         music_player.volume_db = NORMAL_MUSIC_PLAYER_DB
         music_player.play()
         _current_music_path = path
+        _pending_music_path = ""
+        _notify_network_music_change()
         return
 
     if _fade_tween != null and _fade_tween.is_valid():
@@ -159,6 +236,8 @@ func _crossfade_to(path: String) -> void:
     transition_player.stream = stream
     transition_player.volume_db = -32.0
     transition_player.play()
+    _pending_music_path = path
+    _notify_network_music_change()
 
     _fade_tween = create_tween()
     _fade_tween.set_parallel(true)
@@ -175,6 +254,13 @@ func _finish_crossfade(path: String) -> void:
     transition_player.stream = null
     transition_player.volume_db = NORMAL_MUSIC_PLAYER_DB
     _current_music_path = path
+    _pending_music_path = ""
+    _notify_network_music_change()
+
+func _notify_network_music_change() -> void:
+    var network := get_node_or_null("/root/NetworkManager")
+    if network != null and network.has_method("host_broadcast_music_now"):
+        network.call_deferred("host_broadcast_music_now")
 
 func _update_voice_ducking(delta: float) -> void:
     if _music_bus_index < 0:

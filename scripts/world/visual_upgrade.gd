@@ -50,7 +50,11 @@ void vertex() {
 void fragment() {
     float h = world_pos.y;
     float slope = 1.0 - clamp(abs(world_normal.y), 0.0, 1.0);
-    float grain = sin(world_pos.x * 0.12) * sin(world_pos.z * 0.095) * 0.035;
+    float broad = sin(world_pos.x * 0.031 + sin(world_pos.z * 0.017) * 1.7);
+    float grain = sin(world_pos.x * 0.12) * sin(world_pos.z * 0.095);
+    float fine = sin(world_pos.x * 0.53 + world_pos.z * 0.19) *
+                 sin(world_pos.z * 0.47 - world_pos.x * 0.13);
+    float cell = fract(sin(dot(floor(world_pos.xz * 0.38), vec2(12.9898, 78.233))) * 43758.5453);
 
     vec3 sand = mix(vec3(0.56, 0.39, 0.20), island_color.rgb, 0.22);
     vec3 grass = mix(vec3(0.10, 0.31, 0.09), island_color.rgb, 0.62);
@@ -59,10 +63,12 @@ void fragment() {
 
     float land = smoothstep(-1.4, 4.5, h);
     vec3 color = mix(sand, grass, land);
+    float soil_patch = smoothstep(0.73, 0.94, cell + broad * 0.10) * land;
+    color = mix(color, mix(sand, rock, 0.28), soil_patch * 0.22);
     float rock_amount = clamp(smoothstep(0.22, 0.70, slope) + smoothstep(22.0, 48.0, h) * 0.42, 0.0, 1.0);
     color = mix(color, rock, rock_amount);
     color = mix(color, summit, smoothstep(42.0, 72.0, h));
-    color *= 1.0 + grain;
+    color *= 0.965 + broad * 0.028 + grain * 0.026 + fine * 0.012;
 
     ALBEDO = color;
     ROUGHNESS = mix(0.93, 0.72, rock_amount);

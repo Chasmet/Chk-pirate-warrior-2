@@ -8,9 +8,11 @@ var display_name: String = "Joueur"
 var _target_position := Vector3.ZERO
 var _target_rotation_y := 0.0
 var _target_speed := 0.0
+var _target_velocity := Vector3.ZERO
 var _has_snapshot := false
 var _hero_visual: Node3D
 var _animation_player: AnimationPlayer
+var _name_label: Label3D
 var _mount_visual: Node3D
 var _mount_style := ""
 var _current_animation := ""
@@ -24,8 +26,35 @@ func setup(id_value: int, hero_value: String, name_value: String) -> void:
     _build_hero_visual()
     _build_name_label()
 
-func set_snapshot(world_position: Vector3, yaw: float, speed: float, mount_style: String = "") -> void:
-    _target_position = world_position
+func update_identity(hero_value: String, name_value: String) -> void:
+    var resolved_hero := hero_value if hero_value in ["cheikh", "yvane", "nelvyn"] else "cheikh"
+    var resolved_name := name_value.strip_edges() if not name_value.strip_edges().is_empty() else "Joueur"
+    display_name = resolved_name
+    if _name_label != null:
+        _name_label.text = display_name
+    if resolved_hero == hero_id:
+        return
+
+    var previous_mount := _mount_style
+    _mount_style = ""
+    if _mount_visual != null and is_instance_valid(_mount_visual):
+        _mount_visual.queue_free()
+    _mount_visual = null
+    if _hero_visual != null and is_instance_valid(_hero_visual):
+        _hero_visual.queue_free()
+    _hero_visual = null
+    _animation_player = null
+    _current_animation = ""
+    hero_id = resolved_hero
+    _build_hero_visual()
+    if not previous_mount.is_empty():
+        _set_mount_style(previous_mount)
+
+func set_snapshot(world_position: Vector3, yaw: float, speed: float, mount_style: String = "", linear_velocity: Vector3 = Vector3.ZERO) -> void:
+    _target_velocity = linear_velocity.limit_length(60.0)
+    # Une courte anticipation masque l'intervalle entre deux paquets Wi-Fi sans
+    # déplacer artificiellement le joueur de plusieurs mètres.
+    _target_position = world_position + _target_velocity * 0.055
     _target_rotation_y = yaw
     _target_speed = maxf(0.0, speed)
     if mount_style != _mount_style:
@@ -34,6 +63,11 @@ func set_snapshot(world_position: Vector3, yaw: float, speed: float, mount_style
         global_position = _target_position
         global_rotation = Vector3(0.0, _target_rotation_y, 0.0)
         _has_snapshot = true
+    elif global_position.distance_to(_target_position) > 18.0:
+        # Téléportation, changement d'île ou respawn : ne pas traverser la carte
+        # lentement avec l'interpolation.
+        global_position = _target_position
+        global_rotation.y = _target_rotation_y
 
 func play_action(action: String) -> void:
     match action:
@@ -47,7 +81,7 @@ func play_action(action: String) -> void:
 func _process(delta: float) -> void:
     if not _has_snapshot:
         return
-    var follow := minf(1.0, delta * 13.0)
+    var follow := 1.0 - exp(-18.0 * delta)
     global_position = global_position.lerp(_target_position, follow)
     rotation.y = lerp_angle(rotation.y, _target_rotation_y, minf(1.0, delta * 15.0))
     if _mount_style.is_empty():
@@ -79,15 +113,15 @@ func _build_hero_visual() -> void:
     _play_animation_by_keywords(["idle", "stand"], true)
 
 func _build_name_label() -> void:
-    var label := Label3D.new()
-    label.name = "PlayerName"
-    label.text = display_name
-    label.position = Vector3(0.0, 2.35, 0.0)
-    label.font_size = 34
-    label.outline_size = 8
-    label.modulate = Color(1.0, 0.92, 0.58, 1.0)
-    label.no_depth_test = true
-    add_child(label)
+    _name_label = Label3D.new()
+    _name_label.name = "PlayerName"
+    _name_label.text = display_name
+    _name_label.position = Vector3(0.0, 2.35, 0.0)
+    _name_label.font_size = 34
+    _name_label.outline_size = 8
+    _name_label.modulate = Color(1.0, 0.92, 0.58, 1.0)
+    _name_label.no_depth_test = true
+    add_child(_name_label)
 
 func _set_mount_style(value: String) -> void:
     _mount_style = value

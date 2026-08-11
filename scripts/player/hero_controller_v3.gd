@@ -1,10 +1,8 @@
 class_name HeroControllerV3
 extends "res://scripts/player/hero_controller_v2.gd"
 
-@export var backpedal_rotation_threshold := 0.18
-@export var backpedal_max_strength := 0.72
-@export var quick_turn_input_threshold := 0.78
-@export var quick_turn_speed_multiplier := 2.55
+@export var backpedal_rotation_threshold := 0.10
+@export var backpedal_face_speed_multiplier := 2.4
 
 var _mount_pose_active := false
 var _mount_visual_position := Vector3.ZERO
@@ -22,12 +20,11 @@ func _ready() -> void:
     super._ready()
 
 func _physics_process(delta: float) -> void:
-    # Le contrôleur de base garde le déplacement caméra-relatif 360°.
-    # V6 ajoute deux comportements analogiques :
-    # - joystick tiré modérément vers le bas = vrai recul ;
-    # - joystick tiré franchement au maximum = demi-tour rapide puis course.
+    # Déplacement caméra-relatif 360°. Toute la moitié basse du joystick produit
+    # un vrai recul, même au maximum : l'ancienne zone extrême retournait le
+    # héros et donnait sur téléphone l'impression que « bas » ne fonctionnait pas.
     super._physics_process(delta)
-    _apply_backward_and_turn_facing(delta)
+    _apply_backward_facing(delta)
 
 func _movement_input() -> Vector2:
     var keyboard_vec := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
@@ -36,22 +33,14 @@ func _movement_input() -> Vector2:
         input_vec = keyboard_vec
     return input_vec.limit_length(1.0)
 
-func _apply_backward_and_turn_facing(delta: float) -> void:
+func _should_face_movement(input_vec: Vector2) -> bool:
+    return input_vec.y <= backpedal_rotation_threshold
+
+func _apply_backward_facing(delta: float) -> void:
     if _dodge_time > 0.0 or _attack_lock > 0.0 or _mount_pose_active:
         return
     var input_vec := _movement_input()
-    if input_vec.length() <= 0.05:
-        return
-
-    if input_vec.y >= quick_turn_input_threshold and input_vec.length() >= quick_turn_input_threshold:
-        var turn_direction := _camera_relative_direction(input_vec)
-        if turn_direction.length_squared() > 0.001:
-            turn_direction = turn_direction.normalized()
-            var turn_angle := atan2(-turn_direction.x, -turn_direction.z)
-            rotation.y = lerp_angle(rotation.y, turn_angle, minf(1.0, rotation_speed * quick_turn_speed_multiplier * delta))
-        return
-
-    if input_vec.y <= backpedal_rotation_threshold or input_vec.length() > backpedal_max_strength:
+    if input_vec.length() <= 0.05 or input_vec.y <= backpedal_rotation_threshold:
         return
     var camera := get_viewport().get_camera_3d()
     if camera == null:
@@ -62,7 +51,11 @@ func _apply_backward_and_turn_facing(delta: float) -> void:
         return
     facing = facing.normalized()
     var target_angle := atan2(-facing.x, -facing.z)
-    rotation.y = lerp_angle(rotation.y, target_angle, minf(1.0, rotation_speed * 1.35 * delta))
+    rotation.y = lerp_angle(
+        rotation.y,
+        target_angle,
+        minf(1.0, rotation_speed * backpedal_face_speed_multiplier * delta)
+    )
 
 func set_mounted_pose(mount_style: String) -> void:
     if hero_model == null or not is_instance_valid(hero_model):
