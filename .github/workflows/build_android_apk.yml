@@ -75,6 +75,16 @@ jobs:
           export/android/debug_keystore = "$HOME/.android/debug.keystore"
           EOF
 
+      - name: Récupérer les modèles CC0 du 4x4 et du cheval
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x tools/fetch_cc0_ride_assets.sh
+          tools/fetch_cc0_ride_assets.sh "$GITHUB_WORKSPACE"
+          test -s assets/cc0_rides/4x4_kenney.glb
+          test -s assets/cc0_rides/horse_quaternius.glb
+          ls -lh assets/cc0_rides/*.glb
+
       - name: Construire le projet d'export AVEC TOUS LES ASSETS
         shell: bash
         run: |

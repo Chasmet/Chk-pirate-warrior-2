@@ -1,10 +1,10 @@
 extends Control
 
 @export_enum("movement", "camera") var mode := "movement"
-@export var deadzone := 0.12
+@export var deadzone := 0.08
 @export var camera_speed := 2.4
 @export var draw_visuals := true
-@export var response_curve := 1.35
+@export var response_curve := 1.12
 
 var _touch_id: int = -1
 var _mouse_active: bool = false
@@ -83,8 +83,9 @@ func _update_from_position(local_position: Vector2) -> void:
     if magnitude <= deadzone:
         _value = Vector2.ZERO
     else:
-        # Zone morte remappée puis courbe douce : petits mouvements précis près
-        # du centre, mais 100 % de vitesse conservé en bord de joystick.
+        # V6 : zone morte plus petite et courbe presque linéaire. Les diagonales,
+        # le recul et les changements de direction partent plus tôt, tout en gardant
+        # une petite zone neutre pour éviter les déplacements involontaires.
         var normalized_strength := clampf((magnitude - deadzone) / maxf(0.001, 1.0 - deadzone), 0.0, 1.0)
         var curved_strength := pow(normalized_strength, maxf(0.5, response_curve))
         _value = raw.normalized() * curved_strength

@@ -1,9 +1,9 @@
 class_name IslandVegetationDirector
 extends Node3D
 
-@export var bush_budget := 34
-@export var flower_budget := 22
-@export var grass_cluster_budget := 28
+@export var bush_budget := 40
+@export var flower_budget := 28
+@export var grass_cluster_budget := 52
 
 var _root: Node3D
 var _current_island := -1
@@ -73,12 +73,12 @@ func _spawn_grass_clusters(center: Vector3, size: Vector2, info: Dictionary) -> 
     var rng := RandomNumberGenerator.new()
     rng.seed = 52000 + _current_island * 227
     for i in range(maxi(0, grass_cluster_budget)):
-        var p := _random_inland_point(rng, center, size, 0.10, 0.72)
+        var p := _random_inland_point(rng, center, size, 0.08, 0.74)
         var cluster := Node3D.new()
         cluster.name = "Herbes_%02d" % i
         cluster.global_position = _snap_to_ground(p, 0.01)
         cluster.rotation.y = rng.randf_range(0.0, TAU)
-        cluster.scale = Vector3.ONE * rng.randf_range(0.75, 1.35)
+        cluster.scale = Vector3.ONE * rng.randf_range(0.72, 1.28)
         cluster.add_child(_make_grass_visual(info, i))
         _root.add_child(cluster)
 
@@ -158,22 +158,41 @@ func _make_flower_visual(info: Dictionary, index: int) -> Node3D:
     return root
 
 func _make_grass_visual(info: Dictionary, index: int) -> Node3D:
+    # Une touffe V6 contient davantage de petites brindilles, mais toutes sont
+    # rendues dans un MultiMesh unique : beaucoup plus de densité visuelle sans
+    # multiplier les MeshInstance3D et les draw calls sur téléphone.
     var root := Node3D.new()
     var base: Color = info.get("color", Color("4f7f4c"))
     var mat := StandardMaterial3D.new()
-    mat.albedo_color = base.darkened(0.08 + float(index % 4) * 0.025)
+    mat.albedo_color = base.darkened(0.10 + float(index % 4) * 0.022)
     mat.roughness = 1.0
 
-    for j in range(7):
-        var blade := MeshInstance3D.new()
-        var mesh := BoxMesh.new()
-        mesh.size = Vector3(0.035, 0.55 + float(j % 3) * 0.12, 0.08)
-        blade.mesh = mesh
-        blade.position = Vector3(cos(float(j) * 1.7) * 0.25, mesh.size.y * 0.5, sin(float(j) * 1.7) * 0.25)
-        blade.rotation = Vector3(0.0, float(j) * 0.83, (-0.12 + float(j % 3) * 0.10))
-        blade.material_override = mat
-        blade.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-        root.add_child(blade)
+    var blade_mesh := BoxMesh.new()
+    blade_mesh.size = Vector3(0.032, 0.52, 0.065)
+
+    var multi := MultiMesh.new()
+    multi.transform_format = MultiMesh.TRANSFORM_3D
+    multi.mesh = blade_mesh
+    multi.instance_count = 14
+
+    for j in range(multi.instance_count):
+        var angle := float(j) * 2.399963
+        var radial := 0.10 + float(j % 5) * 0.07
+        var height_scale := 0.72 + float((j * 7 + index) % 6) * 0.085
+        var width_scale := 0.82 + float((j + index) % 3) * 0.09
+        var tilt := -0.16 + float((j * 3 + index) % 5) * 0.08
+        var yaw := angle + float(index % 5) * 0.13
+        var basis := Basis.from_euler(Vector3(tilt, yaw, -tilt * 0.55))
+        basis = basis.scaled(Vector3(width_scale, height_scale, 1.0))
+        var origin := Vector3(cos(angle) * radial, 0.26 * height_scale, sin(angle) * radial)
+        multi.set_instance_transform(j, Transform3D(basis, origin))
+
+    var grass := MultiMeshInstance3D.new()
+    grass.name = "BrindillesMultiMesh"
+    grass.multimesh = multi
+    grass.material_override = mat
+    grass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    root.add_child(grass)
     return root
 
 func _random_inland_point(rng: RandomNumberGenerator, center: Vector3, size: Vector2, min_radius: float, max_radius: float) -> Vector3:
