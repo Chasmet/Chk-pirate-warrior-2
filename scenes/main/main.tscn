@@ -71,6 +71,9 @@ script = ExtResource("12_fauna")
 
 [node name="IslandVegetationDirector" type="Node3D" parent="."]
 script = ExtResource("18_vegetation")
+bush_budget = 40
+flower_budget = 28
+grass_cluster_budget = 52
 
 [node name="IslandContextDecorDirector" type="Node3D" parent="."]
 script = ExtResource("13_context")
@@ -80,12 +83,16 @@ script = ExtResource("16_settlements")
 
 [node name="IslandLivingThemeDirector" type="Node3D" parent="."]
 script = ExtResource("19_living_theme")
+themed_resident_budget = 10
+open_home_count = 4
 
 [node name="IslandVehicleDirector" type="Node3D" parent="."]
 script = ExtResource("15_vehicles")
 
 [node name="WorldLifeDirector" type="Node3D" parent="."]
 script = ExtResource("7_life")
+active_citizen_budget = 14
+active_fauna_budget = 7
 
 [node name="RoamingCrewsFaunaV130" type="Node3D" parent="."]
 script = ExtResource("26_crews_fauna")
