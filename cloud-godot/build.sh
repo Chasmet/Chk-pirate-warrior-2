@@ -34,7 +34,7 @@ awk '
 ' /tmp/goddo-project.godot.original > project.godot
 
 set +e
-timeout 300 "$GODOT_BIN" --headless --path . --import --audio-driver Dummy
+timeout 900 "$GODOT_BIN" --headless --path . --import --audio-driver Dummy
 IMPORT_EXIT=$?
 set -e
 restore_project
