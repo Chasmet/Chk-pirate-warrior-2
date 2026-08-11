@@ -1,6 +1,6 @@
 import express from "express";
 import { createServer as createHttpServer } from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
 import { WebSocketServer, WebSocket } from "ws";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -9,6 +9,7 @@ import { z } from "zod";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const MCP_TOKEN = String(process.env.MCP_TOKEN ?? "").trim();
+const MCP_TOKEN_SHA256 = "64ba5a4381cdffd7d833d652c63e6a98a30c004eba749d7bef50804fde38040f";
 const PROJECT_ID = String(process.env.PROJECT_ID ?? "chk-pirate-warrior-2").trim();
 const RELAY_PATH = `/relay/${PROJECT_ID}`;
 const REQUEST_TIMEOUT_MS = Number(process.env.GODOT_REQUEST_TIMEOUT_MS ?? 120000);
@@ -213,7 +214,13 @@ function createMcpServer() {
 }
 
 function tokenOk(req) {
-  return MCP_TOKEN.length >= 16 && req.params.token === MCP_TOKEN;
+  const incoming = String(req.params.token ?? "");
+  if (MCP_TOKEN.length >= 16 && incoming === MCP_TOKEN) return true;
+  if (!incoming) return false;
+  const digest = createHash("sha256").update(incoming).digest("hex");
+  const a = Buffer.from(digest, "utf8");
+  const b = Buffer.from(MCP_TOKEN_SHA256, "utf8");
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function mcpError(res, status, message) {
