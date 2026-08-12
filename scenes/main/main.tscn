@@ -1,6 +1,6 @@
 [gd_scene load_steps=28 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/hero_controller_v3.gd" id="1_hero"]
+[ext_resource type="Script" path="res://scripts/player/hero_controller_v10.gd" id="1_hero"]
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera_v3.gd" id="2_camera"]
 [ext_resource type="PackedScene" path="res://scenes/ui/hud_mobile.tscn" id="3_hud"]
 [ext_resource type="PackedScene" path="res://scenes/ui/mobile_input_overlay.tscn" id="4_touch"]
@@ -10,7 +10,7 @@
 [ext_resource type="Script" path="res://scripts/ui/world_map_runtime.gd" id="8_map"]
 [ext_resource type="Script" path="res://scripts/world/glb_scenery_director.gd" id="9_scenery"]
 [ext_resource type="Script" path="res://scripts/world/coastal_detail_director.gd" id="10_coast"]
-[ext_resource type="Script" path="res://scripts/world/island_collectible_director.gd" id="11_collectibles"]
+[ext_resource type="Script" path="res://scripts/world/island_collectible_director_v10.gd" id="11_collectibles"]
 [ext_resource type="Script" path="res://scripts/world/ambient_fauna_director.gd" id="12_fauna"]
 [ext_resource type="Script" path="res://scripts/world/island_context_decor_director.gd" id="13_context"]
 [ext_resource type="Script" path="res://scripts/ui/gameplay_ux_overlay.gd" id="14_ux"]
@@ -65,6 +65,7 @@ script = ExtResource("10_coast")
 
 [node name="IslandCollectibleDirector" type="Node3D" parent="."]
 script = ExtResource("11_collectibles")
+loot_count_per_island = 4
 
 [node name="AmbientFaunaDirector" type="Node3D" parent="."]
 script = ExtResource("12_fauna")

@@ -1,12 +1,56 @@
 {
-  "piece": {"name":"Pièce","stack":9999,"category":"monnaie","weight":0.0},
-  "boussole": {"name":"Boussole","stack":1,"category":"outil","weight":0.3},
-  "coffre": {"name":"Coffre","stack":5,"category":"tresor","weight":2.5},
-  "carte_ile": {"name":"Carte d'île","stack":11,"category":"exploration","weight":0.1},
-  "cle_ancienne": {"name":"Clé ancienne","stack":20,"category":"quete","weight":0.1},
-  "fragment_memoire": {"name":"Fragment de mémoire","stack":99,"category":"rare","weight":0.1},
-  "potion_vie": {"name":"Potion de vie","stack":20,"category":"consommable","weight":0.5},
-  "potion_energie": {"name":"Potion d'énergie","stack":20,"category":"consommable","weight":0.5},
-  "materiau_bateau": {"name":"Matériau de bateau","stack":50,"category":"craft","weight":1.0},
-  "objet_rare_ile": {"name":"Objet rare d'île","stack":11,"category":"rare","weight":0.5}
+  "piece": {"name":"Pièce","stack":9999,"category":"monnaie","weight":0.0,"slot_cost":0},
+  "boussole": {"name":"Boussole","stack":1,"category":"outil","weight":0.3,"slot_cost":1},
+  "coffre": {"name":"Coffre","stack":5,"category":"tresor","weight":2.5,"slot_cost":1},
+  "carte_ile": {"name":"Carte d'île","stack":11,"category":"exploration","weight":0.1,"slot_cost":0},
+  "cle_ancienne": {"name":"Clé ancienne","stack":20,"category":"quete","weight":0.1,"slot_cost":0,"quest_item":true},
+  "fragment_memoire": {"name":"Fragment de mémoire","stack":99,"category":"rare","weight":0.1,"slot_cost":0},
+  "potion_vie": {"name":"Potion de vie","stack":20,"category":"consommable","weight":0.5,"slot_cost":1},
+  "potion_energie": {"name":"Potion d'énergie","stack":20,"category":"consommable","weight":0.5,"slot_cost":1},
+  "materiau_bateau": {"name":"Matériau de bateau","stack":50,"category":"craft","weight":1.0,"slot_cost":1},
+  "objet_rare_ile": {"name":"Objet rare d'île","stack":11,"category":"rare","weight":0.5,"slot_cost":0},
+
+  "note_harmonique": {"name":"Note harmonique","stack":3,"category":"quete","slot_cost":0,"quest_item":true},
+  "diapason_royal": {"name":"Diapason royal","stack":1,"category":"relique","slot_cost":0,"key_item":true},
+  "relique_musicale": {"name":"Relique musicale","stack":4,"category":"tresor","slot_cost":0,"key_item":true},
+
+  "cristal_sucre": {"name":"Cristal de sucre","stack":4,"category":"quete","slot_cost":0,"quest_item":true},
+  "coeur_caramel": {"name":"Cœur de caramel","stack":1,"category":"relique","slot_cost":0,"key_item":true},
+  "sucre_eternel": {"name":"Sucre éternel","stack":4,"category":"tresor","slot_cost":0,"key_item":true},
+
+  "epice_royale": {"name":"Épice royale","stack":4,"category":"quete","slot_cost":0,"quest_item":true},
+  "recette_doree": {"name":"Recette dorée","stack":1,"category":"relique","slot_cost":0,"key_item":true},
+  "ustensile_ancien": {"name":"Ustensile ancien","stack":4,"category":"tresor","slot_cost":0,"key_item":true},
+
+  "eclat_arcanique": {"name":"Éclat arcanique","stack":4,"category":"quete","slot_cost":0,"quest_item":true},
+  "grimoire_sceau": {"name":"Grimoire scellé","stack":1,"category":"relique","slot_cost":0,"key_item":true},
+  "rune_fantastique": {"name":"Rune fantastique","stack":4,"category":"tresor","slot_cost":0,"key_item":true},
+
+  "noyau_futuriste": {"name":"Noyau futuriste","stack":4,"category":"quete","slot_cost":0,"quest_item":true},
+  "module_heroique": {"name":"Module héroïque","stack":1,"category":"relique","slot_cost":0,"key_item":true},
+  "alliage_futur": {"name":"Alliage du futur","stack":4,"category":"tresor","slot_cost":0,"key_item":true},
+
+  "orbe_creature": {"name":"Orbe de créature","stack":5,"category":"quete","slot_cost":0,"quest_item":true},
+  "talisman_creature": {"name":"Talisman des créatures","stack":1,"category":"relique","slot_cost":0,"key_item":true},
+  "ecaille_creature": {"name":"Écaille de créature","stack":4,"category":"tresor","slot_cost":0,"key_item":true},
+
+  "fragment_carte_pirate": {"name":"Fragment de carte pirate","stack":4,"category":"quete","slot_cost":0,"quest_item":true},
+  "boussole_corsaire": {"name":"Boussole du corsaire","stack":1,"category":"relique","slot_cost":0,"key_item":true},
+  "doublon_noir": {"name":"Doublon noir","stack":4,"category":"tresor","slot_cost":0,"key_item":true},
+
+  "larme_givre": {"name":"Larme de givre","stack":4,"category":"quete","slot_cost":0,"quest_item":true},
+  "cristal_polaire": {"name":"Cristal polaire","stack":1,"category":"relique","slot_cost":0,"key_item":true},
+  "fourrure_givree": {"name":"Fourrure givrée","stack":4,"category":"tresor","slot_cost":0,"key_item":true},
+
+  "coeur_braise": {"name":"Cœur de braise","stack":5,"category":"quete","slot_cost":0,"quest_item":true},
+  "sceau_volcan": {"name":"Sceau du volcan","stack":1,"category":"relique","slot_cost":0,"key_item":true},
+  "obsidienne_ardente": {"name":"Obsidienne ardente","stack":4,"category":"tresor","slot_cost":0,"key_item":true},
+
+  "racine_ancienne": {"name":"Racine ancienne","stack":4,"category":"quete","slot_cost":0,"quest_item":true},
+  "coeur_terre": {"name":"Cœur de la Terre","stack":1,"category":"relique","slot_cost":0,"key_item":true},
+  "ambre_terre": {"name":"Ambre de la Terre","stack":4,"category":"tresor","slot_cost":0,"key_item":true},
+
+  "fragment_chaos": {"name":"Fragment du chaos","stack":6,"category":"quete","slot_cost":0,"quest_item":true},
+  "embleme_archipel": {"name":"Emblème de l'Archipel","stack":1,"category":"relique","slot_cost":0,"key_item":true},
+  "oeil_du_chaos": {"name":"Œil du chaos","stack":4,"category":"tresor","slot_cost":0,"key_item":true}
 }

@@ -1,0 +1,149 @@
+name: V10 - Cerbères, coffres, quêtes et sac
+
+on:
+  push:
+    branches:
+      - agent/v10-quests-inventory-cerberus
+    paths:
+      - 'project.godot'
+      - 'scenes/**'
+      - 'scripts/**'
+      - 'data/**'
+      - 'assets/equipements/armes/glb/epee_trois_cerberes.glb'
+      - '.github/workflows/v10_validate_and_build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  validate-v10:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Récupérer V10
+        uses: actions/checkout@v4
+
+      - name: Vérifier quêtes objets et GLB Cerbères
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m json.tool data/items.json >/dev/null
+          python3 -m json.tool data/island_quests.json >/dev/null
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+
+          quests = json.loads(Path('data/island_quests.json').read_text(encoding='utf-8'))
+          items = json.loads(Path('data/items.json').read_text(encoding='utf-8'))
+          assert len(quests) == 11
+          for island in range(1, 12):
+              q = quests[str(island)]
+              assert int(q['required']) >= 3
+              for field in ('item_id', 'reward_item', 'chest_item'):
+                  assert q[field] in items, (island, field, q[field])
+              assert items[q['item_id']].get('quest_item') is True
+              assert int(items[q['item_id']].get('slot_cost', 1)) == 0
+
+          glb = Path('assets/equipements/armes/glb/epee_trois_cerberes.glb').read_bytes()
+          assert len(glb) > 1024
+          assert glb[:4] == b'glTF'
+          version, declared = struct.unpack_from('<II', glb, 4)
+          assert version == 2
+          assert declared == len(glb), (declared, len(glb))
+          print('Données V10 et GLB Cerbères valides')
+          PY
+
+      - name: Installer Godot 4.4 stable pour le contrôle gameplay
+        shell: bash
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip -O /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.4-stable_linux.x86_64
+          sudo ln -sf /tmp/godot/Godot_v4.4-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Construire mini-projet gameplay V10
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf ci_validate
+          mkdir -p ci_validate
+          cp project.godot ci_validate/
+          cp -R scenes scripts data ci_validate/
+          if [ -f default_bus_layout.tres ]; then cp default_bus_layout.tres ci_validate/; fi
+          while IFS= read -r -d '' file; do
+            mkdir -p "ci_validate/$(dirname "$file")"
+            cp "$file" "ci_validate/$file"
+          done < <(find assets -type f -name '*.gd' -print0)
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('ci_validate/project.godot')
+          text = p.read_text(encoding='utf-8')
+          marker = '\n[editor_plugins]\n'
+          start = text.find(marker)
+          if start >= 0:
+              end = text.find('\n[', start + len(marker))
+              text = text[:start].rstrip() + '\n' if end < 0 else text[:start] + text[end:]
+          p.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Parser scripts et scènes V10
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 45s godot --headless --path ci_validate --editor --quit-after 7 2>&1 | tee v10-godot-validate.log || STATUS=$?
+          STATUS=${STATUS:-0}
+          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|Parser Error" v10-godot-validate.log; then
+            echo 'Erreur Godot détectée dans le gameplay V10.'
+            exit 3
+          fi
+          if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
+            exit "$STATUS"
+          fi
+
+      - name: Exécuter audit quêtes inventaire V10
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path ci_validate --script res://scripts/tests/v10_quests_inventory_audit.gd 2>&1 | tee v10-quests-audit.log
+          grep -q 'CHK_PIRATE_WARRIOR_2_V10_QUESTS_INVENTORY_OK' v10-quests-audit.log
+
+      - name: Vérifier branchement mobile coop et Cerbères
+        shell: bash
+        run: |
+          grep -q 'GameState="\*res://scripts/systems/game_state_v10.gd"' project.godot
+          grep -q 'NetworkManager="\*res://scripts/network/network_manager_v10.gd"' project.godot
+          grep -q 'hero_controller_v10.gd' scenes/main/main.tscn
+          grep -q 'island_collectible_director_v10.gd' scenes/main/main.tscn
+          grep -q 'mobile_input_overlay_v10.gd' scenes/ui/mobile_input_overlay.tscn
+          grep -q 'hud_mobile_v10.gd' scenes/ui/hud_mobile.tscn
+          grep -q 'epee_trois_cerberes.glb' scripts/player/hero_controller_v10.gd
+          grep -q 'request_world_collectible' scripts/network/network_manager_v10.gd
+          grep -q 'request_interaction' scripts/world/island_collectible_director_v10.gd
+          grep -q 'inventory_used_slots' scripts/systems/game_state_v10.gd
+
+      - name: Publier journaux V10
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: V10-Cerberes-Quetes-Inventaire-Validation
+          path: |
+            v10-godot-validate.log
+            v10-quests-audit.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  dispatch-full-apk:
+    needs: validate-v10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lancer le workflow APK complet sur V10
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build_android_apk.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF_NAME"
+          echo "Compilation APK complète demandée pour $GITHUB_REF_NAME"
