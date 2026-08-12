@@ -57,6 +57,8 @@ func _run() -> void:
         _check(blade_mesh != null and blade_mesh.size.x >= 0.10 and blade_mesh.size.y >= 0.75, "les brindilles sont assez grandes pour un écran mobile")
         var nearby_blades := 0
         if multi != null:
+            var first_blade_position := grass.to_global(multi.get_instance_transform(0).origin)
+            print("INFO FEEDBACK MOBILE  joueur = ", player.global_position, " • herbe = ", grass.global_position, " • première brindille = ", first_blade_position)
             for blade_index in range(multi.instance_count):
                 var blade_position := grass.to_global(multi.get_instance_transform(blade_index).origin)
                 var flat_delta := blade_position - player.global_position

@@ -74,29 +74,35 @@ func _spawn_arrival_grass(center: Vector3, size: Vector2, info: Dictionary, blad
     rng.seed = 61000 + _current_island * 263
     var blades_per_patch := 16
     var patch_origin := center
+    var player_reference := center + Vector3(0.0, 0.0, size.y * 0.28)
+    var active_player := get_tree().get_first_node_in_group("player") as Node3D
+    if active_player != null and is_instance_valid(active_player):
+        player_reference = active_player.global_position
 
     for i in range(resolved_count):
         var local_blade := i % blades_per_patch
         if local_blade == 0:
             var patch_index := int(i / blades_per_patch)
             var side := -1.0 if patch_index % 2 == 0 else 1.0
-            var near_port_patch := patch_index < 16 and not troubled
-            var near_initial_spawn_patch := patch_index >= 16 and patch_index < 32 and not troubled
+            var near_player_patch := patch_index < 24 and not troubled
+            var near_port_patch := patch_index >= 24 and patch_index < 40 and not troubled
             var roadside_patch := patch_index % 3 != 2
+            var patch_reference := center
             var x_offset := 0.0
             var z_offset := 0.0
-            if near_port_patch:
+            if near_player_patch:
+                # Le point exact varie entre une partie neuve, une sauvegarde et
+                # un retour au port. Ces 384 brindilles suivent le héros au
+                # moment où le royaume finit de se construire.
+                patch_reference = player_reference
+                x_offset = side * rng.randf_range(11.0, 31.0)
+                z_offset = rng.randf_range(-34.0, 34.0)
+            elif near_port_patch:
                 # 16 touffes x 16 brindilles sont garanties autour du spawn
                 # sûr du port (z = 45 % de la longueur + 12 m). Elles sont donc
                 # visibles dès l'arrivée, au lieu de dépendre du tirage aléatoire.
                 x_offset = side * rng.randf_range(11.0, 31.0)
                 z_offset = rng.randf_range(size.y * 0.415, size.y * 0.455)
-            elif near_initial_spawn_patch:
-                # Une nouvelle partie valide conserve aussi le héros au centre
-                # du premier royaume. Cette seconde couronne garantit que les
-                # brindilles sont visibles dans ce cas, constaté par le test CI.
-                x_offset = side * rng.randf_range(11.0, 31.0)
-                z_offset = rng.randf_range(-34.0, 34.0)
             else:
                 x_offset = side * (
                     rng.randf_range(10.5, 30.0)
@@ -105,9 +111,9 @@ func _spawn_arrival_grass(center: Vector3, size: Vector2, info: Dictionary, blad
                 )
                 z_offset = rng.randf_range(size.y * 0.205, size.y * 0.455)
             var plaza_z := size.y * 0.34
-            if absf(x_offset) < 47.0 and absf(z_offset - plaza_z) < 38.0:
+            if not near_player_patch and absf(x_offset) < 47.0 and absf(z_offset - plaza_z) < 38.0:
                 x_offset = side * rng.randf_range(48.0, minf(78.0, size.x * 0.09))
-            patch_origin = _snap_to_ground(center + Vector3(x_offset, 8.0, z_offset), 0.0)
+            patch_origin = _snap_to_ground(patch_reference + Vector3(x_offset, 8.0, z_offset), 0.0)
 
         var angle := rng.randf_range(0.0, TAU)
         var radius := sqrt(rng.randf()) * rng.randf_range(0.45, 3.1)
