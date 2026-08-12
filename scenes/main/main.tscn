@@ -22,7 +22,7 @@
 [ext_resource type="Script" path="res://scripts/audio/hero_voice_director.gd" id="20_voice"]
 [ext_resource type="Script" path="res://scripts/v1_30/gameplay_stability_director.gd" id="21_stability"]
 [ext_resource type="Script" path="res://scripts/v1_30/combat_hud_v1_30.gd" id="22_combat_hud"]
-[ext_resource type="Script" path="res://scripts/v1_30/power_fx_v1_30.gd" id="23_power_fx"]
+[ext_resource type="Script" path="res://scripts/v1_30/attack_fx_v9.gd" id="23_power_fx"]
 [ext_resource type="Script" path="res://scripts/v1_30/kingdom_identity_v1_30.gd" id="24_identity"]
 [ext_resource type="Script" path="res://scripts/v1_30/roaming_crews_fauna_v1_30.gd" id="26_crews_fauna"]
 
