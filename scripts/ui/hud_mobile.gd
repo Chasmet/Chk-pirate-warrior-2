@@ -12,13 +12,13 @@ var hero_label: Label
 var level_label: Label
 var mission_title: Label
 var mission_text: Label
-var stats_panel: PanelContainer
-var mission_panel: PanelContainer
-var map_panel: PanelContainer
-var subtitle_panel: PanelContainer
+var stats_panel: Panel
+var mission_panel: Panel
+var map_panel: Panel
+var subtitle_panel: Panel
 var subtitle_label: Label
 var subtitle_timer: Timer
-var inventory_panel: PanelContainer
+var inventory_panel: Panel
 var inventory_text: RichTextLabel
 
 func _ready() -> void:
@@ -47,11 +47,11 @@ func _build_hud() -> void:
     stats_panel = _panel(Vector2(18, 16), Vector2(440, 150))
     stats_panel.name = "StatsPanel"
     root.add_child(stats_panel)
-    hero_label = _label("CHEIKH", 26)
+    hero_label = _label("CHEIKH", 16)
     hero_label.position = Vector2(14, 8)
     hero_label.size = Vector2(250, 32)
     stats_panel.add_child(hero_label)
-    level_label = _label("NV 1 • 250 PIÈCES", 17)
+    level_label = _label("NV 1 • 250 PIÈCES", 11)
     level_label.position = Vector2(250, 12)
     level_label.size = Vector2(176, 28)
     level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -64,20 +64,23 @@ func _build_hud() -> void:
     energy_value_label = _value_label(stats_panel, 82, "100 / 100")
     aura_value_label = _value_label(stats_panel, 116, "100 %")
 
-    mission_panel = _panel(Vector2(510, 16), Vector2(680, 106))
+    mission_panel = _panel(Vector2(510, 16), Vector2(680, 138))
     mission_panel.name = "MissionPanel"
     root.add_child(mission_panel)
-    mission_title = _label("PORT DES NAUFRAGES", 27)
+    mission_title = _label("PORT DES NAUFRAGES", 15)
     mission_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     mission_title.position = Vector2(10, 8)
     mission_title.size = Vector2(660, 34)
     mission_panel.add_child(mission_title)
-    mission_text = _label("Sécurise le royaume pour faire apparaître son boss.", 18)
+    # Le titre conserve exactement sa taille. Seule la consigne située dessous
+    # gagne en hauteur et en lisibilité sur un écran de téléphone.
+    mission_text = _label("Sécurise le royaume pour faire apparaître son boss.", 19)
     mission_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     mission_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     mission_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    mission_text.position = Vector2(10, 45)
-    mission_text.size = Vector2(660, 52)
+    mission_text.position = Vector2(10, 44)
+    mission_text.size = Vector2(660, 86)
+    mission_text.add_theme_constant_override("line_spacing", 3)
     mission_panel.add_child(mission_text)
 
     root.add_child(_action_button("CARTE", "open_map", Vector2(1300, 18), Vector2(92, 56)))
@@ -89,7 +92,7 @@ func _build_hud() -> void:
     map_panel.name = "ArchipelagoMapPanel"
     map_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
     root.add_child(map_panel)
-    var map_title := _label("GRAND ARCHIPEL • 11 ROYAUMES", 15)
+    var map_title := _label("GRAND ARCHIPEL • 11 ROYAUMES", 11)
     map_title.name = "ArchipelagoMapTitle"
     map_title.position = Vector2(10, 8)
     map_title.size = Vector2(340, 24)
@@ -104,7 +107,7 @@ func _build_hud() -> void:
     subtitle_panel = _panel(Vector2(520, 820), Vector2(670, 74))
     subtitle_panel.visible = false
     root.add_child(subtitle_panel)
-    subtitle_label = _label("", 22)
+    subtitle_label = _label("", 16)
     subtitle_label.position = Vector2(15, 10)
     subtitle_label.size = Vector2(640, 54)
     subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -226,8 +229,11 @@ func set_mission(title: String, description: String) -> void:
     mission_title.text = title.to_upper()
     mission_text.text = description
 
-func _panel(pos: Vector2, panel_size: Vector2) -> PanelContainer:
-    var panel := PanelContainer.new()
+func _panel(pos: Vector2, panel_size: Vector2) -> Panel:
+    # Ces panneaux contiennent plusieurs contrôles positionnés précisément.
+    # PanelContainer redimensionnait chacun d'eux sur toute la surface et
+    # empilait nom, niveau, barres et mission au même endroit sur Android.
+    var panel := Panel.new()
     panel.position = pos
     panel.size = panel_size
     var style := StyleBoxFlat.new()
@@ -251,14 +257,15 @@ func _label(text_value: String, font_size: int) -> Label:
     return label
 
 func _stat_bar(parent: Control, caption: String, y: float, maximum: float, fill_color: Color) -> ProgressBar:
-    var label := _label(caption, 15)
+    var label := _label(caption, 11)
     label.position = Vector2(14, y)
-    label.size = Vector2(82, 24)
+    label.size = Vector2(56, 24)
+    label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     parent.add_child(label)
 
     var bar := ProgressBar.new()
-    bar.position = Vector2(94, y + 2)
-    bar.size = Vector2(218, 20)
+    bar.position = Vector2(76, y + 2)
+    bar.size = Vector2(222, 20)
     bar.max_value = maximum
     bar.value = maximum
     bar.show_percentage = false
@@ -278,8 +285,8 @@ func _stat_bar(parent: Control, caption: String, y: float, maximum: float, fill_
     return bar
 
 func _value_label(parent: Control, y: float, text_value: String) -> Label:
-    var value := _label(text_value, 14)
-    value.position = Vector2(316, y)
+    var value := _label(text_value, 10)
+    value.position = Vector2(304, y)
     value.size = Vector2(108, 24)
     value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
     parent.add_child(value)

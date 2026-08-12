@@ -5,7 +5,7 @@ const TouchActionButtonScript = preload("res://scripts/ui/touch_action_button.gd
 
 # Marges par défaut pour éviter les gestes Retour/Accueil Android.
 const SAFE_SIDE_MARGIN := 190.0
-const SAFE_BOTTOM_MARGIN := 120.0
+const SAFE_BOTTOM_MARGIN := 90.0
 const JOYSTICK_LEFT_MARGIN := 56.0
 const TOUCH_LAYOUT_PATH := "user://touch_layout.cfg"
 const MIN_LAYOUT_SCALE := 0.55
@@ -48,7 +48,8 @@ func _ready() -> void:
     _movement = VirtualJoystickScript.new()
     _movement.name = "MovementJoystickInput"
     _movement.mode = "movement"
-    _movement.deadzone = 0.075
+    _movement.deadzone = 0.04
+    _movement.response_curve = 0.88
     _movement.draw_visuals = true
     _movement.size = Vector2(282, 282)
     _movement.custom_minimum_size = Vector2(282, 282)
@@ -418,7 +419,8 @@ func _on_hero_changed(_hero_id: String) -> void:
 
 func _refresh_hero_switch_label() -> void:
     if _hero_switch_button != null:
-        _hero_switch_button.set_button_text("HÉROS")
+        var hero_name := str(GameState.get_hero_data().get("display_name", GameState.selected_hero)).to_upper()
+        _hero_switch_button.set_button_text("HÉROS\n%s" % hero_name.left(8))
 
 func _refresh_ability_labels() -> void:
     var hero := GameState.get_hero_data()
@@ -513,7 +515,15 @@ func _layout_editor_toolbar() -> void:
     var w := viewport_size.x
     var h := viewport_size.y
     if _edit_toggle != null:
-        _edit_toggle.position = Vector2(18.0, clampf(h * 0.30, 180.0, 246.0))
+        var edit_y := clampf(h * 0.30, 180.0, 246.0)
+        var hud := get_tree().get_first_node_in_group("hud")
+        if hud != null:
+            var stats_value = hud.get("stats_panel")
+            if stats_value is Control:
+                var stats := stats_value as Control
+                edit_y = stats.global_position.y + stats.size.y + 8.0
+        # Le compteur de pièces occupe x=18..206 sur la même ligne.
+        _edit_toggle.position = Vector2(214.0, edit_y)
     if not _edit_mode:
         return
     var toolbar_y := 16.0

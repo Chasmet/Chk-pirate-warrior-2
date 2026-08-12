@@ -12,7 +12,9 @@ signal session_closed(reason: String)
 const GAME_PORT := 24567
 const DISCOVERY_PORT := 24568
 const MAX_PLAYERS := 3
-const PROTOCOL_VERSION := 1
+const PROTOCOL_VERSION := 2
+const MOTION_INTERVAL_SECONDS := 0.05
+const MUSIC_SYNC_INTERVAL_SECONDS := 3.0
 const REMOTE_AVATAR_SCRIPT := preload("res://scripts/network/remote_player_avatar.gd")
 
 var _mode: Mode = Mode.SOLO
@@ -26,6 +28,7 @@ var _scanner: PacketPeerUDP
 var _advertise_accumulator := 0.0
 var _motion_accumulator := 0.0
 var _campaign_accumulator := 0.0
+var _music_sync_accumulator := 0.0
 var _campaign_dirty := false
 var _host_game_active := false
 var _hero_catalog: Dictionary = {}
@@ -42,13 +45,15 @@ func _ready() -> void:
         GameState.progression_changed.connect(_on_campaign_changed)
     if not GameState.island_changed.is_connected(_on_island_changed):
         GameState.island_changed.connect(_on_island_changed)
+    if not GameState.hero_changed.is_connected(_on_local_hero_changed):
+        GameState.hero_changed.connect(_on_local_hero_changed)
 
 func _process(delta: float) -> void:
     _poll_discovery(delta)
     if _mode == Mode.SOLO:
         return
     _motion_accumulator += delta
-    if _motion_accumulator >= 0.066:
+    if _motion_accumulator >= MOTION_INTERVAL_SECONDS:
         _motion_accumulator = 0.0
         _send_motion_snapshot()
     if _mode == Mode.HOST:
@@ -60,6 +65,10 @@ func _process(delta: float) -> void:
         elif _campaign_accumulator >= 1.5:
             _campaign_accumulator = 0.0
             rpc("_receive_campaign_snapshot", GameState.multiplayer_snapshot())
+        _music_sync_accumulator += delta
+        if _music_sync_accumulator >= MUSIC_SYNC_INTERVAL_SECONDS:
+            _music_sync_accumulator = 0.0
+            rpc("_receive_music_sync", AudioDirector.multiplayer_music_snapshot())
 
 func mode_name() -> String:
     match _mode:
@@ -117,6 +126,7 @@ func create_host(player_name: String, hero_id: String) -> Error:
         1: {"name": _local_name, "hero": _local_hero}
     }
     _peer_snapshots.clear()
+    _music_sync_accumulator = 0.0
     _host_game_active = true
     _start_advertising()
     lobby_changed.emit(_player_infos.duplicate(true))
@@ -140,6 +150,7 @@ func join_host(address: String, player_name: String, hero_id: String) -> Error:
     _mode = Mode.CLIENT
     _player_infos.clear()
     _peer_snapshots.clear()
+    _music_sync_accumulator = 0.0
     connection_status_changed.emit("Connexion à la partie…")
     return OK
 
@@ -148,6 +159,7 @@ func disconnect_session(reason: String = "Partie quittée") -> void:
     _stop_advertising()
     _clear_remote_avatars()
     _peer_snapshots.clear()
+    _music_sync_accumulator = 0.0
     _player_infos.clear()
     _host_game_active = false
     if multiplayer.multiplayer_peer != null:
@@ -170,6 +182,12 @@ func host_broadcast_combat(action: String, ability_index: int, origin: Vector3) 
     if values.is_empty():
         return
     rpc("_apply_area_damage", 1, origin, float(values["radius"]), float(values["damage"]), action)
+
+func host_broadcast_music_now() -> void:
+    if _mode != Mode.HOST:
+        return
+    _music_sync_accumulator = 0.0
+    rpc("_receive_music_sync", AudioDirector.multiplayer_music_snapshot())
 
 func _start_advertising() -> void:
     _stop_advertising()
@@ -258,11 +276,17 @@ func _register_player(player_name: String, hero_id: String) -> void:
     _broadcast_lobby()
     _ensure_remote_avatars()
     if _host_game_active:
-        rpc_id(sender_id, "_accept_join", _player_infos, GameState.multiplayer_snapshot())
+        rpc_id(
+            sender_id,
+            "_accept_join",
+            _player_infos,
+            GameState.multiplayer_snapshot(),
+            AudioDirector.multiplayer_music_snapshot()
+        )
     connection_status_changed.emit("%s a rejoint • %d/%d" % [str(_player_infos[sender_id]["name"]), _player_infos.size(), MAX_PLAYERS])
 
 @rpc("authority", "call_remote", "reliable")
-func _accept_join(players: Dictionary, campaign: Dictionary) -> void:
+func _accept_join(players: Dictionary, campaign: Dictionary, music_state: Dictionary) -> void:
     if _mode != Mode.CLIENT:
         return
     _player_infos = players.duplicate(true)
@@ -271,6 +295,9 @@ func _accept_join(players: Dictionary, campaign: Dictionary) -> void:
     lobby_changed.emit(_player_infos.duplicate(true))
     joined_session.emit()
     game_start_received.emit()
+    # game_start_received démarre d'abord la scène et ses lecteurs. Le recalage
+    # vient juste après pour reprendre la même piste au même instant que l'hôte.
+    AudioDirector.synchronize_multiplayer_music(music_state, true)
     connection_status_changed.emit("Partie rejointe • %d/%d joueurs" % [_player_infos.size(), MAX_PLAYERS])
 
 func _broadcast_lobby() -> void:
@@ -286,6 +313,42 @@ func _receive_lobby(players: Dictionary) -> void:
     _player_infos = players.duplicate(true)
     _ensure_remote_avatars()
     lobby_changed.emit(_player_infos.duplicate(true))
+
+func _on_local_hero_changed(hero_id: String) -> void:
+    var resolved := _sanitize_hero(hero_id)
+    _local_hero = resolved
+    if _mode == Mode.HOST:
+        _player_infos[1] = {"name": _local_name, "hero": resolved}
+        _broadcast_lobby()
+        _ensure_remote_avatars()
+    elif _mode == Mode.CLIENT:
+        var local_peer_id := multiplayer.get_unique_id()
+        if _player_infos.has(local_peer_id):
+            var local_info: Dictionary = _player_infos[local_peer_id]
+            local_info["hero"] = resolved
+            _player_infos[local_peer_id] = local_info
+            lobby_changed.emit(_player_infos.duplicate(true))
+        rpc_id(1, "_request_hero_change", resolved)
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_hero_change(hero_id: String) -> void:
+    if _mode != Mode.HOST:
+        return
+    var sender_id := multiplayer.get_remote_sender_id()
+    if sender_id <= 1 or not _player_infos.has(sender_id):
+        return
+    var info: Dictionary = _player_infos[sender_id]
+    var resolved := _sanitize_hero(hero_id)
+    info["hero"] = resolved
+    _player_infos[sender_id] = info
+    _broadcast_lobby()
+    _ensure_remote_avatars()
+
+@rpc("authority", "call_remote", "reliable")
+func _receive_music_sync(music_state: Dictionary) -> void:
+    if _mode != Mode.CLIENT:
+        return
+    AudioDirector.synchronize_multiplayer_music(music_state, false)
 
 func _send_motion_snapshot() -> void:
     var local := _local_motion_snapshot()
@@ -308,8 +371,10 @@ func _local_motion_snapshot() -> Dictionary:
     var position := hero.global_position
     var yaw := hero.global_rotation.y
     var speed := 0.0
+    var linear_velocity := Vector3.ZERO
     if hero is CharacterBody3D:
-        speed = (hero as CharacterBody3D).velocity.length()
+        linear_velocity = (hero as CharacterBody3D).velocity
+        speed = linear_velocity.length()
     var mount_style := ""
     var controller := get_tree().get_first_node_in_group("active_controller")
     if controller is Node3D and _object_has_property(controller, "style_key"):
@@ -317,11 +382,13 @@ func _local_motion_snapshot() -> Dictionary:
         position = (controller as Node3D).global_position
         yaw = (controller as Node3D).global_rotation.y
         if controller is CharacterBody3D:
-            speed = (controller as CharacterBody3D).velocity.length()
+            linear_velocity = (controller as CharacterBody3D).velocity
+            speed = linear_velocity.length()
     return {
         "position": position,
         "yaw": yaw,
         "speed": speed,
+        "velocity": linear_velocity,
         "mount": mount_style
     }
 
@@ -345,10 +412,15 @@ func _sanitize_motion_snapshot(value: Dictionary) -> Dictionary:
     var position = value.get("position", Vector3.ZERO)
     if not position is Vector3:
         position = Vector3.ZERO
+    var raw_velocity = value.get("velocity", Vector3.ZERO)
+    var linear_velocity: Vector3 = raw_velocity if raw_velocity is Vector3 else Vector3.ZERO
+    if linear_velocity.length() > 60.0:
+        linear_velocity = linear_velocity.normalized() * 60.0
     return {
         "position": position,
         "yaw": float(value.get("yaw", 0.0)),
         "speed": clampf(float(value.get("speed", 0.0)), 0.0, 60.0),
+        "velocity": linear_velocity,
         "mount": str(value.get("mount", "")) if str(value.get("mount", "")) in ["4x4", "quad", "horse"] else ""
     }
 
@@ -360,9 +432,13 @@ func _ensure_remote_avatars() -> void:
         var peer_id := int(raw_id)
         if peer_id == local_peer_id:
             continue
-        if _remote_avatars.has(peer_id) and is_instance_valid(_remote_avatars[peer_id]):
-            continue
         var info: Dictionary = _player_infos[raw_id]
+        if _remote_avatars.has(peer_id) and is_instance_valid(_remote_avatars[peer_id]):
+            _remote_avatars[peer_id].update_identity(
+                str(info.get("hero", "cheikh")),
+                str(info.get("name", "Joueur"))
+            )
+            continue
         var avatar = REMOTE_AVATAR_SCRIPT.new()
         avatar.setup(peer_id, str(info.get("hero", "cheikh")), str(info.get("name", "Joueur")))
         var scene := get_tree().current_scene
@@ -385,7 +461,8 @@ func _apply_remote_snapshots(snapshot: Dictionary) -> void:
             state.get("position", Vector3.ZERO),
             float(state.get("yaw", 0.0)),
             float(state.get("speed", 0.0)),
-            str(state.get("mount", ""))
+            str(state.get("mount", "")),
+            state.get("velocity", Vector3.ZERO)
         )
 
 func _remove_remote_avatar(peer_id: int) -> void:

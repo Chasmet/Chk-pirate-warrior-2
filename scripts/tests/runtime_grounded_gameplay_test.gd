@@ -102,6 +102,14 @@ func _run() -> void:
     _check(get_tree().root.find_child("PanneauVillage", true, false) != null, "le village possède une entrée clairement nommée")
     _check(get_tree().get_nodes_in_group("island_vehicle").size() == 2, "deux véhicules thématiques sont présents sur l'île")
     _check(get_tree().root.find_child("RolePNJ", true, false) != null, "les habitants du quai ont des rôles visibles")
+    var arrival_grass := get_tree().root.find_child("ArriveeHerbeDenseMultiMesh", true, false) as MultiMeshInstance3D
+    _check(arrival_grass != null, "des brindilles sont visibles autour de la zone d'arrivée")
+    if arrival_grass != null:
+        _check(arrival_grass.multimesh != null and arrival_grass.multimesh.instance_count >= 1000, "la zone jouée possède une vraie densité d'herbe optimisée")
+        var grass_mesh := arrival_grass.multimesh.mesh as BoxMesh
+        _check(grass_mesh != null and grass_mesh.size.x >= 0.10 and grass_mesh.size.y >= 0.75, "les brindilles sont assez grandes pour rester visibles sur téléphone")
+        var guaranteed_grass := get_tree().root.find_child("BrindillesVisiblesAuDepart", true, false) as MeshInstance3D
+        _check(guaranteed_grass != null and int(guaranteed_grass.get_meta("blade_count", 0)) >= 160, "au moins 160 brindilles directes se trouvent dans le champ de vision du départ")
 
     var route_clear := island != null
     var route_max_step := 0.0
@@ -134,6 +142,8 @@ func _run() -> void:
     var hero_switch_button := get_tree().root.find_child("HeroSwitchButton", true, false) as Control
     var inventory_button := get_tree().root.find_child("InventoryButton", true, false) as Control
     var camera_reset_button := get_tree().root.find_child("CameraResetButton", true, false) as Control
+    var edit_toggle := get_tree().root.find_child("TouchLayoutEditToggle", true, false) as Control
+    var coin_panel := get_tree().root.find_child("CoinCounterPanel", true, false) as Control
 
     _check(InputMap.has_action("jump"), "l'action de saut est enregistrée")
     _check(movement != null, "le joystick tactile est visible dans la scène jouée")
@@ -146,6 +156,25 @@ func _run() -> void:
     _check(hero_switch_button != null, "le bouton CHANGER HÉROS est instancié")
     _check(inventory_button != null, "le bouton SAC tactile est instancié")
     _check(camera_reset_button != null, "le bouton RECENTRER CAMÉRA est instancié")
+    var runtime_hud := get_tree().get_first_node_in_group("hud")
+    if runtime_hud != null:
+        var runtime_stats = runtime_hud.get("stats_panel")
+        var runtime_mission_title = runtime_hud.get("mission_title")
+        var runtime_mission_text = runtime_hud.get("mission_text")
+        var runtime_hero_label = runtime_hud.get("hero_label")
+        var runtime_health_bar = runtime_hud.get("health_bar")
+        _check(runtime_stats is Panel, "la carte de vie utilise un panneau libre sans empilement automatique")
+        if runtime_stats is Control and coin_panel != null:
+            _check(not (runtime_stats as Control).get_global_rect().intersects(coin_panel.get_global_rect()), "le compteur de pièces reste sous la carte joueur")
+        if runtime_hero_label is Control and runtime_health_bar is Control:
+            _check(not (runtime_hero_label as Control).get_rect().intersects((runtime_health_bar as Control).get_rect()), "le nom du héros reste séparé de la barre de vie")
+        if runtime_mission_title is Control and runtime_mission_text is Control:
+            _check(not (runtime_mission_title as Control).get_rect().intersects((runtime_mission_text as Control).get_rect()), "le titre et le texte de mission ne se chevauchent pas")
+            _check((runtime_mission_text as Label).get_theme_font_size("font_size") >= 19, "la consigne sous le titre est lisible sur téléphone")
+    if coin_panel != null and edit_toggle != null:
+        _check(not coin_panel.get_global_rect().intersects(edit_toggle.get_global_rect()), "MODIFIER reste à côté du compteur de pièces")
+    if edit_toggle != null and movement != null:
+        _check(not edit_toggle.get_global_rect().intersects(movement.get_global_rect()), "MODIFIER ne recouvre pas le joystick")
     var combat_hud := get_tree().get_first_node_in_group("combat_hud_v1_30")
     _check(combat_hud != null, "le HUD V1 30/100 des PV ennemis est actif")
     _check(get_tree().root.find_child("EnemyHealthPanel", true, false) != null, "la barre de vie ennemie est instanciée")
@@ -213,17 +242,28 @@ func _run() -> void:
     var backpedal_touch := InputEventScreenTouch.new()
     backpedal_touch.index = 40
     backpedal_touch.pressed = true
-    backpedal_touch.position = movement.global_position + movement.size * 0.5 + Vector2(0.0, movement.size.y * 0.38)
-    movement.call("_gui_input", backpedal_touch)
+    backpedal_touch.position = movement.global_position + movement.size * 0.5
+    movement.call("_input", backpedal_touch)
+    var backpedal_drag := InputEventScreenDrag.new()
+    backpedal_drag.index = 40
+    # Le pouce sort volontairement du rectangle, comme dans la vidéo Honor 200.
+    backpedal_drag.position = movement.global_position + Vector2(movement.size.x * 0.5, movement.size.y * 1.22)
+    movement.call("_input", backpedal_drag)
+    var captured_backpedal: Vector2 = movement.call("get_input_value")
+    _check(captured_backpedal.y >= 0.92, "le joystick suit le pouce vers le bas même hors de son cercle")
     for _frame in range(42):
         await get_tree().physics_frame
     backpedal_touch.pressed = false
-    backpedal_touch.position = movement.global_position + movement.size * 0.5
-    movement.call("_gui_input", backpedal_touch)
+    backpedal_touch.position = backpedal_drag.position
+    movement.call("_input", backpedal_touch)
     var backpedal_delta := player.global_position - backpedal_start
     backpedal_delta.y = 0.0
     _check(backpedal_delta.length() > 1.25, "le joystick vers le bas déplace réellement le héros")
     _check(backpedal_delta.dot(camera_forward) < -0.65, "le héros recule au lieu d'avancer une seconde fois")
+    var facing_after_backpedal := -player.global_transform.basis.z
+    facing_after_backpedal.y = 0.0
+    facing_after_backpedal = facing_after_backpedal.normalized()
+    _check(facing_after_backpedal.dot(camera_forward) > 0.55, "le héros reste tourné vers l'avant pendant le recul maximal")
 
     if attack_button != null:
         await _tap_button(attack_button, 20)

@@ -95,8 +95,9 @@ func _physics_process(delta: float) -> void:
             current_speed *= 0.78
         velocity.x = direction.x * current_speed
         velocity.z = direction.z * current_speed
-        var target_angle := atan2(-direction.x, -direction.z)
-        rotation.y = lerp_angle(rotation.y, target_angle, minf(1.0, rotation_speed * delta))
+        if _should_face_movement(input_vec):
+            var target_angle := atan2(-direction.x, -direction.z)
+            rotation.y = lerp_angle(rotation.y, target_angle, minf(1.0, rotation_speed * delta))
         if grounded_before and not jumped_this_frame and _attack_lock <= 0.0:
             _play_locomotion_animation(true, speed_blend >= 0.56)
     else:
@@ -136,6 +137,11 @@ func _camera_relative_direction(input_vec: Vector2) -> Vector3:
     forward = forward.normalized()
     right = right.normalized()
     return (right * input_vec.x) + (forward * -input_vec.y)
+
+func _should_face_movement(_input_vec: Vector2) -> bool:
+    # Point d'extension pour les contrôleurs mobiles : le héros V3 conserve
+    # son regard vers l'avant lorsqu'il recule au lieu de se retourner.
+    return true
 
 func _start_dodge(direction: Vector3) -> void:
     _dodge_direction = direction.normalized() if direction.length() > 0.05 else _last_move_dir.normalized()

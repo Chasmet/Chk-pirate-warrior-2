@@ -4,6 +4,7 @@ extends Node3D
 @export var bush_budget := 40
 @export var flower_budget := 28
 @export var grass_cluster_budget := 52
+@export var arrival_grass_blade_budget := 1200
 
 var _root: Node3D
 var _current_island := -1
@@ -30,16 +31,183 @@ func _rebuild(serial: int) -> void:
     _root.name = "VegetationRoyaume_%02d" % _current_island
     add_child(_root)
 
+    var info := WorldCatalog.island(_current_island - 1)
+    var center := WorldCatalog.world_positions()[_current_island - 1]
+    var size: Vector2 = info["size"]
+    _spawn_arrival_grass(
+        center,
+        size,
+        info,
+        260 if _current_island == 11 else arrival_grass_blade_budget,
+        _current_island == 11
+    )
+
     if _current_island == 11:
         _spawn_troubled_growth()
         return
 
-    var info := WorldCatalog.island(_current_island - 1)
-    var center := WorldCatalog.world_positions()[_current_island - 1]
-    var size: Vector2 = info["size"]
     _spawn_bushes(center, size, info)
     _spawn_flowers(center, size, info)
     _spawn_grass_clusters(center, size, info)
+
+func _spawn_arrival_grass(center: Vector3, size: Vector2, info: Dictionary, blade_count: int, troubled: bool) -> void:
+    # Les anciennes brindilles commençaient à 16 m de la route, ne faisaient que
+    # 3,5 cm de large et reprenaient presque la couleur du sol. Elles existaient
+    # dans le MultiMesh mais restaient invisibles sur téléphone. Cette version
+    # place de vraies touffes contrastées au bord du chemin et autour du point de
+    # départ, toujours dans un seul draw call Android.
+    var resolved_count := maxi(0, blade_count)
+    if resolved_count == 0:
+        return
+
+    var blade_mesh := BoxMesh.new()
+    blade_mesh.size = Vector3(0.11, 0.78, 0.065)
+
+    var multi := MultiMesh.new()
+    multi.transform_format = MultiMesh.TRANSFORM_3D
+    multi.use_colors = true
+    multi.mesh = blade_mesh
+    multi.instance_count = resolved_count
+
+    var base_color: Color = info.get("color", Color("4f7f4c"))
+    var rng := RandomNumberGenerator.new()
+    rng.seed = 61000 + _current_island * 263
+    var blades_per_patch := 16
+    var patch_origin := center
+    var player_reference := center + Vector3(0.0, 0.0, size.y * 0.28)
+    var active_player := get_tree().get_first_node_in_group("player") as Node3D
+    if active_player != null and is_instance_valid(active_player):
+        player_reference = active_player.global_position
+
+    for i in range(resolved_count):
+        var local_blade := i % blades_per_patch
+        if local_blade == 0:
+            var patch_index := int(i / blades_per_patch)
+            var side := -1.0 if patch_index % 2 == 0 else 1.0
+            var near_player_patch := patch_index < 24 and not troubled
+            var near_port_patch := patch_index >= 24 and patch_index < 40 and not troubled
+            var roadside_patch := patch_index % 3 != 2
+            var patch_reference := center
+            var x_offset := 0.0
+            var z_offset := 0.0
+            if near_player_patch:
+                # Le point exact varie entre une partie neuve, une sauvegarde et
+                # un retour au port. Ces 384 brindilles suivent le héros au
+                # moment où le royaume finit de se construire.
+                patch_reference = player_reference
+                x_offset = side * rng.randf_range(11.0, 31.0)
+                z_offset = rng.randf_range(-34.0, 34.0)
+            elif near_port_patch:
+                # 16 touffes x 16 brindilles sont garanties autour du spawn
+                # sûr du port (z = 45 % de la longueur + 12 m). Elles sont donc
+                # visibles dès l'arrivée, au lieu de dépendre du tirage aléatoire.
+                x_offset = side * rng.randf_range(11.0, 31.0)
+                z_offset = rng.randf_range(size.y * 0.415, size.y * 0.455)
+            else:
+                x_offset = side * (
+                    rng.randf_range(10.5, 30.0)
+                    if roadside_patch
+                    else rng.randf_range(34.0, minf(92.0, size.x * 0.10))
+                )
+                z_offset = rng.randf_range(size.y * 0.205, size.y * 0.455)
+            var plaza_z := size.y * 0.34
+            if not near_player_patch and absf(x_offset) < 47.0 and absf(z_offset - plaza_z) < 38.0:
+                x_offset = side * rng.randf_range(48.0, minf(78.0, size.x * 0.09))
+            patch_origin = _snap_to_ground(patch_reference + Vector3(x_offset, 8.0, z_offset), 0.0)
+
+        var angle := rng.randf_range(0.0, TAU)
+        var radius := sqrt(rng.randf()) * rng.randf_range(0.45, 3.1)
+        var height_scale := rng.randf_range(0.72, 1.42)
+        var width_scale := rng.randf_range(0.82, 1.28)
+        var tilt := rng.randf_range(-0.22, 0.22)
+        var basis := Basis.from_euler(Vector3(tilt, angle, rng.randf_range(-0.12, 0.12)))
+        basis = basis.scaled(Vector3(width_scale, height_scale, 1.0))
+        var origin := patch_origin + Vector3(cos(angle) * radius, 0.39 * height_scale, sin(angle) * radius)
+        multi.set_instance_transform(i, Transform3D(basis, origin))
+        var visible_green := base_color.lerp(Color("72b957"), 0.58)
+        var shade := rng.randf_range(-0.12, 0.22)
+        var blade_color := Color("53605a") if troubled else (visible_green.lightened(shade) if shade >= 0.0 else visible_green.darkened(-shade))
+        multi.set_instance_color(i, blade_color)
+
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color.WHITE
+    material.vertex_color_use_as_albedo = true
+    material.roughness = 0.98
+
+    var grass := MultiMeshInstance3D.new()
+    grass.name = "ArriveeHerbeDenseMultiMesh"
+    grass.multimesh = multi
+    grass.material_override = material
+    grass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    grass.visibility_range_end = 340.0
+    grass.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+    _root.add_child(grass)
+    if not troubled:
+        _spawn_guaranteed_visible_grass(player_reference, info)
+
+func _spawn_guaranteed_visible_grass(player_reference: Vector3, info: Dictionary) -> void:
+    # Sur l'export Android Godot 4.4, certains pilotes renvoient les transforms
+    # du MultiMesh à zéro. Cette géométrie directe garde 160 vraies brindilles
+    # visibles dans un seul mesh/draw call, indépendamment de ce chemin GPU.
+    var blade_count := 160
+    var rng := RandomNumberGenerator.new()
+    rng.seed = 88000 + _current_island * 313
+    var surface := SurfaceTool.new()
+    surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+    var base_color: Color = info.get("color", Color("4f7f4c"))
+    var anchor_in_root := _root.to_local(player_reference)
+
+    for blade_index in range(blade_count):
+        var side_sign := -1.0 if blade_index % 2 == 0 else 1.0
+        # Deux bandes sur les côtés de la place : visibles dès l'arrivée sans
+        # planter d'herbe au milieu du chemin emprunté par Cheikh.
+        var x_offset := side_sign * rng.randf_range(47.0, 59.0)
+        var z_offset := rng.randf_range(-25.0, 25.0)
+        var ground_world := _snap_to_ground(player_reference + Vector3(x_offset, 8.0, z_offset), 0.01)
+        var bottom := _root.to_local(ground_world) - anchor_in_root
+        var height := rng.randf_range(0.72, 1.05)
+        var half_width := rng.randf_range(0.055, 0.09)
+        var yaw := rng.randf_range(0.0, TAU)
+        var direction := Vector3(cos(yaw), 0.0, sin(yaw))
+        var side := direction * half_width
+        var cross_side := Vector3(-direction.z, 0.0, direction.x) * half_width
+        var lean := direction * rng.randf_range(-0.10, 0.10)
+        var visible_green := base_color.lerp(Color("78c35a"), 0.72)
+        var shade := rng.randf_range(-0.08, 0.18)
+        var blade_color := visible_green.lightened(shade) if shade >= 0.0 else visible_green.darkened(-shade)
+        _append_grass_quad(surface, bottom, side, height, lean, blade_color)
+        _append_grass_quad(surface, bottom, cross_side, height, lean, blade_color)
+
+    var mesh := surface.commit()
+    if mesh == null:
+        return
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color.WHITE
+    material.vertex_color_use_as_albedo = true
+    material.roughness = 1.0
+    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+    var visible_grass := MeshInstance3D.new()
+    visible_grass.name = "BrindillesVisiblesAuDepart"
+    visible_grass.mesh = mesh
+    visible_grass.material_override = material
+    visible_grass.position = anchor_in_root
+    visible_grass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    visible_grass.set_meta("blade_count", blade_count)
+    visible_grass.set_meta("player_reference", player_reference)
+    _root.add_child(visible_grass)
+
+func _append_grass_quad(surface: SurfaceTool, bottom: Vector3, side: Vector3, height: float, lean: Vector3, color: Color) -> void:
+    var left_bottom := bottom - side
+    var right_bottom := bottom + side
+    var left_top := left_bottom + Vector3.UP * height + lean
+    var right_top := right_bottom + Vector3.UP * height + lean
+    var normal := side.normalized().cross(Vector3.UP).normalized()
+    var vertices := [left_bottom, right_bottom, right_top, left_bottom, right_top, left_top]
+    for vertex in vertices:
+        surface.set_normal(normal)
+        surface.set_color(color)
+        surface.add_vertex(vertex)
 
 func _spawn_bushes(center: Vector3, size: Vector2, info: Dictionary) -> void:
     var rng := RandomNumberGenerator.new()
