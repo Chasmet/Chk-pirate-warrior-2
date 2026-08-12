@@ -1,9 +1,90 @@
 class_name HUDMobileV10
 extends "res://scripts/ui/hud_mobile_v3.gd"
 
+var xp_caption: Label
+var xp_bar: ProgressBar
+var xp_value_label: Label
+var next_level_label: Label
+
 func _ready() -> void:
     super._ready()
+    _ensure_level_progress_widgets()
+    _refresh_progression_labels()
     _refresh_inventory()
+    _layout_v3.call_deferred()
+
+func _ensure_level_progress_widgets() -> void:
+    if stats_panel == null or xp_bar != null:
+        return
+
+    if hero_label != null:
+        hero_label.name = "HeroNameLabel"
+    if level_label != null:
+        level_label.name = "LevelLabel"
+
+    xp_caption = _label("XP", 12)
+    xp_caption.name = "XpCaption"
+    stats_panel.add_child(xp_caption)
+
+    xp_bar = ProgressBar.new()
+    xp_bar.name = "XpProgressBar"
+    xp_bar.show_percentage = false
+    xp_bar.min_value = 0.0
+    xp_bar.max_value = 1.0
+    xp_bar.value = 0.0
+
+    var background := StyleBoxFlat.new()
+    background.bg_color = Color(0.01, 0.025, 0.035, 0.95)
+    background.border_color = Color(0.42, 0.43, 0.40, 0.85)
+    background.set_border_width_all(1)
+    background.set_corner_radius_all(8)
+    xp_bar.add_theme_stylebox_override("background", background)
+
+    var fill := StyleBoxFlat.new()
+    fill.bg_color = Color("e8b83d")
+    fill.set_corner_radius_all(8)
+    xp_bar.add_theme_stylebox_override("fill", fill)
+    stats_panel.add_child(xp_bar)
+
+    xp_value_label = _label("0 / 120", 10)
+    xp_value_label.name = "XpValueLabel"
+    xp_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+    stats_panel.add_child(xp_value_label)
+
+    next_level_label = _label("PROCHAIN NIVEAU", 11)
+    next_level_label.name = "NextLevelLabel"
+    next_level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    next_level_label.add_theme_color_override("font_color", Color("ffe59a"))
+    stats_panel.add_child(next_level_label)
+
+func _refresh_progression_labels() -> void:
+    super._refresh_progression_labels()
+    if level_label == null:
+        return
+
+    var max_level := 50
+    level_label.text = "NIVEAU %d / %d" % [GameState.level, max_level]
+
+    if xp_bar == null:
+        return
+
+    if GameState.level >= max_level:
+        xp_bar.max_value = 1.0
+        xp_bar.value = 1.0
+        xp_value_label.text = "MAX"
+        next_level_label.text = "NIVEAU MAXIMUM ATTEINT"
+        return
+
+    var current_floor := GameState.xp_current_level_floor() if GameState.has_method("xp_current_level_floor") else 120 * (GameState.level - 1) * (GameState.level - 1)
+    var next_threshold := GameState.xp_next_level_threshold() if GameState.has_method("xp_next_level_threshold") else 120 * GameState.level * GameState.level
+    var span := maxi(1, next_threshold - current_floor)
+    var progress := clampi(GameState.xp - current_floor, 0, span)
+    var remaining := GameState.xp_to_next_level() if GameState.has_method("xp_to_next_level") else maxi(0, next_threshold - GameState.xp)
+
+    xp_bar.max_value = float(span)
+    xp_bar.value = float(progress)
+    xp_value_label.text = "%d / %d" % [progress, span]
+    next_level_label.text = "NIVEAU SUIVANT : %d XP" % remaining
 
 func _refresh_inventory() -> void:
     if inventory_text == null:
@@ -68,6 +149,40 @@ func _refresh_inventory() -> void:
 
 func _layout_v3() -> void:
     super._layout_v3()
+
+    if stats_panel != null:
+        var stats_w := stats_panel.size.x
+        stats_panel.size.y = 318.0
+
+        hero_label.add_theme_font_size_override("font_size", 18)
+        hero_label.position = Vector2(14.0, 5.0)
+        hero_label.size = Vector2(maxf(118.0, stats_w - 215.0), 48.0)
+
+        level_label.add_theme_font_size_override("font_size", 20)
+        level_label.position = Vector2(maxf(126.0, stats_w - 224.0), 5.0)
+        level_label.size = Vector2(minf(210.0, stats_w - 138.0), 48.0)
+        level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+        level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+        if xp_caption != null:
+            xp_caption.position = Vector2(12.0, 226.0)
+            xp_caption.size = Vector2(58.0, 34.0)
+            xp_caption.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+            xp_caption.add_theme_font_size_override("font_size", 12)
+        if xp_bar != null:
+            xp_bar.position = Vector2(76.0, 232.0)
+            xp_bar.size = Vector2(maxf(150.0, stats_w - 176.0), 24.0)
+        if xp_value_label != null:
+            xp_value_label.position = Vector2(stats_w - 92.0, 226.0)
+            xp_value_label.size = Vector2(76.0, 34.0)
+            xp_value_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+            xp_value_label.add_theme_font_size_override("font_size", 10)
+        if next_level_label != null:
+            next_level_label.position = Vector2(72.0, 266.0)
+            next_level_label.size = Vector2(stats_w - 88.0, 38.0)
+            next_level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+            next_level_label.add_theme_font_size_override("font_size", 11)
+
     if inventory_panel == null:
         return
 

@@ -4,6 +4,8 @@ extends "res://scripts/systems/game_state.gd"
 # compatibles avec les parties existantes. Les objets de quête/reliques ne
 # consomment pas de place afin d'éviter de bloquer la campagne.
 
+const MAX_PLAYER_LEVEL := 50
+
 func _ready() -> void:
     super._ready()
     _sanitize_inventory()
@@ -11,14 +13,49 @@ func _ready() -> void:
 func load_save() -> bool:
     var loaded := super.load_save()
     if loaded:
+        level = clampi(level, 1, MAX_PLAYER_LEVEL)
         _sanitize_inventory()
         inventory_changed.emit(inventory.duplicate(true))
     return loaded
 
 func apply_multiplayer_snapshot(data: Dictionary) -> void:
     super.apply_multiplayer_snapshot(data)
+    level = clampi(level, 1, MAX_PLAYER_LEVEL)
     _sanitize_inventory()
     inventory_changed.emit(inventory.duplicate(true))
+
+func add_xp(amount: int) -> void:
+    xp = maxi(0, xp + amount)
+    level = clampi(1 + int(sqrt(float(xp) / 120.0)), 1, MAX_PLAYER_LEVEL)
+    progression_changed.emit()
+
+func xp_threshold_for_level(level_value: int) -> int:
+    var resolved := clampi(level_value, 1, MAX_PLAYER_LEVEL)
+    var offset := resolved - 1
+    return 120 * offset * offset
+
+func xp_current_level_floor() -> int:
+    return xp_threshold_for_level(level)
+
+func xp_next_level_threshold() -> int:
+    if level >= MAX_PLAYER_LEVEL:
+        return xp_threshold_for_level(MAX_PLAYER_LEVEL)
+    return xp_threshold_for_level(level + 1)
+
+func xp_into_current_level() -> int:
+    if level >= MAX_PLAYER_LEVEL:
+        return 0
+    return maxi(0, xp - xp_current_level_floor())
+
+func xp_current_level_span() -> int:
+    if level >= MAX_PLAYER_LEVEL:
+        return 1
+    return maxi(1, xp_next_level_threshold() - xp_current_level_floor())
+
+func xp_to_next_level() -> int:
+    if level >= MAX_PLAYER_LEVEL:
+        return 0
+    return maxi(0, xp_next_level_threshold() - xp)
 
 func item_data(item_id: String) -> Dictionary:
     var value = _items.get(item_id, {})

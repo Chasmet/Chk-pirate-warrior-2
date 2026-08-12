@@ -19,6 +19,37 @@ func use_ability(index: int) -> bool:
         _equip_cerberus_sword()
     return super.use_ability(index)
 
+# V11 : les deux boutons spéciaux correspondent directement aux attaques 2 et 3.
+# On ne passe plus par la sélection circulaire de V9 : le joueur voit les trois
+# attaques simultanément et touche directement celle qu'il veut utiliser.
+func _resolve_requested_ability_index(requested_index: int) -> int:
+    return requested_index
+
+func mobile_attack_slot_data(slot_index: int) -> Dictionary:
+    if slot_index == 0:
+        return {
+            "slot": 1,
+            "kind": "basic",
+            "name": str(hero_data.get("base_attack", "Attaque")),
+            "unlock_level": 1
+        }
+    var abilities: Array = hero_data.get("abilities", [])
+    var ability_index := slot_index - 1
+    if ability_index < 0 or ability_index >= abilities.size():
+        return {}
+    var ability: Dictionary = abilities[ability_index]
+    return {
+        "slot": slot_index + 1,
+        "kind": "ability",
+        "name": str(ability.get("name", "Attaque %d" % (slot_index + 1))),
+        "unlock_level": maxi(1, int(ability.get("unlock_level", 1))),
+        "ability_index": ability_index
+    }
+
+func mobile_attack_slot_unlocked(slot_index: int) -> bool:
+    var data := mobile_attack_slot_data(slot_index)
+    return not data.is_empty() and GameState.level >= int(data.get("unlock_level", 1))
+
 func _on_hero_changed(hero_id: String) -> void:
     _cerberus_equipped = false
     super._on_hero_changed(hero_id)
