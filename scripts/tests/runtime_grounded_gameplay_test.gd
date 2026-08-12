@@ -105,7 +105,17 @@ func _run() -> void:
     var arrival_grass := get_tree().root.find_child("ArriveeHerbeDenseMultiMesh", true, false) as MultiMeshInstance3D
     _check(arrival_grass != null, "des brindilles sont visibles autour de la zone d'arrivée")
     if arrival_grass != null:
-        _check(arrival_grass.multimesh != null and arrival_grass.multimesh.instance_count >= 600, "la zone jouée possède une vraie densité d'herbe optimisée")
+        _check(arrival_grass.multimesh != null and arrival_grass.multimesh.instance_count >= 1000, "la zone jouée possède une vraie densité d'herbe optimisée")
+        var grass_mesh := arrival_grass.multimesh.mesh as BoxMesh
+        _check(grass_mesh != null and grass_mesh.size.x >= 0.10 and grass_mesh.size.y >= 0.75, "les brindilles sont assez grandes pour rester visibles sur téléphone")
+        var nearby_blades := 0
+        for blade_index in range(arrival_grass.multimesh.instance_count):
+            var blade_position := arrival_grass.to_global(arrival_grass.multimesh.get_instance_transform(blade_index).origin)
+            var flat_blade_delta := blade_position - player.global_position
+            flat_blade_delta.y = 0.0
+            if flat_blade_delta.length() <= 72.0:
+                nearby_blades += 1
+        _check(nearby_blades >= 120, "au moins 120 brindilles se trouvent réellement dans le champ de vision du départ")
 
     var route_clear := island != null
     var route_max_step := 0.0
@@ -166,6 +176,7 @@ func _run() -> void:
             _check(not (runtime_hero_label as Control).get_rect().intersects((runtime_health_bar as Control).get_rect()), "le nom du héros reste séparé de la barre de vie")
         if runtime_mission_title is Control and runtime_mission_text is Control:
             _check(not (runtime_mission_title as Control).get_rect().intersects((runtime_mission_text as Control).get_rect()), "le titre et le texte de mission ne se chevauchent pas")
+            _check((runtime_mission_text as Label).get_theme_font_size("font_size") >= 18, "la consigne sous le titre est lisible sur téléphone")
     if coin_panel != null and edit_toggle != null:
         _check(not coin_panel.get_global_rect().intersects(edit_toggle.get_global_rect()), "MODIFIER reste à côté du compteur de pièces")
     if edit_toggle != null and movement != null:
@@ -237,13 +248,20 @@ func _run() -> void:
     var backpedal_touch := InputEventScreenTouch.new()
     backpedal_touch.index = 40
     backpedal_touch.pressed = true
-    backpedal_touch.position = movement.global_position + movement.size * 0.5 + Vector2(0.0, movement.size.y * 0.38)
-    movement.call("_gui_input", backpedal_touch)
+    backpedal_touch.position = movement.global_position + movement.size * 0.5
+    movement.call("_input", backpedal_touch)
+    var backpedal_drag := InputEventScreenDrag.new()
+    backpedal_drag.index = 40
+    # Le pouce sort volontairement du rectangle, comme dans la vidéo Honor 200.
+    backpedal_drag.position = movement.global_position + Vector2(movement.size.x * 0.5, movement.size.y * 1.22)
+    movement.call("_input", backpedal_drag)
+    var captured_backpedal: Vector2 = movement.call("get_input_value")
+    _check(captured_backpedal.y >= 0.92, "le joystick suit le pouce vers le bas même hors de son cercle")
     for _frame in range(42):
         await get_tree().physics_frame
     backpedal_touch.pressed = false
-    backpedal_touch.position = movement.global_position + movement.size * 0.5
-    movement.call("_gui_input", backpedal_touch)
+    backpedal_touch.position = backpedal_drag.position
+    movement.call("_input", backpedal_touch)
     var backpedal_delta := player.global_position - backpedal_start
     backpedal_delta.y = 0.0
     _check(backpedal_delta.length() > 1.25, "le joystick vers le bas déplace réellement le héros")

@@ -28,6 +28,8 @@ func _initialize() -> void:
     _check(not hero.contains("quick_turn_input_threshold"), "aucun demi-tour forcé au joystick bas maximum")
     _check(joystick.contains("response_curve := 0.88"), "réponse analogique progressive et vive")
     _check(joystick.contains("func get_input_value"), "valeur 360 degrés du joystick testable")
+    _check(joystick.contains("func _handle_touch_event"), "le doigt reste capturé hors du cercle du joystick")
+    _check(hud.contains("mission_text = _label(\"Sécurise le royaume pour faire apparaître son boss.\", 18)"), "consigne de mission agrandie sans modifier le titre")
 
     _check(network.contains("PROTOCOL_VERSION := 2"), "protocole coop incompatible avec les anciens paquets incomplets")
     _check(network.contains("func _request_hero_change"), "changement de héros répliqué vers l'hôte")
@@ -43,7 +45,8 @@ func _initialize() -> void:
     _check(network.contains("MUSIC_SYNC_INTERVAL_SECONDS := 3.0"), "dérive musicale corrigée périodiquement")
 
     _check(vegetation.contains("ArriveeHerbeDenseMultiMesh"), "herbe dense visible près de l'arrivée")
-    _check(vegetation.contains("arrival_grass_blade_budget := 720"), "densité d'herbe suffisante sans draw calls multiples")
+    _check(vegetation.contains("arrival_grass_blade_budget := 1200"), "densité d'herbe suffisante sans draw calls multiples")
+    _check(vegetation.contains("blade_mesh.size = Vector3(0.11, 0.78, 0.065)"), "brindilles assez larges et hautes pour un écran mobile")
     _check(visuals.contains("soil_patch"), "terrain enrichi de variations de sol")
     _check(project.contains("anti_aliasing/quality/msaa_3d=1"), "anticrénelage mobile 2x activé")
 

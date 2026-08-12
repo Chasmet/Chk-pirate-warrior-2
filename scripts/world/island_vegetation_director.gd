@@ -4,7 +4,7 @@ extends Node3D
 @export var bush_budget := 40
 @export var flower_budget := 28
 @export var grass_cluster_budget := 52
-@export var arrival_grass_blade_budget := 720
+@export var arrival_grass_blade_budget := 1200
 
 var _root: Node3D
 var _current_island := -1
@@ -51,16 +51,17 @@ func _rebuild(serial: int) -> void:
     _spawn_grass_clusters(center, size, info)
 
 func _spawn_arrival_grass(center: Vector3, size: Vector2, info: Dictionary, blade_count: int, troubled: bool) -> void:
-    # Les anciennes touffes étaient réparties sur 1 à 3 km : le budget existait
-    # bien, mais presque rien n'était visible autour du joueur. Cette ceinture
-    # concentre des centaines de brindilles le long de l'arrivée et de la route
-    # du port dans un seul MultiMesh, donc un seul draw call sur Android.
+    # Les anciennes brindilles commençaient à 16 m de la route, ne faisaient que
+    # 3,5 cm de large et reprenaient presque la couleur du sol. Elles existaient
+    # dans le MultiMesh mais restaient invisibles sur téléphone. Cette version
+    # place de vraies touffes contrastées au bord du chemin et autour du point de
+    # départ, toujours dans un seul draw call Android.
     var resolved_count := maxi(0, blade_count)
     if resolved_count == 0:
         return
 
     var blade_mesh := BoxMesh.new()
-    blade_mesh.size = Vector3(0.035, 0.62, 0.075)
+    blade_mesh.size = Vector3(0.11, 0.78, 0.065)
 
     var multi := MultiMesh.new()
     multi.transform_format = MultiMesh.TRANSFORM_3D
@@ -71,28 +72,38 @@ func _spawn_arrival_grass(center: Vector3, size: Vector2, info: Dictionary, blad
     var base_color: Color = info.get("color", Color("4f7f4c"))
     var rng := RandomNumberGenerator.new()
     rng.seed = 61000 + _current_island * 263
-    var blades_per_patch := 10
+    var blades_per_patch := 16
     var patch_origin := center
 
     for i in range(resolved_count):
         var local_blade := i % blades_per_patch
         if local_blade == 0:
-            var side := -1.0 if int(i / blades_per_patch) % 2 == 0 else 1.0
-            var x_offset := side * rng.randf_range(16.0, minf(155.0, size.x * 0.16))
-            var z_offset := rng.randf_range(size.y * 0.18, size.y * 0.415)
+            var patch_index := int(i / blades_per_patch)
+            var side := -1.0 if patch_index % 2 == 0 else 1.0
+            var roadside_patch := patch_index % 3 != 2
+            var x_offset := side * (
+                rng.randf_range(10.5, 30.0)
+                if roadside_patch
+                else rng.randf_range(34.0, minf(92.0, size.x * 0.10))
+            )
+            var z_offset := rng.randf_range(size.y * 0.205, size.y * 0.455)
+            var plaza_z := size.y * 0.34
+            if absf(x_offset) < 47.0 and absf(z_offset - plaza_z) < 38.0:
+                x_offset = side * rng.randf_range(48.0, minf(78.0, size.x * 0.09))
             patch_origin = _snap_to_ground(center + Vector3(x_offset, 8.0, z_offset), 0.0)
 
         var angle := rng.randf_range(0.0, TAU)
-        var radius := sqrt(rng.randf()) * rng.randf_range(0.35, 2.4)
-        var height_scale := rng.randf_range(0.58, 1.28)
-        var width_scale := rng.randf_range(0.72, 1.12)
-        var tilt := rng.randf_range(-0.18, 0.18)
+        var radius := sqrt(rng.randf()) * rng.randf_range(0.45, 3.1)
+        var height_scale := rng.randf_range(0.72, 1.42)
+        var width_scale := rng.randf_range(0.82, 1.28)
+        var tilt := rng.randf_range(-0.22, 0.22)
         var basis := Basis.from_euler(Vector3(tilt, angle, rng.randf_range(-0.12, 0.12)))
         basis = basis.scaled(Vector3(width_scale, height_scale, 1.0))
-        var origin := patch_origin + Vector3(cos(angle) * radius, 0.31 * height_scale, sin(angle) * radius)
+        var origin := patch_origin + Vector3(cos(angle) * radius, 0.39 * height_scale, sin(angle) * radius)
         multi.set_instance_transform(i, Transform3D(basis, origin))
-        var shade := rng.randf_range(-0.08, 0.12)
-        var blade_color := Color("38433b") if troubled else (base_color.lightened(shade) if shade >= 0.0 else base_color.darkened(-shade))
+        var visible_green := base_color.lerp(Color("72b957"), 0.58)
+        var shade := rng.randf_range(-0.12, 0.22)
+        var blade_color := Color("53605a") if troubled else (visible_green.lightened(shade) if shade >= 0.0 else visible_green.darkened(-shade))
         multi.set_instance_color(i, blade_color)
 
     var material := StandardMaterial3D.new()
@@ -105,7 +116,7 @@ func _spawn_arrival_grass(center: Vector3, size: Vector2, info: Dictionary, blad
     grass.multimesh = multi
     grass.material_override = material
     grass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    grass.visibility_range_end = 260.0
+    grass.visibility_range_end = 340.0
     grass.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
     _root.add_child(grass)
 

@@ -183,7 +183,8 @@ func _run() -> void:
     _check(action_button_text.contains("func cancel_press"), "chaque bouton peut annuler un contact Android interrompu")
 
     var joystick_text := FileAccess.get_file_as_string("res://scripts/ui/virtual_joystick.gd")
-    _check(joystick_text.contains("make_canvas_position_local"), "coordonnées tactiles du joystick converties du viewport vers le local")
+    _check(joystick_text.contains("_viewport_to_local"), "coordonnées tactiles du joystick converties du viewport vers le local")
+    _check(joystick_text.contains("func _input(event: InputEvent)"), "glissement Android suivi même hors du cercle du joystick")
     _check(joystick_text.contains("_send_move_to_controller(_value)"), "vecteur joystick envoyé en continu au contrôleur")
 
     var hud_v3_text := FileAccess.get_file_as_string("res://scripts/ui/hud_mobile_v3.gd")

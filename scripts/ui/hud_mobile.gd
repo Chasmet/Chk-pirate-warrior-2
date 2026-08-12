@@ -64,7 +64,7 @@ func _build_hud() -> void:
     energy_value_label = _value_label(stats_panel, 82, "100 / 100")
     aura_value_label = _value_label(stats_panel, 116, "100 %")
 
-    mission_panel = _panel(Vector2(510, 16), Vector2(680, 106))
+    mission_panel = _panel(Vector2(510, 16), Vector2(680, 138))
     mission_panel.name = "MissionPanel"
     root.add_child(mission_panel)
     mission_title = _label("PORT DES NAUFRAGES", 15)
@@ -72,12 +72,15 @@ func _build_hud() -> void:
     mission_title.position = Vector2(10, 8)
     mission_title.size = Vector2(660, 34)
     mission_panel.add_child(mission_title)
-    mission_text = _label("Sécurise le royaume pour faire apparaître son boss.", 12)
+    # Le titre conserve exactement sa taille. Seule la consigne située dessous
+    # gagne en hauteur et en lisibilité sur un écran de téléphone.
+    mission_text = _label("Sécurise le royaume pour faire apparaître son boss.", 18)
     mission_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     mission_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     mission_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-    mission_text.position = Vector2(10, 45)
-    mission_text.size = Vector2(660, 52)
+    mission_text.position = Vector2(10, 44)
+    mission_text.size = Vector2(660, 86)
+    mission_text.add_theme_constant_override("line_spacing", 3)
     mission_panel.add_child(mission_text)
 
     root.add_child(_action_button("CARTE", "open_map", Vector2(1300, 18), Vector2(92, 56)))

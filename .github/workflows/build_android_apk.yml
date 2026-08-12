@@ -234,6 +234,23 @@ jobs:
             exit "$STATUS"
           fi
 
+      - name: Tester en jeu recul HUD et herbe visible
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 180s godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
+            res://scenes/tests/runtime_grounded_gameplay_test.tscn 2>&1 | tee godot-runtime-mobile.log || STATUS=$?
+          STATUS=${STATUS:-0}
+          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|ÉCHEC RUNTIME" godot-runtime-mobile.log; then
+            exit 5
+          fi
+          if [ "$STATUS" -ne 0 ]; then
+            exit "$STATUS"
+          fi
+          grep -q 'le joystick suit le pouce vers le bas même hors de son cercle' godot-runtime-mobile.log
+          grep -q 'au moins 120 brindilles se trouvent réellement dans le champ de vision du départ' godot-runtime-mobile.log
+          grep -q 'la consigne sous le titre est lisible sur téléphone' godot-runtime-mobile.log
+
       - name: Exporter le véritable APK Android complet
         shell: bash
         env:
