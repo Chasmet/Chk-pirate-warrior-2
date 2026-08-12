@@ -67,6 +67,13 @@ jobs:
           cp project.godot ci_validate/
           cp -R scenes scripts data ci_validate/
           if [ -f default_bus_layout.tres ]; then cp default_bus_layout.tres ci_validate/; fi
+          # Quelques systèmes gameplay préchargent de petits scripts placés dans
+          # assets/ (ex. visuels véhicules). On copie uniquement ces .gd, jamais
+          # les centaines de Mo de GLB/audio.
+          while IFS= read -r -d '' file; do
+            mkdir -p "ci_validate/$(dirname "$file")"
+            cp "$file" "ci_validate/$file"
+          done < <(find assets -type f -name '*.gd' -print0)
           python3 - <<'PY'
           from pathlib import Path
           p = Path('ci_validate/project.godot')
