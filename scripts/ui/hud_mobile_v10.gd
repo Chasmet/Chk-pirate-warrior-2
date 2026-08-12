@@ -17,6 +17,11 @@ func _ensure_level_progress_widgets() -> void:
     if stats_panel == null or xp_bar != null:
         return
 
+    if hero_label != null:
+        hero_label.name = "HeroNameLabel"
+    if level_label != null:
+        level_label.name = "LevelLabel"
+
     xp_caption = _label("XP", 12)
     xp_caption.name = "XpCaption"
     stats_panel.add_child(xp_caption)
@@ -57,7 +62,7 @@ func _refresh_progression_labels() -> void:
     if level_label == null:
         return
 
-    var max_level := int(GameState.MAX_PLAYER_LEVEL) if "MAX_PLAYER_LEVEL" in GameState else 50
+    var max_level := 50
     level_label.text = "NIVEAU %d / %d" % [GameState.level, max_level]
 
     if xp_bar == null:
