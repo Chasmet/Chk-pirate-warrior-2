@@ -81,6 +81,7 @@ func _spawn_arrival_grass(center: Vector3, size: Vector2, info: Dictionary, blad
             var patch_index := int(i / blades_per_patch)
             var side := -1.0 if patch_index % 2 == 0 else 1.0
             var near_port_patch := patch_index < 16 and not troubled
+            var near_initial_spawn_patch := patch_index >= 16 and patch_index < 32 and not troubled
             var roadside_patch := patch_index % 3 != 2
             var x_offset := 0.0
             var z_offset := 0.0
@@ -90,6 +91,12 @@ func _spawn_arrival_grass(center: Vector3, size: Vector2, info: Dictionary, blad
                 # visibles dès l'arrivée, au lieu de dépendre du tirage aléatoire.
                 x_offset = side * rng.randf_range(11.0, 31.0)
                 z_offset = rng.randf_range(size.y * 0.415, size.y * 0.455)
+            elif near_initial_spawn_patch:
+                # Une nouvelle partie valide conserve aussi le héros au centre
+                # du premier royaume. Cette seconde couronne garantit que les
+                # brindilles sont visibles dans ce cas, constaté par le test CI.
+                x_offset = side * rng.randf_range(11.0, 31.0)
+                z_offset = rng.randf_range(-34.0, 34.0)
             else:
                 x_offset = side * (
                     rng.randf_range(10.5, 30.0)
