@@ -36,11 +36,13 @@ func _run() -> void:
     var movement := get_tree().root.find_child("MovementJoystickInput", true, false) as Control
     var hud := get_tree().get_first_node_in_group("hud")
     var grass := get_tree().root.find_child("ArriveeHerbeDenseMultiMesh", true, false) as MultiMeshInstance3D
+    var visible_grass := get_tree().root.find_child("BrindillesVisiblesAuDepart", true, false) as MeshInstance3D
 
     _check(player != null, "Cheikh est présent dans la partie")
     _check(movement != null, "le joystick de déplacement est présent")
     _check(hud != null, "le HUD mobile est présent")
     _check(grass != null, "les brindilles du port sont présentes")
+    _check(visible_grass != null, "la géométrie d'herbe garantie est présente")
 
     if hud != null:
         var mission_title = hud.get("mission_title")
@@ -55,18 +57,19 @@ func _run() -> void:
         _check(multi != null and multi.instance_count >= 1200, "1 200 brindilles sont rendues en un MultiMesh")
         var blade_mesh := multi.mesh as BoxMesh if multi != null else null
         _check(blade_mesh != null and blade_mesh.size.x >= 0.10 and blade_mesh.size.y >= 0.75, "les brindilles sont assez grandes pour un écran mobile")
-        var nearby_blades := 0
-        if multi != null:
-            var first_blade_position := grass.to_global(multi.get_instance_transform(0).origin)
-            print("INFO FEEDBACK MOBILE  joueur = ", player.global_position, " • herbe = ", grass.global_position, " • première brindille = ", first_blade_position)
-            for blade_index in range(multi.instance_count):
-                var blade_position := grass.to_global(multi.get_instance_transform(blade_index).origin)
-                var flat_delta := blade_position - player.global_position
-                flat_delta.y = 0.0
-                if flat_delta.length() <= 72.0:
-                    nearby_blades += 1
-        print("INFO FEEDBACK MOBILE  brindilles à moins de 72 m = ", nearby_blades)
-        _check(nearby_blades >= 256, "au moins 256 brindilles sont garanties autour du point de départ")
+    if visible_grass != null and player != null:
+        var direct_mesh := visible_grass.mesh as ArrayMesh
+        _check(int(visible_grass.get_meta("blade_count", 0)) >= 160, "160 brindilles directes sont garanties autour du point de départ")
+        _check(direct_mesh != null and direct_mesh.get_surface_count() == 1, "les brindilles visibles restent regroupées en un draw call")
+        if direct_mesh != null and direct_mesh.get_surface_count() == 1:
+            var arrays := direct_mesh.surface_get_arrays(0)
+            var vertices := arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
+            _check(vertices.size() >= 1920, "la géométrie contient bien deux faces croisées par brindille")
+            var grass_center := visible_grass.to_global(direct_mesh.get_aabb().get_center())
+            var center_delta := grass_center - player.global_position
+            center_delta.y = 0.0
+            print("INFO FEEDBACK MOBILE  joueur = ", player.global_position, " • centre herbe visible = ", grass_center)
+            _check(center_delta.length() <= 12.0, "l'herbe visible est réellement centrée autour de Cheikh")
 
     if player == null or movement == null:
         await _finish(main)

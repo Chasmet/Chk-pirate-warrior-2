@@ -49,6 +49,7 @@ func _initialize() -> void:
     _check(vegetation.contains("ArriveeHerbeDenseMultiMesh"), "herbe dense visible près de l'arrivée")
     _check(vegetation.contains("arrival_grass_blade_budget := 1200"), "densité d'herbe suffisante sans draw calls multiples")
     _check(vegetation.contains("blade_mesh.size = Vector3(0.11, 0.78, 0.065)"), "brindilles assez larges et hautes pour un écran mobile")
+    _check(vegetation.contains("BrindillesVisiblesAuDepart"), "géométrie directe garantie même si le pilote Android perd les transforms MultiMesh")
     _check(visuals.contains("soil_patch"), "terrain enrichi de variations de sol")
     _check(project.contains("anti_aliasing/quality/msaa_3d=1"), "anticrénelage mobile 2x activé")
 

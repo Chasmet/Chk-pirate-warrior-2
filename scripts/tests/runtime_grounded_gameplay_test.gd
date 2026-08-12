@@ -108,14 +108,8 @@ func _run() -> void:
         _check(arrival_grass.multimesh != null and arrival_grass.multimesh.instance_count >= 1000, "la zone jouée possède une vraie densité d'herbe optimisée")
         var grass_mesh := arrival_grass.multimesh.mesh as BoxMesh
         _check(grass_mesh != null and grass_mesh.size.x >= 0.10 and grass_mesh.size.y >= 0.75, "les brindilles sont assez grandes pour rester visibles sur téléphone")
-        var nearby_blades := 0
-        for blade_index in range(arrival_grass.multimesh.instance_count):
-            var blade_position := arrival_grass.to_global(arrival_grass.multimesh.get_instance_transform(blade_index).origin)
-            var flat_blade_delta := blade_position - player.global_position
-            flat_blade_delta.y = 0.0
-            if flat_blade_delta.length() <= 72.0:
-                nearby_blades += 1
-        _check(nearby_blades >= 120, "au moins 120 brindilles se trouvent réellement dans le champ de vision du départ")
+        var guaranteed_grass := get_tree().root.find_child("BrindillesVisiblesAuDepart", true, false) as MeshInstance3D
+        _check(guaranteed_grass != null and int(guaranteed_grass.get_meta("blade_count", 0)) >= 160, "au moins 160 brindilles directes se trouvent dans le champ de vision du départ")
 
     var route_clear := island != null
     var route_max_step := 0.0

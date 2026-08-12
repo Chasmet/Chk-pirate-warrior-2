@@ -142,6 +142,72 @@ func _spawn_arrival_grass(center: Vector3, size: Vector2, info: Dictionary, blad
     grass.visibility_range_end = 340.0
     grass.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
     _root.add_child(grass)
+    if not troubled:
+        _spawn_guaranteed_visible_grass(player_reference, info)
+
+func _spawn_guaranteed_visible_grass(player_reference: Vector3, info: Dictionary) -> void:
+    # Sur l'export Android Godot 4.4, certains pilotes renvoient les transforms
+    # du MultiMesh à zéro. Cette géométrie directe garde 160 vraies brindilles
+    # visibles dans un seul mesh/draw call, indépendamment de ce chemin GPU.
+    var blade_count := 160
+    var rng := RandomNumberGenerator.new()
+    rng.seed = 88000 + _current_island * 313
+    var surface := SurfaceTool.new()
+    surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+    var base_color: Color = info.get("color", Color("4f7f4c"))
+    var anchor_in_root := _root.to_local(player_reference)
+
+    for blade_index in range(blade_count):
+        var side_sign := -1.0 if blade_index % 2 == 0 else 1.0
+        # Deux bandes sur les côtés de la place : visibles dès l'arrivée sans
+        # planter d'herbe au milieu du chemin emprunté par Cheikh.
+        var x_offset := side_sign * rng.randf_range(47.0, 59.0)
+        var z_offset := rng.randf_range(-25.0, 25.0)
+        var ground_world := _snap_to_ground(player_reference + Vector3(x_offset, 8.0, z_offset), 0.01)
+        var bottom := _root.to_local(ground_world) - anchor_in_root
+        var height := rng.randf_range(0.72, 1.05)
+        var half_width := rng.randf_range(0.055, 0.09)
+        var yaw := rng.randf_range(0.0, TAU)
+        var direction := Vector3(cos(yaw), 0.0, sin(yaw))
+        var side := direction * half_width
+        var cross_side := Vector3(-direction.z, 0.0, direction.x) * half_width
+        var lean := direction * rng.randf_range(-0.10, 0.10)
+        var visible_green := base_color.lerp(Color("78c35a"), 0.72)
+        var shade := rng.randf_range(-0.08, 0.18)
+        var blade_color := visible_green.lightened(shade) if shade >= 0.0 else visible_green.darkened(-shade)
+        _append_grass_quad(surface, bottom, side, height, lean, blade_color)
+        _append_grass_quad(surface, bottom, cross_side, height, lean, blade_color)
+
+    var mesh := surface.commit()
+    if mesh == null:
+        return
+    var material := StandardMaterial3D.new()
+    material.albedo_color = Color.WHITE
+    material.vertex_color_use_as_albedo = true
+    material.roughness = 1.0
+    material.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+    var visible_grass := MeshInstance3D.new()
+    visible_grass.name = "BrindillesVisiblesAuDepart"
+    visible_grass.mesh = mesh
+    visible_grass.material_override = material
+    visible_grass.position = anchor_in_root
+    visible_grass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    visible_grass.set_meta("blade_count", blade_count)
+    visible_grass.set_meta("player_reference", player_reference)
+    _root.add_child(visible_grass)
+
+func _append_grass_quad(surface: SurfaceTool, bottom: Vector3, side: Vector3, height: float, lean: Vector3, color: Color) -> void:
+    var left_bottom := bottom - side
+    var right_bottom := bottom + side
+    var left_top := left_bottom + Vector3.UP * height + lean
+    var right_top := right_bottom + Vector3.UP * height + lean
+    var normal := side.normalized().cross(Vector3.UP).normalized()
+    var vertices := [left_bottom, right_bottom, right_top, left_bottom, right_top, left_top]
+    for vertex in vertices:
+        surface.set_normal(normal)
+        surface.set_color(color)
+        surface.add_vertex(vertex)
 
 func _spawn_bushes(center: Vector3, size: Vector2, info: Dictionary) -> void:
     var rng := RandomNumberGenerator.new()
