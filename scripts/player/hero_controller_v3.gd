@@ -1,12 +1,17 @@
 class_name HeroControllerV3
 extends "res://scripts/player/hero_controller_v2.gd"
 
+signal basic_attack_used(attack: Dictionary)
+signal special_selection_changed(index: int, ability: Dictionary)
+
 @export var backpedal_rotation_threshold := 0.10
 @export var backpedal_face_speed_multiplier := 2.4
 
 var _mount_pose_active := false
 var _mount_visual_position := Vector3.ZERO
 var _mount_visual_rotation := Vector3.ZERO
+var _selected_special_index := -1
+var _last_known_level := 1
 
 func _ready() -> void:
     move_speed = 8.2
@@ -18,6 +23,12 @@ func _ready() -> void:
     floor_constant_speed = true
     safe_margin = 0.055
     super._ready()
+    _last_known_level = maxi(1, GameState.level)
+    _ensure_combat_slots(true)
+    _apply_level_stats()
+    _select_first_unlocked_special()
+    if not GameState.progression_changed.is_connected(_on_progression_changed):
+        GameState.progression_changed.connect(_on_progression_changed)
 
 func _physics_process(delta: float) -> void:
     # Déplacement caméra-relatif 360°. Toute la moitié basse du joystick produit
@@ -152,45 +163,213 @@ func _normalize_weapon_visual() -> void:
     weapon_node.scale = Vector3.ONE * local_factor
 
 func basic_attack() -> void:
+    var attack := {
+        "id": "base_%s" % str(GameState.selected_hero),
+        "name": str(hero_data.get("base_attack", "Attaque")),
+        "damage": float(hero_data.get("base_attack_damage", 28.0)) * _level_damage_multiplier(),
+        "radius": float(hero_data.get("base_attack_radius", 2.45)),
+        "effect": str(hero_data.get("base_attack_effect", "basic")),
+        "color": str(hero_data.get("base_attack_color", "ffffff")),
+        "unlock_level": 1
+    }
+    print("%s: %s" % [hero_data.get("display_name", "Héros"), attack["name"]])
+    _attack_lock = 0.48
+    _play_attack_animation(str(attack["effect"]))
+    basic_attack_used.emit(attack)
+
     if NetworkManager.is_client():
-        var attack_name := str(hero_data.get("base_attack", "Attaque"))
-        print("%s: %s" % [hero_data.get("display_name", "Héros"), attack_name])
-        _attack_lock = 0.48
-        _play_animation_by_keywords(["attack", "punch", "slash", "hit", "swing"], false)
         NetworkManager.request_combat("basic", -1)
         get_tree().call_group("hero_voice_director", "play_event", "attaque")
         return
 
-    super.basic_attack()
+    _damage_enemies(float(attack["radius"]), float(attack["damage"]))
     if NetworkManager.is_host():
         NetworkManager.host_broadcast_combat("basic", -1, global_position)
     get_tree().call_group("hero_voice_director", "play_event", "attaque")
 
 func use_ability(index: int) -> bool:
+    var actual_index := _resolve_requested_ability_index(index)
+    if actual_index < 0:
+        _show_next_unlock_message()
+        return false
+
+    var abilities: Array = hero_data.get("abilities", [])
+    if actual_index >= abilities.size():
+        return false
+    _ensure_combat_slots(false)
+    if actual_index >= cooldowns.size() or cooldowns[actual_index] > 0.0:
+        return false
+
+    var ability: Dictionary = abilities[actual_index]
+    var unlock_level := maxi(1, int(ability.get("unlock_level", 1)))
+    if GameState.level < unlock_level:
+        _show_hud_message("VERROUILLÉ • NIVEAU %d" % unlock_level, 1.0)
+        return false
+
+    var cost := float(ability.get("energy", 0.0))
+    if energy < cost:
+        _show_hud_message("POUVOIR INSUFFISANT", 0.85)
+        return false
+
     if NetworkManager.is_client():
-        var abilities: Array = hero_data.get("abilities", [])
-        if index < 0 or index >= abilities.size() or cooldowns[index] > 0.0:
-            return false
-        var ability: Dictionary = abilities[index]
-        var cost := float(ability.get("energy", 0.0))
-        if energy < cost:
-            return false
         energy -= cost
-        cooldowns[index] = float(ability.get("cooldown", 1.0))
+        cooldowns[actual_index] = float(ability.get("cooldown", 1.0))
         energy_changed.emit(energy, max_energy)
-        ability_used.emit(index, ability)
+        ability_used.emit(actual_index, ability)
         _attack_lock = 0.65
-        _play_animation_by_keywords(["attack", "skill", "power", "slash", "punch"], false)
-        NetworkManager.request_combat("ability", index)
+        _play_attack_animation(str(ability.get("effect", "power")))
+        NetworkManager.request_combat("ability", actual_index)
         get_tree().call_group("hero_voice_director", "play_event", "attaque")
         return true
 
-    var used := super.use_ability(index)
+    var used := super.use_ability(actual_index)
     if used:
         if NetworkManager.is_host():
-            NetworkManager.host_broadcast_combat("ability", index, global_position)
+            NetworkManager.host_broadcast_combat("ability", actual_index, global_position)
         get_tree().call_group("hero_voice_director", "play_event", "attaque")
     return used
+
+func _apply_ability_effect(_index: int, ability: Dictionary) -> void:
+    var damage := float(ability.get("damage", 0.0)) * _level_damage_multiplier()
+    var radius := maxf(1.0, float(ability.get("radius", 4.0)))
+    _damage_enemies(radius, damage)
+
+func _play_attack_animation(effect: String) -> void:
+    var lower := effect.to_lower()
+    if lower.contains("blade") or lower.contains("crystal") or lower.contains("cerberus"):
+        _play_animation_by_keywords(["slash", "swing", "attack", "skill", "power"], false)
+    else:
+        _play_animation_by_keywords(["power", "skill", "attack", "punch", "hit"], false)
+
+func cycle_special_attack() -> void:
+    var unlocked := _unlocked_special_indices()
+    if unlocked.is_empty():
+        _selected_special_index = -1
+        special_selection_changed.emit(-1, {})
+        _show_next_unlock_message()
+        return
+
+    var position := unlocked.find(_selected_special_index)
+    if position < 0:
+        _selected_special_index = int(unlocked[0])
+    else:
+        _selected_special_index = int(unlocked[(position + 1) % unlocked.size()])
+    var ability := selected_special_attack()
+    special_selection_changed.emit(_selected_special_index, ability)
+    _show_hud_message("SÉLECTION • %s" % str(ability.get("name", "ATTAQUE")), 1.0)
+
+func selected_special_attack() -> Dictionary:
+    var abilities: Array = hero_data.get("abilities", [])
+    if _selected_special_index < 0 or _selected_special_index >= abilities.size():
+        return {}
+    var ability: Dictionary = abilities[_selected_special_index]
+    if GameState.level < int(ability.get("unlock_level", 1)):
+        return {}
+    return ability
+
+func selected_special_index() -> int:
+    return _selected_special_index
+
+func next_attack_unlock_level() -> int:
+    var result := 0
+    var abilities: Array = hero_data.get("abilities", [])
+    for raw_ability in abilities:
+        var ability: Dictionary = raw_ability
+        var unlock_level := int(ability.get("unlock_level", 1))
+        if unlock_level > GameState.level and (result == 0 or unlock_level < result):
+            result = unlock_level
+    return result
+
+func _resolve_requested_ability_index(requested_index: int) -> int:
+    # Le premier bouton spécial déclenche l'attaque actuellement sélectionnée.
+    # ability_2 reste utilisable au clavier/debug pour tester directement la
+    # deuxième capacité sans ajouter de bouton supplémentaire sur mobile.
+    if requested_index == 0:
+        return _selected_special_index
+    return requested_index
+
+func _unlocked_special_indices() -> Array[int]:
+    var result: Array[int] = []
+    var abilities: Array = hero_data.get("abilities", [])
+    for i in range(abilities.size()):
+        var ability: Dictionary = abilities[i]
+        if GameState.level >= int(ability.get("unlock_level", 1)):
+            result.append(i)
+    return result
+
+func _select_first_unlocked_special() -> void:
+    var unlocked := _unlocked_special_indices()
+    _selected_special_index = int(unlocked[0]) if not unlocked.is_empty() else -1
+    special_selection_changed.emit(_selected_special_index, selected_special_attack())
+
+func _ensure_combat_slots(reset_values: bool) -> void:
+    var abilities: Array = hero_data.get("abilities", [])
+    var old_size := cooldowns.size()
+    cooldowns.resize(abilities.size())
+    for i in range(abilities.size()):
+        if reset_values or i >= old_size:
+            cooldowns[i] = 0.0
+
+func _level_damage_multiplier() -> float:
+    var growth := maxf(0.0, float(hero_data.get("damage_growth", 0.02)))
+    return 1.0 + float(maxi(0, GameState.level - 1)) * growth
+
+func _apply_level_stats() -> void:
+    var previous_max_health := maxf(1.0, max_health)
+    var previous_max_energy := maxf(1.0, max_energy)
+    var health_ratio := clampf(health / previous_max_health, 0.0, 1.0)
+    var energy_ratio := clampf(energy / previous_max_energy, 0.0, 1.0)
+    var level_offset := float(maxi(0, GameState.level - 1))
+
+    max_health = float(hero_data.get("base_health", 165.0)) + level_offset * float(hero_data.get("health_per_level", 5.0))
+    max_energy = float(hero_data.get("base_energy", 100.0)) + level_offset * float(hero_data.get("energy_per_level", 1.0))
+    health = clampf(max_health * health_ratio, 0.0, max_health)
+    energy = clampf(max_energy * energy_ratio, 0.0, max_energy)
+    health_changed.emit(health, max_health)
+    energy_changed.emit(energy, max_energy)
+
+func _on_progression_changed() -> void:
+    var new_level := maxi(1, GameState.level)
+    if new_level == _last_known_level:
+        return
+
+    var old_level := _last_known_level
+    _last_known_level = new_level
+    _apply_level_stats()
+    _ensure_combat_slots(false)
+
+    var abilities: Array = hero_data.get("abilities", [])
+    var newly_unlocked: Dictionary = {}
+    for raw_ability in abilities:
+        var ability: Dictionary = raw_ability
+        var unlock_level := int(ability.get("unlock_level", 1))
+        if unlock_level > old_level and unlock_level <= new_level:
+            newly_unlocked = ability
+
+    if _selected_special_index < 0 or selected_special_attack().is_empty():
+        _select_first_unlocked_special()
+
+    if not newly_unlocked.is_empty():
+        _show_hud_message("NOUVELLE ATTAQUE • %s" % str(newly_unlocked.get("name", "ATTAQUE")), 1.8)
+
+func _show_next_unlock_message() -> void:
+    var next_level := next_attack_unlock_level()
+    if next_level > 0:
+        _show_hud_message("PROCHAINE ATTAQUE • NIVEAU %d" % next_level, 1.15)
+    else:
+        _show_hud_message("TOUTES LES ATTAQUES SONT DÉBLOQUÉES", 1.15)
+
+func _show_hud_message(text_value: String, duration: float) -> void:
+    var hud := get_tree().get_first_node_in_group("hud")
+    if hud != null and hud.has_method("show_subtitle"):
+        hud.call("show_subtitle", text_value, duration)
+
+func _on_hero_changed(hero_id: String) -> void:
+    super._on_hero_changed(hero_id)
+    _last_known_level = maxi(1, GameState.level)
+    _ensure_combat_slots(true)
+    _apply_level_stats()
+    _select_first_unlocked_special()
 
 func receive_damage(amount: float) -> void:
     var health_before := health
