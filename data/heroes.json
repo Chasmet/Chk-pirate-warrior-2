@@ -40,30 +40,6 @@
         "effect": "cerberus_triple",
         "color": "ff3b24",
         "description": "Trois frappes successives matérialisent les trois têtes de Cerbère autour de Cheikh."
-      },
-      {
-        "id": "tempete_trois_lames",
-        "name": "Tempête des Trois Lames",
-        "unlock_level": 7,
-        "damage": 96,
-        "energy": 34,
-        "cooldown": 7.0,
-        "radius": 6.8,
-        "effect": "triple_blade_storm",
-        "color": "ff9d2e",
-        "description": "Trois lames d'énergie tournent en tempête et balayent une large zone."
-      },
-      {
-        "id": "jugement_roi_pirate",
-        "name": "Jugement du Roi Pirate",
-        "unlock_level": 10,
-        "damage": 138,
-        "energy": 52,
-        "cooldown": 12.0,
-        "radius": 8.8,
-        "effect": "pirate_judgement",
-        "color": "ffd45a",
-        "description": "Attaque ultime : Cheikh libère toute la puissance de Cerbère dans une onde royale."
       }
     ],
     "backpack_capacity": 30
