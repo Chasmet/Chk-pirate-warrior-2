@@ -176,7 +176,7 @@ func _run() -> void:
             _check(not (runtime_hero_label as Control).get_rect().intersects((runtime_health_bar as Control).get_rect()), "le nom du héros reste séparé de la barre de vie")
         if runtime_mission_title is Control and runtime_mission_text is Control:
             _check(not (runtime_mission_title as Control).get_rect().intersects((runtime_mission_text as Control).get_rect()), "le titre et le texte de mission ne se chevauchent pas")
-            _check((runtime_mission_text as Label).get_theme_font_size("font_size") >= 18, "la consigne sous le titre est lisible sur téléphone")
+            _check((runtime_mission_text as Label).get_theme_font_size("font_size") >= 19, "la consigne sous le titre est lisible sur téléphone")
     if coin_panel != null and edit_toggle != null:
         _check(not coin_panel.get_global_rect().intersects(edit_toggle.get_global_rect()), "MODIFIER reste à côté du compteur de pièces")
     if edit_toggle != null and movement != null:

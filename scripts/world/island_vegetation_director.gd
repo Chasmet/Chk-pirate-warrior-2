@@ -80,13 +80,23 @@ func _spawn_arrival_grass(center: Vector3, size: Vector2, info: Dictionary, blad
         if local_blade == 0:
             var patch_index := int(i / blades_per_patch)
             var side := -1.0 if patch_index % 2 == 0 else 1.0
+            var near_port_patch := patch_index < 16 and not troubled
             var roadside_patch := patch_index % 3 != 2
-            var x_offset := side * (
-                rng.randf_range(10.5, 30.0)
-                if roadside_patch
-                else rng.randf_range(34.0, minf(92.0, size.x * 0.10))
-            )
-            var z_offset := rng.randf_range(size.y * 0.205, size.y * 0.455)
+            var x_offset := 0.0
+            var z_offset := 0.0
+            if near_port_patch:
+                # 16 touffes x 16 brindilles sont garanties autour du spawn
+                # sûr du port (z = 45 % de la longueur + 12 m). Elles sont donc
+                # visibles dès l'arrivée, au lieu de dépendre du tirage aléatoire.
+                x_offset = side * rng.randf_range(11.0, 31.0)
+                z_offset = rng.randf_range(size.y * 0.415, size.y * 0.455)
+            else:
+                x_offset = side * (
+                    rng.randf_range(10.5, 30.0)
+                    if roadside_patch
+                    else rng.randf_range(34.0, minf(92.0, size.x * 0.10))
+                )
+                z_offset = rng.randf_range(size.y * 0.205, size.y * 0.455)
             var plaza_z := size.y * 0.34
             if absf(x_offset) < 47.0 and absf(z_offset - plaza_z) < 38.0:
                 x_offset = side * rng.randf_range(48.0, minf(78.0, size.x * 0.09))

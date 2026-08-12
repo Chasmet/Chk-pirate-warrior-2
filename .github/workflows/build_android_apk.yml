@@ -239,17 +239,15 @@ jobs:
         run: |
           set -o pipefail
           timeout 180s godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
-            res://scenes/tests/runtime_grounded_gameplay_test.tscn 2>&1 | tee godot-runtime-mobile.log || STATUS=$?
+            res://scenes/tests/v10_mobile_feedback_runtime_test.tscn 2>&1 | tee godot-runtime-mobile.log || STATUS=$?
           STATUS=${STATUS:-0}
-          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|ÉCHEC RUNTIME" godot-runtime-mobile.log; then
+          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|ÉCHEC FEEDBACK MOBILE" godot-runtime-mobile.log; then
             exit 5
           fi
           if [ "$STATUS" -ne 0 ]; then
             exit "$STATUS"
           fi
-          grep -q 'le joystick suit le pouce vers le bas même hors de son cercle' godot-runtime-mobile.log
-          grep -q 'au moins 120 brindilles se trouvent réellement dans le champ de vision du départ' godot-runtime-mobile.log
-          grep -q 'la consigne sous le titre est lisible sur téléphone' godot-runtime-mobile.log
+          grep -q 'CHK_PIRATE_WARRIOR_2_V10_MOBILE_FEEDBACK_OK' godot-runtime-mobile.log
 
       - name: Exporter le véritable APK Android complet
         shell: bash

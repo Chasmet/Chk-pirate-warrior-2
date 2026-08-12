@@ -102,9 +102,12 @@ func _layout_v3() -> void:
         mission_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
         mission_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
         mission_title.clip_text = true
-        mission_text.add_theme_font_size_override("font_size", 12)
-        mission_text.position = Vector2(18.0, 62.0)
-        mission_text.size = Vector2(mission_width - 36.0, 92.0)
+        # Le titre reste à 15 px. Seule la consigne demandée est agrandie :
+        # l'ancien override à 12 px annulait la taille lisible du HUD de base.
+        mission_text.add_theme_font_size_override("font_size", 19)
+        mission_text.position = Vector2(18.0, 61.0)
+        mission_text.size = Vector2(mission_width - 36.0, 96.0)
+        mission_text.add_theme_constant_override("line_spacing", 3)
         mission_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
         mission_text.max_lines_visible = 3
         mission_text.text_overrun_behavior = TextServer.OVERRUN_TRIM_WORD_ELLIPSIS

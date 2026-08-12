@@ -11,6 +11,7 @@ func _check(condition: bool, message: String) -> void:
 
 func _initialize() -> void:
     var hud := FileAccess.get_file_as_string("res://scripts/ui/hud_mobile.gd")
+    var hud_v3 := FileAccess.get_file_as_string("res://scripts/ui/hud_mobile_v3.gd")
     var hero := FileAccess.get_file_as_string("res://scripts/player/hero_controller_v3.gd")
     var joystick := FileAccess.get_file_as_string("res://scripts/ui/virtual_joystick.gd")
     var network := FileAccess.get_file_as_string("res://scripts/network/network_manager.gd")
@@ -29,7 +30,8 @@ func _initialize() -> void:
     _check(joystick.contains("response_curve := 0.88"), "réponse analogique progressive et vive")
     _check(joystick.contains("func get_input_value"), "valeur 360 degrés du joystick testable")
     _check(joystick.contains("func _handle_touch_event"), "le doigt reste capturé hors du cercle du joystick")
-    _check(hud.contains("mission_text = _label(\"Sécurise le royaume pour faire apparaître son boss.\", 18)"), "consigne de mission agrandie sans modifier le titre")
+    _check(hud.contains("mission_text = _label(\"Sécurise le royaume pour faire apparaître son boss.\", 19)"), "consigne de mission agrandie sans modifier le titre")
+    _check(hud_v3.contains("mission_text.add_theme_font_size_override(\"font_size\", 19)"), "le HUD V3 ne réduit plus la consigne sur téléphone")
 
     _check(network.contains("PROTOCOL_VERSION := 2"), "protocole coop incompatible avec les anciens paquets incomplets")
     _check(network.contains("func _request_hero_change"), "changement de héros répliqué vers l'hôte")

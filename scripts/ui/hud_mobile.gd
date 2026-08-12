@@ -74,7 +74,7 @@ func _build_hud() -> void:
     mission_panel.add_child(mission_title)
     # Le titre conserve exactement sa taille. Seule la consigne située dessous
     # gagne en hauteur et en lisibilité sur un écran de téléphone.
-    mission_text = _label("Sécurise le royaume pour faire apparaître son boss.", 18)
+    mission_text = _label("Sécurise le royaume pour faire apparaître son boss.", 19)
     mission_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
     mission_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     mission_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
