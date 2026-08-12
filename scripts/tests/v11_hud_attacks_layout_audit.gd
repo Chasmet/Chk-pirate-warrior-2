@@ -76,7 +76,7 @@ func _run() -> void:
                 overlay.call("_resize_selected", -0.10)
             _check(is_equal_approx(float(attack_3.get_meta("layout_scale", 1.0)), 0.40), "taille minimale personnalisable à 40 %")
 
-        GameState.add_xp(400)
+        GameState.add_xp(2000)
         await process_frame
         if attack_3 != null:
             _check(_button_label_text(attack_3).contains("MÉGA"), "attaque 3 révèle son nom après déblocage")
