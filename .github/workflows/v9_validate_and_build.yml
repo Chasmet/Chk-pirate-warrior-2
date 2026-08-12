@@ -66,6 +66,25 @@ jobs:
           for d in assets/royaumes assets/vrac assets/bateaux_glb assets/decors_glb assets/interface assets/audio assets/equipements assets/cc0_rides; do
             if [ -d "$d" ]; then touch "$d/.gdignore"; fi
           done
+          # Le plugin MCP V8 cible Godot 4.7. Le validateur historique du jeu
+          # tourne en 4.4 : on l'exclut uniquement dans le workspace CI afin de
+          # ne pas confondre incompatibilité du plugin et erreur du gameplay.
+          if [ -d addons/godot_mcp ]; then touch addons/godot_mcp/.gdignore; fi
+          if [ -d addons/chk_mcp_relay ]; then touch addons/chk_mcp_relay/.gdignore; fi
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('project.godot')
+          text = p.read_text(encoding='utf-8')
+          marker = '\n[editor_plugins]\n'
+          start = text.find(marker)
+          if start >= 0:
+              end = text.find('\n[', start + len(marker))
+              if end < 0:
+                  text = text[:start].rstrip() + '\n'
+              else:
+                  text = text[:start] + text[end:]
+          p.write_text(text, encoding='utf-8')
+          PY
 
       - name: Parser scripts et scènes V9
         shell: bash
