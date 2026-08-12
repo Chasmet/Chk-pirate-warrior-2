@@ -12,10 +12,10 @@ func _check(condition: bool, message: String) -> void:
         failures.append(message)
         push_error("ÉCHEC V11  %s" % message)
 
-func _find_named(root: Node, node_name: String) -> Node:
-    if str(root.name) == node_name:
-        return root
-    for child in root.get_children():
+func _find_named(root_node: Node, node_name: String) -> Node:
+    if str(root_node.name) == node_name:
+        return root_node
+    for child in root_node.get_children():
         var found := _find_named(child, node_name)
         if found != null:
             return found
@@ -32,14 +32,23 @@ func _button_label_text(control: Node) -> String:
 func _run() -> void:
     await process_frame
 
-    _check(GameState.MAX_PLAYER_LEVEL == 50, "niveau maximum fixé à 50")
-    GameState.new_game("yvane", "aventure")
-    GameState.add_xp(230)
-    _check(GameState.level == 2, "230 XP place Yvane au niveau 2")
-    _check(GameState.xp_to_next_level() == 250, "progression XP vers le niveau suivant calculée précisément")
+    var game_state := root.get_node_or_null("GameState")
+    _check(game_state != null, "autoload GameState disponible")
+    if game_state == null:
+        quit(1)
+        return
+
+    var constants: Dictionary = game_state.get_script().get_script_constant_map()
+    _check(int(constants.get("MAX_PLAYER_LEVEL", 0)) == 50, "niveau maximum fixé à 50")
+
+    game_state.call("new_game", "yvane", "aventure")
+    game_state.call("add_xp", 230)
+    _check(int(game_state.get("level")) == 2, "230 XP place Yvane au niveau 2")
+    _check(int(game_state.call("xp_to_next_level")) == 250, "progression XP vers le niveau suivant calculée précisément")
 
     for hero_id in ["cheikh", "yvane", "nelvyn"]:
-        var hero: Dictionary = GameState.get_hero_data(hero_id)
+        var hero_value = game_state.call("get_hero_data", hero_id)
+        var hero: Dictionary = hero_value if hero_value is Dictionary else {}
         var abilities: Array = hero.get("abilities", [])
         _check(not str(hero.get("base_attack", "")).is_empty(), "%s possède une attaque 1" % hero_id)
         _check(abilities.size() == 2, "%s possède exactement deux attaques supplémentaires" % hero_id)
@@ -76,7 +85,7 @@ func _run() -> void:
                 overlay.call("_resize_selected", -0.10)
             _check(is_equal_approx(float(attack_3.get_meta("layout_scale", 1.0)), 0.40), "taille minimale personnalisable à 40 %")
 
-        GameState.add_xp(2000)
+        game_state.call("add_xp", 2000)
         await process_frame
         if attack_3 != null:
             _check(_button_label_text(attack_3).contains("MÉGA"), "attaque 3 révèle son nom après déblocage")
@@ -91,12 +100,12 @@ func _run() -> void:
         root.add_child(hud)
         await process_frame
         await process_frame
-        var level_label := _find_named(hud, "LevelLabel") as Label
-        var xp_bar := _find_named(hud, "XpProgressBar") as ProgressBar
-        _check(level_label != null, "indicateur de niveau présent")
-        if level_label != null:
-            _check(level_label.text.contains("/ 50"), "niveau maximum 50 visible dans le HUD")
-        _check(xp_bar != null, "barre XP visible dans la fiche du héros")
+        var level_display := _find_named(hud, "LevelLabel") as Label
+        var xp_progress := _find_named(hud, "XpProgressBar") as ProgressBar
+        _check(level_display != null, "indicateur de niveau présent")
+        if level_display != null:
+            _check(level_display.text.contains("/ 50"), "niveau maximum 50 visible dans le HUD")
+        _check(xp_progress != null, "barre XP visible dans la fiche du héros")
         hud.queue_free()
         await process_frame
 
