@@ -58,22 +58,18 @@ jobs:
           sudo ln -sf /tmp/godot/Godot_v4.4-stable_linux.x86_64 /usr/local/bin/godot
           godot --version
 
-      - name: Alléger les imports pour la validation syntaxique
+      - name: Construire le mini-projet gameplay V9
         shell: bash
         run: |
-          mkdir -p /tmp/chk_heavy_assets
-          find . -maxdepth 1 -type f -name '*.glb' -exec mv {} /tmp/chk_heavy_assets/ \;
-          for d in assets/royaumes assets/vrac assets/bateaux_glb assets/decors_glb assets/interface assets/audio assets/equipements assets/cc0_rides; do
-            if [ -d "$d" ]; then touch "$d/.gdignore"; fi
-          done
-          # Le plugin MCP V8 cible Godot 4.7. Le validateur historique du jeu
-          # tourne en 4.4 : on l'exclut uniquement dans le workspace CI afin de
-          # ne pas confondre incompatibilité du plugin et erreur du gameplay.
-          if [ -d addons/godot_mcp ]; then touch addons/godot_mcp/.gdignore; fi
-          if [ -d addons/chk_mcp_relay ]; then touch addons/chk_mcp_relay/.gdignore; fi
+          set -euo pipefail
+          rm -rf ci_validate
+          mkdir -p ci_validate
+          cp project.godot ci_validate/
+          cp -R scenes scripts data ci_validate/
+          if [ -f default_bus_layout.tres ]; then cp default_bus_layout.tres ci_validate/; fi
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('project.godot')
+          p = Path('ci_validate/project.godot')
           text = p.read_text(encoding='utf-8')
           marker = '\n[editor_plugins]\n'
           start = text.find(marker)
@@ -90,10 +86,10 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          timeout 45s godot --headless --path . --editor --quit-after 7 2>&1 | tee v9-godot-validate.log || STATUS=$?
+          timeout 45s godot --headless --path ci_validate --editor --quit-after 7 2>&1 | tee v9-godot-validate.log || STATUS=$?
           STATUS=${STATUS:-0}
           if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|Parser Error" v9-godot-validate.log; then
-            echo 'Erreur Godot détectée dans la V9.'
+            echo 'Erreur Godot détectée dans le gameplay V9.'
             exit 3
           fi
           if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
@@ -104,7 +100,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          godot --headless --path . --script res://scripts/tests/v9_combat_progression_audit.gd 2>&1 | tee v9-combat-audit.log
+          godot --headless --path ci_validate --script res://scripts/tests/v9_combat_progression_audit.gd 2>&1 | tee v9-combat-audit.log
           grep -q 'CHK_PIRATE_WARRIOR_2_V9_COMBAT_PROGRESSION_OK' v9-combat-audit.log
 
       - name: Vérifier intégration mobile et coop
