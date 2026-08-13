@@ -1,0 +1,153 @@
+name: V11.1 - Quêtes scénarisées, grottes, dialogues et auras
+
+on:
+  push:
+    branches:
+      - agent/v11-1-story-quests-dialogues-auras
+    paths:
+      - 'project.godot'
+      - 'scenes/**'
+      - 'scripts/**'
+      - 'data/**'
+      - '.github/workflows/v11_1_validate_and_build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  validate-v11-1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Récupérer V11.1
+        uses: actions/checkout@v4
+
+      - name: Vérifier JSON et règles de progression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m json.tool data/heroes.json >/dev/null
+          python3 -m json.tool data/island_quests.json >/dev/null
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          heroes = json.loads(Path('data/heroes.json').read_text(encoding='utf-8'))
+          quests = json.loads(Path('data/island_quests.json').read_text(encoding='utf-8'))
+          assert len(quests) == 11
+          for hero_id in ('cheikh','yvane','nelvyn'):
+              abilities = heroes[hero_id]['abilities']
+              assert len(abilities) == 2
+              assert abilities[0]['unlock_level'] == 20
+              assert abilities[1]['unlock_level'] == 30
+              assert abilities[1]['damage'] > abilities[0]['damage']
+              assert abilities[1]['radius'] > abilities[0]['radius']
+              assert heroes[hero_id].get('aura_style')
+          for island in range(1,12):
+              q = quests[str(island)]
+              for field in ('npc_name','dialogue_intro','dialogue_active','dialogue_return','dialogue_done','location_name','location_hint'):
+                  assert q.get(field), (island, field)
+              assert q.get('location_type') == 'cave'
+          print('V11.1 JSON OK: attaques 20/30, 11 PNJ, 11 grottes et dialogues')
+          PY
+
+      - name: Installer Godot 4.4 stable
+        shell: bash
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip -O /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.4-stable_linux.x86_64
+          sudo ln -sf /tmp/godot/Godot_v4.4-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Construire mini-projet V11.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf ci_validate
+          mkdir -p ci_validate
+          cp project.godot ci_validate/
+          cp -R scenes scripts data ci_validate/
+          if [ -f default_bus_layout.tres ]; then cp default_bus_layout.tres ci_validate/; fi
+          while IFS= read -r -d '' file; do
+            mkdir -p "ci_validate/$(dirname "$file")"
+            cp "$file" "ci_validate/$file"
+          done < <(find assets -type f -name '*.gd' -print0)
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('ci_validate/project.godot')
+          text = p.read_text(encoding='utf-8')
+          marker = '\n[editor_plugins]\n'
+          start = text.find(marker)
+          if start >= 0:
+              end = text.find('\n[', start + len(marker))
+              text = text[:start].rstrip() + '\n' if end < 0 else text[:start] + text[end:]
+          p.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Parser scripts et scènes V11.1
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 50s godot --headless --path ci_validate --editor --quit-after 8 2>&1 | tee v11-1-godot-validate.log || STATUS=$?
+          STATUS=${STATUS:-0}
+          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|Parser Error" v11-1-godot-validate.log; then
+            echo 'Erreur Godot détectée dans V11.1.'
+            exit 3
+          fi
+          if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
+            exit "$STATUS"
+          fi
+
+      - name: Exécuter audit scénarisation V11.1
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path ci_validate --script res://scripts/tests/v11_1_story_quests_audit.gd 2>&1 | tee v11-1-story-audit.log
+          grep -q 'CHK_PIRATE_WARRIOR_2_V11_1_STORY_QUESTS_OK' v11-1-story-audit.log
+
+      - name: Régression inventaire V10
+        shell: bash
+        run: |
+          set -o pipefail
+          godot --headless --path ci_validate --script res://scripts/tests/v10_quests_inventory_audit.gd 2>&1 | tee v11-1-v10-regression.log
+          grep -q 'CHK_PIRATE_WARRIOR_2_V10_QUESTS_INVENTORY_OK' v11-1-v10-regression.log
+
+      - name: Vérifier câblage quêtes dialogues auras
+        shell: bash
+        run: |
+          grep -q 'hero_controller_v11_1.gd' scenes/main/main.tscn
+          grep -q 'story_quest_director_v11_1.gd' scenes/main/main.tscn
+          grep -q 'hud_mobile_v11_1.gd' scenes/ui/hud_mobile.tscn
+          grep -q 'quest_accepted_' scripts/world/story_quest_director_v11_1.gd
+          grep -q 'remove_item' scripts/world/story_quest_director_v11_1.gd
+          grep -q 'show_quest_dialogue' scripts/ui/hud_mobile_v11_1.gd
+          grep -q 'electric_storm' scripts/player/hero_controller_v11_1.gd
+          grep -q 'crystal_flame' data/heroes.json
+          grep -q 'cerberus_fire' data/heroes.json
+
+      - name: Publier journaux V11.1
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: V11-1-Quetes-Dialogues-Auras-Validation
+          path: |
+            v11-1-godot-validate.log
+            v11-1-story-audit.log
+            v11-1-v10-regression.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  dispatch-full-apk:
+    needs: validate-v11-1
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lancer le workflow APK complet sur V11.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build_android_apk.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF_NAME"
+          echo "Compilation APK complète demandée pour $GITHUB_REF_NAME"
