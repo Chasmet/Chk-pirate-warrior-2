@@ -16,30 +16,34 @@
     "base_attack_radius": 2.9,
     "base_attack_effect": "cerberus_blade",
     "base_attack_color": "ff6b24",
+    "aura_style": "cerberus_fire",
+    "aura_color": "ff6b24",
+    "aura_secondary": "ffcb52",
+    "aura_label": "AURA CERBÈRE",
     "abilities": [
       {
         "id": "epee_isolant",
         "name": "Épée Isolant",
-        "unlock_level": 2,
-        "damage": 54,
-        "energy": 18,
-        "cooldown": 3.0,
-        "radius": 4.2,
+        "unlock_level": 20,
+        "damage": 88,
+        "energy": 25,
+        "cooldown": 4.0,
+        "radius": 5.4,
         "effect": "insulating_blade",
         "color": "60e8ff",
-        "description": "Une lame isolante chargée d'énergie frappe en arc et disperse l'énergie adverse."
+        "description": "Une lame isolante chargée d'énergie forme un large arc électrique autour de Cheikh."
       },
       {
         "id": "triple_morsure_cerbere",
         "name": "Triple Morsure de Cerbère",
-        "unlock_level": 4,
-        "damage": 72,
-        "energy": 26,
-        "cooldown": 5.0,
-        "radius": 5.2,
+        "unlock_level": 30,
+        "damage": 155,
+        "energy": 42,
+        "cooldown": 8.0,
+        "radius": 8.2,
         "effect": "cerberus_triple",
         "color": "ff3b24",
-        "description": "Trois frappes successives matérialisent les trois têtes de Cerbère autour de Cheikh."
+        "description": "Trois têtes de Cerbère frappent successivement puis déclenchent une explosion de feu."
       }
     ],
     "backpack_capacity": 30
@@ -61,30 +65,34 @@
     "base_attack_radius": 4.5,
     "base_attack_effect": "serpentine_lightning",
     "base_attack_color": "55b8ff",
+    "aura_style": "electric_storm",
+    "aura_color": "39bfff",
+    "aura_secondary": "c9f6ff",
+    "aura_label": "AURA FOUDRE",
     "abilities": [
       {
         "id": "eco_sphere",
         "name": "Éco Sphère",
-        "unlock_level": 2,
-        "damage": 58,
-        "energy": 20,
-        "cooldown": 4.0,
-        "radius": 5.0,
+        "unlock_level": 20,
+        "damage": 92,
+        "energy": 28,
+        "cooldown": 5.0,
+        "radius": 6.2,
         "effect": "eco_sphere",
         "color": "43e58b",
-        "description": "Une sphère d'énergie verte se dilate et frappe tous les ennemis proches."
+        "description": "Une sphère d'énergie verte absorbe l'espace proche puis explose en onde circulaire."
       },
       {
         "id": "mega_boule_energie",
         "name": "La Méga Boule d'Énergie",
-        "unlock_level": 5,
-        "damage": 110,
-        "energy": 42,
-        "cooldown": 9.0,
-        "radius": 8.0,
+        "unlock_level": 30,
+        "damage": 180,
+        "energy": 48,
+        "cooldown": 10.0,
+        "radius": 10.0,
         "effect": "mega_energy_ball",
         "color": "66d8ff",
-        "description": "Yvane concentre une énorme boule d'énergie avant de libérer une explosion de grande portée."
+        "description": "Yvane concentre une énorme boule d'énergie électrique avant une explosion de très grande portée."
       }
     ],
     "backpack_capacity": 24
@@ -106,30 +114,34 @@
     "base_attack_radius": 4.2,
     "base_attack_effect": "bing_bang_ball",
     "base_attack_color": "a672ff",
+    "aura_style": "crystal_flame",
+    "aura_color": "9d6dff",
+    "aura_secondary": "ff5a3d",
+    "aura_label": "AURA CRISTAL-FEU",
     "abilities": [
       {
         "id": "boule_feu_supreme",
         "name": "Boule de Feu Suprême",
-        "unlock_level": 2,
-        "damage": 62,
-        "energy": 22,
-        "cooldown": 4.5,
-        "radius": 5.2,
+        "unlock_level": 20,
+        "damage": 96,
+        "energy": 28,
+        "cooldown": 5.5,
+        "radius": 6.4,
         "effect": "supreme_fireball",
         "color": "ff552f",
-        "description": "Une boule de feu concentrée explose autour de Nelvyn et brûle une large zone."
+        "description": "Une boule de feu concentrée explose en plusieurs vagues brûlantes autour de Nelvyn."
       },
       {
         "id": "lame_crystal",
         "name": "La Lame de Crystal",
-        "unlock_level": 5,
-        "damage": 108,
-        "energy": 40,
-        "cooldown": 8.5,
-        "radius": 7.2,
+        "unlock_level": 30,
+        "damage": 170,
+        "energy": 46,
+        "cooldown": 9.5,
+        "radius": 9.0,
         "effect": "crystal_blade",
         "color": "aeeaff",
-        "description": "Une immense lame de crystal surgit dans un éclat d'énergie et traverse les ennemis proches."
+        "description": "Une immense lame de crystal surgit du sol et libère des éclats violets dans toute la zone."
       }
     ],
     "backpack_capacity": 26
