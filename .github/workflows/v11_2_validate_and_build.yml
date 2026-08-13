@@ -27,6 +27,10 @@ jobs:
           grep -q 'network_manager_v11_2.gd' project.godot
           grep -q 'story_quest_item_fix_v11_2.gd' scenes/main/main.tscn
           grep -q 'gameplay_ux_overlay_v11_2.gd' scenes/main/main.tscn
+          grep -q 'V112_INTERACTION_DISTANCE := 6.0' scripts/world/story_quest_director_v11_2.gd
+          grep -q 'savegame_coop_v11_2.json' scripts/systems/game_state_v11_2.gd
+          grep -q '_become_replacement_host' scripts/network/network_manager_v11_2.gd
+          grep -q '_on_replacement_session_discovered' scripts/network/network_manager_v11_2.gd
 
       - name: Installer Godot 4.4
         run: |
@@ -68,3 +72,13 @@ jobs:
             exit 3
           fi
           if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then exit "$STATUS"; fi
+
+  dispatch-full-apk:
+    needs: validate-v11-2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lancer compilation Android complète
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build_android_apk.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
