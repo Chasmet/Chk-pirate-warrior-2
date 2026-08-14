@@ -1,0 +1,131 @@
+name: V11.3 - Interface extrême et stabilité
+
+on:
+  push:
+    branches:
+      - agent/v11-3-extreme-ui-stability
+    paths:
+      - 'project.godot'
+      - 'scenes/**'
+      - 'scripts/**'
+      - '.github/workflows/v11_3_validate_and_build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  validate-v11-3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Récupérer V11.3
+        uses: actions/checkout@v4
+
+      - name: Vérifier câblage personnalisation extrême
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scripts/ui/extreme_ui_customizer_v11_3.gd
+          test -f scripts/ui/mobile_input_overlay_v11_3.gd
+          test -f scripts/ui/hud_mobile_v11_3.gd
+          test -f scripts/ui/gameplay_ux_overlay_v11_3.gd
+          test -f scripts/ui/world_map_runtime_v11_3.gd
+          test -f scripts/v1_30/gameplay_stability_director_v11_3.gd
+          grep -q 'extreme_ui_customizer_v11_3.gd' scenes/main/main.tscn
+          grep -q 'gameplay_stability_director_v11_3.gd' scenes/main/main.tscn
+          grep -q 'gameplay_ux_overlay_v11_3.gd' scenes/main/main.tscn
+          grep -q 'world_map_runtime_v11_3.gd' scenes/main/main.tscn
+          grep -q 'mobile_input_overlay_v11_3.gd' scenes/ui/mobile_input_overlay.tscn
+          grep -q 'hud_mobile_v11_3.gd' scenes/ui/hud_mobile.tscn
+          grep -q 'ui_extreme_v11_3.cfg' scripts/ui/extreme_ui_customizer_v11_3.gd
+          grep -q 'V113_MAX_SCALE := 2.25' scripts/ui/mobile_input_overlay_v11_3.gd
+          grep -q 'runtime_v11_3.log' scripts/v1_30/gameplay_stability_director_v11_3.gd
+          grep -q 'NOTIFICATION_APPLICATION_FOCUS_OUT' scripts/v1_30/gameplay_stability_director_v11_3.gd
+
+      - name: Installer Godot 4.4 stable
+        shell: bash
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip -O /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.4-stable_linux.x86_64
+          sudo ln -sf /tmp/godot/Godot_v4.4-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Construire mini-projet V11.3
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf ci_validate
+          mkdir -p ci_validate
+          cp project.godot ci_validate/
+          cp -R scenes scripts data ci_validate/
+          if [ -f default_bus_layout.tres ]; then cp default_bus_layout.tres ci_validate/; fi
+          while IFS= read -r -d '' file; do
+            mkdir -p "ci_validate/$(dirname "$file")"
+            cp "$file" "ci_validate/$file"
+          done < <(find assets -type f -name '*.gd' -print0)
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('ci_validate/project.godot')
+          text = p.read_text(encoding='utf-8')
+          marker = '\n[editor_plugins]\n'
+          start = text.find(marker)
+          if start >= 0:
+              end = text.find('\n[', start + len(marker))
+              text = text[:start].rstrip() + '\n' if end < 0 else text[:start] + text[end:]
+          p.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Parser scripts et scènes V11.3
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 55s godot --headless --path ci_validate --editor --quit-after 10 2>&1 | tee v11-3-godot.log || STATUS=$?
+          STATUS=${STATUS:-0}
+          if grep -E 'SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|Parser Error' v11-3-godot.log; then
+            echo 'Erreur Godot détectée dans V11.3.'
+            exit 3
+          fi
+          if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
+            exit "$STATUS"
+          fi
+
+      - name: Audit statique stabilité et personnalisation
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'MIN_SCALE := 0.35' scripts/ui/extreme_ui_customizer_v11_3.gd
+          grep -q 'MAX_SCALE := 2.25' scripts/ui/extreme_ui_customizer_v11_3.gd
+          grep -q 'MIN_ALPHA := 0.25' scripts/ui/extreme_ui_customizer_v11_3.gd
+          grep -q '_repair_invalid_player_transform' scripts/v1_30/gameplay_stability_director_v11_3.gd
+          grep -q '_repair_duplicate_ui_layers' scripts/v1_30/gameplay_stability_director_v11_3.gd
+          grep -q '_repair_multiple_active_controllers' scripts/v1_30/gameplay_stability_director_v11_3.gd
+          grep -q '_cancel_mobile_inputs' scripts/v1_30/gameplay_stability_director_v11_3.gd
+          grep -q 'EnemyNavigationPanel' scripts/ui/gameplay_ux_overlay_v11_3.gd
+          grep -q 'MissionNavigationPanel' scripts/ui/gameplay_ux_overlay_v11_3.gd
+          grep -q 'TeamNavigationPanel' scripts/ui/gameplay_ux_overlay_v11_3.gd
+          echo 'CHK_PIRATE_WARRIOR_2_V11_3_UI_STABILITY_OK'
+
+      - name: Publier journal V11.3
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: V11-3-UI-Stability-Validation
+          path: v11-3-godot.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  dispatch-full-apk:
+    needs: validate-v11-3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lancer compilation Android complète
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build_android_apk.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF_NAME"
+          echo "Compilation APK complète demandée pour $GITHUB_REF_NAME"
