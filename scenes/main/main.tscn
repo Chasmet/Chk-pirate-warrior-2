@@ -1,4 +1,4 @@
-[gd_scene load_steps=28 format=3]
+[gd_scene load_steps=29 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/hero_controller_v11_1.gd" id="1_hero"]
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera_v3.gd" id="2_camera"]
@@ -7,23 +7,24 @@
 [ext_resource type="Script" path="res://scripts/world/archipelago_director_v3.gd" id="5_world"]
 [ext_resource type="Script" path="res://scripts/ui/main_menu_runtime.gd" id="6_menu"]
 [ext_resource type="Script" path="res://scripts/world/world_life_director.gd" id="7_life"]
-[ext_resource type="Script" path="res://scripts/ui/world_map_runtime.gd" id="8_map"]
+[ext_resource type="Script" path="res://scripts/ui/world_map_runtime_v11_3.gd" id="8_map"]
 [ext_resource type="Script" path="res://scripts/world/glb_scenery_director.gd" id="9_scenery"]
 [ext_resource type="Script" path="res://scripts/world/coastal_detail_director.gd" id="10_coast"]
 [ext_resource type="Script" path="res://scripts/world/story_quest_item_fix_v11_2.gd" id="11_collectibles"]
 [ext_resource type="Script" path="res://scripts/world/ambient_fauna_director.gd" id="12_fauna"]
 [ext_resource type="Script" path="res://scripts/world/island_context_decor_director.gd" id="13_context"]
-[ext_resource type="Script" path="res://scripts/ui/gameplay_ux_overlay_v11_2.gd" id="14_ux"]
+[ext_resource type="Script" path="res://scripts/ui/gameplay_ux_overlay_v11_3.gd" id="14_ux"]
 [ext_resource type="Script" path="res://scripts/world/island_vehicle_director.gd" id="15_vehicles"]
 [ext_resource type="Script" path="res://scripts/world/island_settlement_director.gd" id="16_settlements"]
 [ext_resource type="Script" path="res://scripts/world/enemy_recovery_service.gd" id="17_enemy_recovery"]
 [ext_resource type="Script" path="res://scripts/world/island_vegetation_director.gd" id="18_vegetation"]
 [ext_resource type="Script" path="res://scripts/world/island_living_theme_director.gd" id="19_living_theme"]
 [ext_resource type="Script" path="res://scripts/audio/hero_voice_director.gd" id="20_voice"]
-[ext_resource type="Script" path="res://scripts/v1_30/gameplay_stability_director.gd" id="21_stability"]
+[ext_resource type="Script" path="res://scripts/v1_30/gameplay_stability_director_v11_3.gd" id="21_stability"]
 [ext_resource type="Script" path="res://scripts/v1_30/combat_hud_v1_30.gd" id="22_combat_hud"]
 [ext_resource type="Script" path="res://scripts/v1_30/attack_fx_v9.gd" id="23_power_fx"]
 [ext_resource type="Script" path="res://scripts/v1_30/kingdom_identity_v1_30.gd" id="24_identity"]
+[ext_resource type="Script" path="res://scripts/ui/extreme_ui_customizer_v11_3.gd" id="25_ui_customizer"]
 [ext_resource type="Script" path="res://scripts/v1_30/roaming_crews_fauna_v1_30.gd" id="26_crews_fauna"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
@@ -104,7 +105,7 @@ script = ExtResource("17_enemy_recovery")
 [node name="HeroVoiceDirector" type="Node" parent="."]
 script = ExtResource("20_voice")
 
-[node name="GameplayStabilityV130" type="Node" parent="."]
+[node name="GameplayStabilityV113" type="Node" parent="."]
 script = ExtResource("21_stability")
 
 [node name="PowerFXV130" type="Node3D" parent="."]
@@ -120,6 +121,9 @@ script = ExtResource("22_combat_hud")
 
 [node name="GameplayUXOverlay" type="CanvasLayer" parent="."]
 script = ExtResource("14_ux")
+
+[node name="ExtremeUICustomizerV113" type="CanvasLayer" parent="."]
+script = ExtResource("25_ui_customizer")
 
 [node name="MobileInputOverlay" parent="." instance=ExtResource("4_touch")]
 
