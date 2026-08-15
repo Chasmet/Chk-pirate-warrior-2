@@ -1,0 +1,30 @@
+name: "⬇️ V11.4 APK — NOUVEAU BUILD"
+run-name: "⬇️ CHK Pirate Warrior 2 V11.4 — APK maintenant"
+
+on:
+  push:
+    branches:
+      - agent/v11-4-coop-identities-quest-relics
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  lancer-compilation-apk:
+    name: "Lancer le compilateur Android V11.4"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Déclencher un nouveau build APK complet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run build_android_apk.yml \
+            --repo Chasmet/Chk-pirate-warrior-2 \
+            --ref agent/v11-4-coop-identities-quest-relics
+          echo "Nouveau build APK V11.4 demandé."
+          echo "# APK V11.4 lancé" >> "$GITHUB_STEP_SUMMARY"
+          echo "Un nouveau run du compilateur Android complet vient d'être créé." >> "$GITHUB_STEP_SUMMARY"
