@@ -22,6 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Déclenchement V11.4 : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           gh workflow run build_android_apk.yml \
             --repo Chasmet/Chk-pirate-warrior-2 \
             --ref agent/v11-4-coop-identities-quest-relics
