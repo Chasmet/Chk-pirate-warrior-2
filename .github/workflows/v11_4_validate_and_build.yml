@@ -1,0 +1,144 @@
+name: V11.4 - Reliques, identités coop et véhicules 3 joueurs
+
+on:
+  push:
+    branches:
+      - agent/v11-4-coop-identities-quest-relics
+    paths:
+      - 'project.godot'
+      - 'scenes/**'
+      - 'scripts/**'
+      - 'data/**'
+      - '.github/workflows/v11_4_validate_and_build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  validate-v11-4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Récupérer V11.4
+        uses: actions/checkout@v4
+
+      - name: Vérifier câblage V11.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f scripts/systems/game_state_v11_4.gd
+          test -f scripts/network/network_manager_v11_4.gd
+          test -f scripts/network/remote_player_avatar_v11_4.gd
+          test -f scripts/player/hero_controller_v11_4.gd
+          test -f scripts/player/island_vehicle_v11_4.gd
+          test -f scripts/world/island_vehicle_director_v11_4.gd
+          test -f scripts/world/story_quest_identity_v11_4.gd
+          grep -q 'game_state_v11_4.gd' project.godot
+          grep -q 'network_manager_v11_4.gd' project.godot
+          grep -q 'hero_controller_v11_4.gd' scenes/main/main.tscn
+          grep -q 'story_quest_identity_v11_4.gd' scenes/main/main.tscn
+          grep -q 'island_vehicle_director_v11_4.gd' scenes/main/main.tscn
+
+      - name: Vérifier les 11 identités de reliques
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '1: {"shape": "ovale", "color": "e53935"' scripts/world/story_quest_identity_v11_4.gd
+          grep -q '2: {"shape": "carre", "color": "1e88e5"' scripts/world/story_quest_identity_v11_4.gd
+          grep -q '3: {"shape": "triangle", "color": "22a447"' scripts/world/story_quest_identity_v11_4.gd
+          grep -q '4: {"shape": "etoile", "color": "f6c945"' scripts/world/story_quest_identity_v11_4.gd
+          grep -q '5: {"shape": "losange", "color": "8e44cf"' scripts/world/story_quest_identity_v11_4.gd
+          grep -q '6: {"shape": "hexagone", "color": "f07c25"' scripts/world/story_quest_identity_v11_4.gd
+          grep -q '7: {"shape": "coeur", "color": "f06292"' scripts/world/story_quest_identity_v11_4.gd
+          grep -q '8: {"shape": "croix", "color": "28d7e5"' scripts/world/story_quest_identity_v11_4.gd
+          grep -q '9: {"shape": "pentagone", "color": "8b5a3c"' scripts/world/story_quest_identity_v11_4.gd
+          grep -q '10: {"shape": "demi_lune", "color": "f4f6f8"' scripts/world/story_quest_identity_v11_4.gd
+          grep -q '11: {"shape": "octogone", "color": "101116"' scripts/world/story_quest_identity_v11_4.gd
+
+      - name: Vérifier identité et coop véhicule
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '"cheikh": "22c55e"' scripts/systems/game_state_v11_4.gd
+          grep -q '"yvane": "ef4444"' scripts/systems/game_state_v11_4.gd
+          grep -q '"nelvyn": "facc15"' scripts/systems/game_state_v11_4.gd
+          grep -q 'PLAYER_ID_PATH' scripts/systems/game_state_v11_4.gd
+          grep -q 'profile_id' scripts/network/network_manager_v11_4.gd
+          grep -q 'coop_session_uid' scripts/network/network_manager_v11_4.gd
+          grep -q 'request_vehicle_interaction' scripts/network/network_manager_v11_4.gd
+          grep -q 'return 3' scripts/player/island_vehicle_v11_4.gd
+          grep -q 'style_key in \["horse", "quad"\]' scripts/player/island_vehicle_v11_4.gd
+          grep -q 'return 1' scripts/player/island_vehicle_v11_4.gd
+
+      - name: Installer Godot 4.4 stable
+        shell: bash
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip -O /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.4-stable_linux.x86_64
+          sudo ln -sf /tmp/godot/Godot_v4.4-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Construire mini-projet V11.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf ci_validate
+          mkdir -p ci_validate
+          cp project.godot ci_validate/
+          cp -R scenes scripts data ci_validate/
+          if [ -f default_bus_layout.tres ]; then cp default_bus_layout.tres ci_validate/; fi
+          while IFS= read -r -d '' file; do
+            mkdir -p "ci_validate/$(dirname "$file")"
+            cp "$file" "ci_validate/$file"
+          done < <(find assets -type f -name '*.gd' -print0)
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('ci_validate/project.godot')
+          text = p.read_text(encoding='utf-8')
+          marker = '\n[editor_plugins]\n'
+          start = text.find(marker)
+          if start >= 0:
+              end = text.find('\n[', start + len(marker))
+              text = text[:start].rstrip() + '\n' if end < 0 else text[:start] + text[end:]
+          p.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Parser scripts et scènes V11.4
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 60s godot --headless --path ci_validate --editor --quit-after 10 2>&1 | tee v11-4-godot.log || STATUS=$?
+          STATUS=${STATUS:-0}
+          if grep -E 'SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|Parser Error' v11-4-godot.log; then
+            echo 'Erreur Godot détectée dans V11.4.'
+            exit 3
+          fi
+          if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
+            exit "$STATUS"
+          fi
+          echo 'CHK_PIRATE_WARRIOR_2_V11_4_VALIDATION_OK'
+
+      - name: Publier journal V11.4
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: V11-4-Coop-Relics-Validation
+          path: v11-4-godot.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  dispatch-full-apk:
+    needs: validate-v11-4
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lancer compilation Android complète
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build_android_apk.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF_NAME"
+          echo "Compilation APK complète demandée pour $GITHUB_REF_NAME"
