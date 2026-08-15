@@ -8,9 +8,9 @@ run/main_scene="res://scenes/main/main.tscn"
 config/icon="res://assets/interface/logo_chk_pirate_warrior_2.png"
 
 [autoload]
-GameState="*res://scripts/systems/game_state_v11_2.gd"
+GameState="*res://scripts/systems/game_state_v11_4.gd"
 AudioDirector="*res://scripts/audio/audio_director.gd"
-NetworkManager="*res://scripts/network/network_manager_v11_2.gd"
+NetworkManager="*res://scripts/network/network_manager_v11_4.gd"
 VisualUpgrade="*res://scripts/world/visual_upgrade.gd"
 
 [audio]
