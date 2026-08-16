@@ -7,6 +7,8 @@ var _shared_vehicle_seat := -1
 
 func setup(id_value: int, hero_value: String, name_value: String) -> void:
     super.setup(id_value, hero_value, name_value)
+    add_to_group("remote_player_avatar")
+    add_to_group("combat_target")
     _rebuild_identity_marker()
 
 func update_identity(hero_value: String, name_value: String) -> void:
