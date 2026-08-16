@@ -1,0 +1,22 @@
+name: Déclencher APK V11.6 IA avancée
+
+on:
+  push:
+    branches:
+      - agent/v11-6-advanced-enemy-ai
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch-full-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lancer le workflow APK complet sur cette branche
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run build_android_apk.yml \
+            --repo "${{ github.repository }}" \
+            --ref "${{ github.ref_name }}"
