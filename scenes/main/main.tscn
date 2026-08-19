@@ -1,4 +1,4 @@
-[gd_scene load_steps=29 format=3]
+[gd_scene load_steps=30 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/hero_controller_v11_4.gd" id="1_hero"]
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera_v3.gd" id="2_camera"]
@@ -26,6 +26,7 @@
 [ext_resource type="Script" path="res://scripts/v1_30/kingdom_identity_v1_30.gd" id="24_identity"]
 [ext_resource type="Script" path="res://scripts/ui/extreme_ui_customizer_v11_3.gd" id="25_ui_customizer"]
 [ext_resource type="Script" path="res://scripts/v1_30/roaming_crews_fauna_v1_30.gd" id="26_crews_fauna"]
+[ext_resource type="Script" path="res://scripts/ui/endgame_trophy_overlay.gd" id="27_endgame"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.38
@@ -132,3 +133,6 @@ script = ExtResource("8_map")
 
 [node name="MainMenu" type="CanvasLayer" parent="."]
 script = ExtResource("6_menu")
+
+[node name="EndgameTrophyOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("27_endgame")
