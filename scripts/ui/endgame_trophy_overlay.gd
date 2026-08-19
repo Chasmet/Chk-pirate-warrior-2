@@ -29,11 +29,11 @@ func _process(delta: float) -> void:
 	if not _end_screen_open or _dragging or _trophy_material == null:
 		return
 	_yaw = fmod(_yaw + _yaw_velocity * delta, TAU)
-	_pitch = clampf(_pitch + _pitch_velocity * delta, -0.72, 0.72)
-	_yaw_velocity = move_toward(_yaw_velocity, 0.0, 3.5 * delta)
-	_pitch_velocity = move_toward(_pitch_velocity, 0.0, 3.2 * delta)
+	_pitch = clampf(_pitch + _pitch_velocity * delta, -0.92, 0.92)
+	_yaw_velocity = move_toward(_yaw_velocity, 0.0, 3.3 * delta)
+	_pitch_velocity = move_toward(_pitch_velocity, 0.0, 3.0 * delta)
 	if absf(_pitch_velocity) < 0.08:
-		_pitch = lerpf(_pitch, 0.0, minf(1.0, 1.1 * delta))
+		_pitch = lerpf(_pitch, 0.0, minf(1.0, 1.05 * delta))
 	_apply_trophy_rotation()
 
 func _build_interface() -> void:
@@ -172,7 +172,6 @@ func _make_button(label: String) -> Button:
 	button.add_theme_color_override("font_color", Color(0.035, 0.035, 0.035, 1.0))
 	button.add_theme_color_override("font_hover_color", Color.BLACK)
 	button.add_theme_color_override("font_pressed_color", Color.BLACK)
-
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = Color(1.0, 0.78, 0.035, 0.98)
 	normal.border_color = Color(0.15, 0.12, 0.03, 1.0)
@@ -182,12 +181,10 @@ func _make_button(label: String) -> Button:
 	normal.shadow_size = 7
 	normal.shadow_offset = Vector2(0.0, 4.0)
 	button.add_theme_stylebox_override("normal", normal)
-
 	var hover := normal.duplicate() as StyleBoxFlat
 	hover.bg_color = Color(1.0, 0.87, 0.15, 1.0)
 	hover.border_color = Color(1.0, 0.93, 0.52, 1.0)
 	button.add_theme_stylebox_override("hover", hover)
-
 	var pressed := normal.duplicate() as StyleBoxFlat
 	pressed.bg_color = Color(0.96, 0.59, 0.02, 1.0)
 	pressed.shadow_size = 2
@@ -208,11 +205,14 @@ void fragment() {
 	float angle = atan(p.y, p.x);
 	float broad = pow(max(0.0, 0.5 + 0.5 * cos(angle * 22.0 - TIME * 0.34)), 5.0);
 	float fine = pow(max(0.0, 0.5 + 0.5 * sin(angle * 44.0 + TIME * 0.72)), 12.0);
+	float sweep = pow(max(0.0, 0.5 + 0.5 * cos(angle * 11.0 + TIME * 0.18)), 10.0);
 	float pulse = 0.68 + 0.32 * sin(TIME * 2.8 - radius * 19.0);
-	float fade = smoothstep(0.74, 0.05, radius) * smoothstep(0.02, 0.16, radius);
-	float strength = (0.20 * broad + 0.32 * fine) * pulse * fade;
-	vec3 red = vec3(1.0, 0.035, 0.012) * strength;
-	COLOR = vec4(red, strength * 0.75);
+	float outer_fade = 1.0 - smoothstep(0.05, 0.74, radius);
+	float inner_fade = smoothstep(0.02, 0.16, radius);
+	float fade = outer_fade * inner_fade;
+	float strength = (0.20 * broad + 0.32 * fine + 0.17 * sweep) * pulse * fade;
+	vec3 red = vec3(1.0, 0.025, 0.008) * strength;
+	COLOR = vec4(red, strength * 0.82);
 }
 """
 	var material := ShaderMaterial.new()
@@ -235,7 +235,7 @@ void fragment() {
 	float radius = length(p);
 	float ray = pow(max(0.0, 0.5 + 0.5 * cos(angle * 22.0 - TIME * 0.28)), 6.0);
 	float pulse = 0.72 + 0.28 * sin(TIME * 2.2 - radius * 16.0);
-	vec3 black_red = mix(vec3(0.008, 0.006, 0.009), vec3(0.30, 0.008, 0.005), ray * pulse);
+	vec3 black_red = mix(vec3(0.008, 0.006, 0.009), vec3(0.34, 0.008, 0.004), ray * pulse);
 	COLOR = vec4(black_red, alpha * 0.98);
 }
 """
@@ -248,7 +248,6 @@ func _make_trophy_material() -> ShaderMaterial:
 	shader.code = """
 shader_type canvas_item;
 render_mode blend_mix;
-
 uniform float yaw = 0.0;
 uniform float pitch = 0.0;
 
@@ -265,11 +264,10 @@ void fragment() {
 	vec2 p = UV - center;
 	float c = cos(yaw);
 	float safe_c = (c < 0.0 ? -1.0 : 1.0) * max(abs(c), 0.105);
-	float sy = max(cos(pitch), 0.62);
+	float sy = max(cos(pitch), 0.56);
 	vec2 src = center;
 	src.x += p.x / safe_c;
-	src.y += (p.y - sin(pitch) * p.x * 0.20) / sy;
-
+	src.y += (p.y - sin(pitch) * p.x * 0.22) / sy;
 	if (src.x < 0.0 || src.x > 1.0 || src.y < 0.0 || src.y > 1.0) {
 		COLOR = vec4(0.0);
 	} else {
@@ -283,9 +281,11 @@ void fragment() {
 		float dark_base = base_area * (1.0 - smoothstep(0.20, 0.38, luma));
 		float plate = base_area * gold;
 		float mask = clamp(max(gold * gold_area, max(dark_base, plate)), 0.0, 1.0);
-		float side = 0.78 + 0.22 * abs(c);
+		float side = 0.74 + 0.26 * abs(c);
+		float sweep = pow(max(0.0, 1.0 - abs(src.x - (0.50 + 0.12 * sin(TIME * 0.8)))), 22.0);
 		vec3 lit = texel.rgb * side;
-		lit += vec3(1.0, 0.52, 0.04) * gold * (1.0 - abs(c)) * 0.23;
+		lit += vec3(1.0, 0.52, 0.04) * gold * (1.0 - abs(c)) * 0.25;
+		lit += vec3(1.0, 0.88, 0.52) * sweep * gold * 0.18;
 		COLOR = vec4(lit, mask * texel.a);
 	}
 }
@@ -310,10 +310,14 @@ void fragment() {
 	float ray_zone = pow(max(0.0, 0.5 + 0.5 * cos(angle * 22.0 - TIME * 0.35)), 7.0);
 	float a = pow(max(0.0, sin((UV.x * 91.0 + UV.y * 53.0) * 3.141592 + TIME * 5.1)), 42.0);
 	float b = pow(max(0.0, sin((UV.x * 37.0 - UV.y * 79.0) * 3.141592 - TIME * 4.2)), 34.0);
-	float sparkle = a * b * smoothstep(0.72, 0.08, radius);
-	float glow = sparkle * (0.40 + 0.60 * ray_zone);
-	vec3 color = mix(vec3(1.0, 0.10, 0.02), vec3(1.0, 0.88, 0.35), sparkle);
-	COLOR = vec4(color * glow * 1.8, glow);
+	float area = 1.0 - smoothstep(0.08, 0.72, radius);
+	float sparkle = a * b * area;
+	float cross_x = pow(max(0.0, 1.0 - abs(fract(UV.x * 19.0 + TIME * 0.07) - 0.5) * 16.0), 5.0);
+	float cross_y = pow(max(0.0, 1.0 - abs(fract(UV.y * 13.0 - TIME * 0.05) - 0.5) * 16.0), 5.0);
+	float stars = cross_x * cross_y * ray_zone * area;
+	float glow = sparkle * (0.40 + 0.60 * ray_zone) + stars * 0.75;
+	vec3 color = mix(vec3(1.0, 0.08, 0.015), vec3(1.0, 0.92, 0.48), clamp(sparkle + stars, 0.0, 1.0));
+	COLOR = vec4(color * glow * 1.95, glow);
 }
 """
 	var material := ShaderMaterial.new()
@@ -324,12 +328,12 @@ func _on_trophy_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		var touch := event as InputEventScreenTouch
 		_dragging = touch.pressed
-		if not _dragging:
-			_drag_area.accept_event()
+		_drag_area.accept_event()
 		return
 	if event is InputEventScreenDrag:
 		var drag := event as InputEventScreenDrag
-		_apply_drag(drag.relative)
+		var scale_factor := 720.0 / maxf(1.0, _frame.size.y)
+		_apply_drag(drag.screen_relative * scale_factor)
 		_drag_area.accept_event()
 		return
 	if event is InputEventMouseButton:
@@ -340,14 +344,15 @@ func _on_trophy_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion and _dragging:
 		var motion := event as InputEventMouseMotion
-		_apply_drag(motion.relative)
+		var mouse_scale := 720.0 / maxf(1.0, _frame.size.y)
+		_apply_drag(motion.relative * mouse_scale)
 		_drag_area.accept_event()
 
 func _apply_drag(relative: Vector2) -> void:
 	_yaw = fmod(_yaw - relative.x * 0.013, TAU)
-	_pitch = clampf(_pitch + relative.y * 0.008, -0.72, 0.72)
+	_pitch = clampf(_pitch + relative.y * 0.0085, -0.92, 0.92)
 	_yaw_velocity = clampf(-relative.x * 0.055, -8.5, 8.5)
-	_pitch_velocity = clampf(relative.y * 0.035, -4.0, 4.0)
+	_pitch_velocity = clampf(relative.y * 0.036, -4.5, 4.5)
 	_apply_trophy_rotation()
 
 func _apply_trophy_rotation() -> void:
