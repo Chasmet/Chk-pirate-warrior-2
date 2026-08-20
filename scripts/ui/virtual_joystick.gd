@@ -23,6 +23,13 @@ func _exit_tree() -> void:
         _send_move_to_controller(Vector2.ZERO)
         _release_movement_actions()
 
+func _notification(what: int) -> void:
+    # Android peut couper un contact sans envoyer le relâchement classique
+    # (changement d'application, verrouillage, appel ou perte de focus).
+    # Remettre l'entrée à zéro évite un héros qui continue à marcher seul.
+    if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
+        cancel_input()
+
 func cancel_input() -> void:
     _touch_id = -1
     _mouse_active = false
@@ -93,6 +100,13 @@ func _mouse_local_position(event_position: Vector2) -> Vector2:
     return _viewport_to_local(event_position)
 
 func _process(_delta: float) -> void:
+    # Si un HUD est masqué pendant qu'un doigt est posé, Android peut ne jamais
+    # envoyer le relâchement. On neutralise alors aussi le vecteur mémorisé.
+    if not is_visible_in_tree():
+        if _touch_id != -1 or _mouse_active or not _value.is_zero_approx():
+            cancel_input()
+        return
+
     if mode == "camera" and _value.length() >= deadzone:
         var rig: Node = get_tree().get_first_node_in_group("camera_rig")
         if rig != null and rig.has_method("apply_joystick_look"):
