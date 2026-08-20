@@ -1,19 +1,24 @@
-name: Compiler APK Android complet
+name: Compiler et auditer APK Android complet
 
 on:
   workflow_dispatch:
   push:
     branches:
+      - agent/v11-8-full-audit-fixes
+      - agent/v11-6-advanced-enemy-ai
       - agent/full-game-rebuild-v1
       - agent/v8-godot47-mcp-phone
+  pull_request:
+    branches:
+      - agent/v11-6-advanced-enemy-ai
 
 permissions:
   contents: read
 
 jobs:
-  build-apk:
+  audit-build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
 
     steps:
       - name: Récupérer le dépôt complet
@@ -31,6 +36,7 @@ jobs:
       - name: Installer Android 34
         shell: bash
         run: |
+          set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager --sdk_root="$ANDROID_HOME" --install \
             'platform-tools' \
@@ -39,35 +45,44 @@ jobs:
             'cmake;3.10.2.4988404' \
             'ndk;23.2.8568313'
 
-      - name: Installer Godot 4.4 et modèles Android
+      - name: Installer Godot 4.7.1 et modèles Android
         shell: bash
         run: |
-          mkdir -p /tmp/godot "$HOME/.local/share/godot/export_templates/4.4.stable"
-          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_linux.x86_64.zip -O /tmp/godot/godot.zip
+          set -euo pipefail
+          GODOT_VERSION='4.7.1'
+          GODOT_TAG="${GODOT_VERSION}-stable"
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p /tmp/godot "$TEMPLATE_DIR"
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" -O /tmp/godot/godot.zip
           unzip -q /tmp/godot/godot.zip -d /tmp/godot/bin
-          chmod +x /tmp/godot/bin/Godot_v4.4-stable_linux.x86_64
-          sudo ln -sf /tmp/godot/bin/Godot_v4.4-stable_linux.x86_64 /usr/local/bin/godot
-          wget -q https://github.com/godotengine/godot/releases/download/4.4-stable/Godot_v4.4-stable_export_templates.tpz -O /tmp/godot/templates.tpz
-          unzip -q -j /tmp/godot/templates.tpz -d "$HOME/.local/share/godot/export_templates/4.4.stable"
+          chmod +x "/tmp/godot/bin/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          sudo ln -sf "/tmp/godot/bin/Godot_v${GODOT_VERSION}-stable_linux.x86_64" /usr/local/bin/godot
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_VERSION}-stable_export_templates.tpz" -O /tmp/godot/templates.tpz
+          unzip -q -j /tmp/godot/templates.tpz -d "$TEMPLATE_DIR"
           godot --version
+          godot --version | grep -q '^4\.7\.1'
 
       - name: Créer la clé Android debug
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p "$HOME/.android"
-          keytool -genkeypair -v \
-            -keystore "$HOME/.android/debug.keystore" \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname 'CN=Android Debug,O=Android,C=US'
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -v \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname 'CN=Android Debug,O=Android,C=US'
+          fi
 
       - name: Configurer Godot Android
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p "$HOME/.config/godot"
-          cat > "$HOME/.config/godot/editor_settings-4.4.tres" <<EOF
+          cat > "$HOME/.config/godot/editor_settings-4.7.tres" <<EOF
           [gd_resource type="EditorSettings" format=3]
 
           [resource]
@@ -86,24 +101,27 @@ jobs:
           test -s assets/cc0_rides/horse_quaternius.glb
           ls -lh assets/cc0_rides/*.glb
 
-      - name: Construire le projet d'export AVEC TOUS LES ASSETS
+      - name: Construire le projet de validation complet
         shell: bash
         run: |
           set -euo pipefail
           rm -rf ci_export artifact
           mkdir -p ci_export artifact
-          cp project.godot export_presets.cfg ci_export/
-          cp -R scenes scripts data assets ci_export/
+
+          cp project.godot export_presets.cfg default_bus_layout.tres ci_export/
+          cp -R scenes scripts data assets addons ci_export/
           cp 'joueur 1 cheikh anime.glb' ci_export/
           cp 'Yvane_anime_Godot_Draco.glb' ci_export/
           cp 'player_3_Nelvyn_Godot_anime (1).glb' ci_export/
 
           echo '===== INVENTAIRE PROJET COMPLET ====='
-          du -sh ci_export/assets
-          echo "GLB: $(find ci_export/assets -type f -iname '*.glb' | wc -l)"
-          echo "OGG: $(find ci_export/assets/audio -type f -iname '*.ogg' | wc -l)"
+          test -s ci_export/default_bus_layout.tres
+          test -d ci_export/addons
           test "$(find ci_export/assets/royaumes -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 11
+          echo "GLB: $(find ci_export -type f -iname '*.glb' | wc -l)"
+          echo "AUDIO: $(find ci_export/assets/audio -type f \( -iname '*.ogg' -o -iname '*.mp3' -o -iname '*.wav' \) | wc -l)"
           ASSET_MB=$(du -sm ci_export/assets | cut -f1)
+          echo "Assets: ${ASSET_MB} Mo"
           if [ "$ASSET_MB" -lt 100 ]; then
             echo "ERREUR: seulement ${ASSET_MB} Mo d'assets copiés; export incomplet."
             exit 2
@@ -185,8 +203,7 @@ jobs:
               const relative = path.relative(root, file);
               const message = `${relative} | ${String(error)}`;
               broken.push(message);
-              const invalidPath = file + '.invalid';
-              fs.renameSync(file, invalidPath);
+              fs.renameSync(file, file + '.invalid');
               console.warn('GLB isolé:', message);
             }
           }
@@ -203,51 +220,65 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          godot --headless --path "$GITHUB_WORKSPACE/ci_export" --import 2>&1 | tee godot-import.log
-          if grep -E "SCRIPT ERROR:|Parse Error:" godot-import.log; then
-            echo 'Erreur de script détectée pendant import.'
+          godot --headless --path "$GITHUB_WORKSPACE/ci_export" --import 2>&1 | tee "$GITHUB_WORKSPACE/artifact/godot-import.log"
+          if grep -E "SCRIPT ERROR:|Parse Error:|Cannot open file" "$GITHUB_WORKSPACE/artifact/godot-import.log"; then
+            echo 'Erreur de script ou ressource détectée pendant import.'
             exit 3
           fi
 
-      - name: Audit strict des 11 royaumes et assets
+      - name: Audit statique complet V11.8
         shell: bash
         run: |
+          set -o pipefail
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
-            --script res://scripts/tests/full_repo_audit.gd
+            --script res://scripts/tests/full_repo_audit.gd 2>&1 | tee "$GITHUB_WORKSPACE/artifact/godot-full-audit.log"
 
-      - name: Vérifier joystick HUD graphismes et coop V9
+      - name: Vérifier joystick HUD graphismes et coop
         shell: bash
         run: |
+          set -o pipefail
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
-            --script res://scripts/tests/v9_mobile_coop_regression_audit.gd
+            --script res://scripts/tests/v9_mobile_coop_regression_audit.gd 2>&1 | tee "$GITHUB_WORKSPACE/artifact/godot-coop-audit.log"
 
       - name: Vérifier le chargement du projet
         shell: bash
         run: |
           set -o pipefail
-          timeout 45s godot --headless --path "$GITHUB_WORKSPACE/ci_export" --editor --quit-after 5 2>&1 | tee godot-smoke.log || STATUS=$?
+          timeout 60s godot --headless --path "$GITHUB_WORKSPACE/ci_export" --editor --quit-after 6 2>&1 | tee "$GITHUB_WORKSPACE/artifact/godot-smoke.log" || STATUS=$?
           STATUS=${STATUS:-0}
-          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access" godot-smoke.log; then
+          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|Cannot open file" "$GITHUB_WORKSPACE/artifact/godot-smoke.log"; then
             exit 4
           fi
           if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
             exit "$STATUS"
           fi
 
+      - name: Audit runtime global V11.8
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 210s godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
+            --script res://scripts/tests/v11_8_runtime_audit.gd 2>&1 | tee "$GITHUB_WORKSPACE/artifact/godot-v11-8-runtime-audit.log" || STATUS=$?
+          STATUS=${STATUS:-0}
+          if [ "$STATUS" -ne 0 ]; then
+            exit "$STATUS"
+          fi
+          grep -q 'CHK_PIRATE_WARRIOR_2_V11_8_RUNTIME_AUDIT_OK' "$GITHUB_WORKSPACE/artifact/godot-v11-8-runtime-audit.log"
+
       - name: Tester en jeu recul HUD et herbe visible
         shell: bash
         run: |
           set -o pipefail
-          timeout 180s godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
-            res://scenes/tests/v10_mobile_feedback_runtime_test.tscn 2>&1 | tee godot-runtime-mobile.log || STATUS=$?
+          timeout 210s godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
+            res://scenes/tests/v10_mobile_feedback_runtime_test.tscn 2>&1 | tee "$GITHUB_WORKSPACE/artifact/godot-runtime-mobile.log" || STATUS=$?
           STATUS=${STATUS:-0}
-          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|ÉCHEC FEEDBACK MOBILE" godot-runtime-mobile.log; then
+          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|ÉCHEC FEEDBACK MOBILE" "$GITHUB_WORKSPACE/artifact/godot-runtime-mobile.log"; then
             exit 5
           fi
           if [ "$STATUS" -ne 0 ]; then
             exit "$STATUS"
           fi
-          grep -q 'CHK_PIRATE_WARRIOR_2_V10_MOBILE_FEEDBACK_OK' godot-runtime-mobile.log
+          grep -q 'CHK_PIRATE_WARRIOR_2_V10_MOBILE_FEEDBACK_OK' "$GITHUB_WORKSPACE/artifact/godot-runtime-mobile.log"
 
       - name: Exporter le véritable APK Android complet
         shell: bash
@@ -256,19 +287,20 @@ jobs:
           GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
           GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
+          set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/ci_export/build/android"
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
             --export-debug Android \
-            "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_FULL_unsigned.apk" \
-            --verbose
-          test -s "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_FULL_unsigned.apk"
+            "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V11_8_AUDIT_unsigned.apk" \
+            --verbose 2>&1 | tee "$GITHUB_WORKSPACE/artifact/godot-export.log"
+          test -s "$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V11_8_AUDIT_unsigned.apk"
 
       - name: Aligner signer et vérifier l'APK
         shell: bash
         run: |
           set -euo pipefail
-          SOURCE_APK="$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_FULL_unsigned.apk"
-          FINAL_APK="$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_FULL.apk"
+          SOURCE_APK="$GITHUB_WORKSPACE/ci_export/build/android/CHK_Pirate_Warrior_2_V11_8_AUDIT_unsigned.apk"
+          FINAL_APK="$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_V11_8_AUDIT.apk"
           ZIPALIGN="$ANDROID_HOME/build-tools/34.0.0/zipalign"
           APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
           "$ZIPALIGN" -f -p 4 "$SOURCE_APK" "$GITHUB_WORKSPACE/artifact/aligned.apk"
@@ -284,20 +316,25 @@ jobs:
           echo "APK final: ${APK_MB} Mo"
           if [ "$APK_MB" -lt 70 ]; then
             echo 'ERREUR: APK anormalement petit; les assets complets ne sont probablement pas embarqués.'
-            exit 5
+            exit 6
           fi
-          sha256sum "$FINAL_APK" | tee artifact/SHA256.txt
+          sha256sum "$FINAL_APK" | tee "$GITHUB_WORKSPACE/artifact/SHA256.txt"
 
       - name: Publier APK complet et rapports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: CHK-Pirate-Warrior-2-FULL-APK
+          name: CHK-Pirate-Warrior-2-V11-8-AUDIT
           path: |
-            artifact/CHK_Pirate_Warrior_2_FULL.apk
+            artifact/CHK_Pirate_Warrior_2_V11_8_AUDIT.apk
             artifact/SHA256.txt
             artifact/GLB_BROKEN.txt
-            godot-import.log
-            godot-smoke.log
+            artifact/godot-import.log
+            artifact/godot-full-audit.log
+            artifact/godot-coop-audit.log
+            artifact/godot-smoke.log
+            artifact/godot-v11-8-runtime-audit.log
+            artifact/godot-runtime-mobile.log
+            artifact/godot-export.log
           if-no-files-found: warn
           retention-days: 30
