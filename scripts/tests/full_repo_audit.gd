@@ -11,6 +11,7 @@ func _initialize() -> void:
     _audit_project_resources()
     _audit_loadable_tree("res://scripts")
     _audit_loadable_tree("res://scenes")
+    _audit_loadable_tree("res://addons")
     _audit_json_tree("res://data")
     _audit_asset_inventory()
     _finish()
@@ -102,7 +103,10 @@ func _audit_loadable_tree(root_path: String) -> void:
                 var lower := name.to_lower()
                 if lower.ends_with(".gd"):
                     _scripts_checked += 1
-                    _expect(load(path) != null, "Script impossible à charger: %s" % path)
+                    var script_resource := load(path) as Script
+                    _expect(script_resource != null, "Script impossible à charger: %s" % path)
+                    if script_resource != null:
+                        _expect(script_resource.can_instantiate(), "Script invalide / non instanciable: %s" % path)
                 elif lower.ends_with(".tscn") or lower.ends_with(".scn"):
                     _scenes_checked += 1
                     _expect(load(path) != null, "Scène impossible à charger: %s" % path)
@@ -212,7 +216,7 @@ func _count_extension(root_path: String, extension: String) -> int:
 
 func _finish() -> void:
     if _failures.is_empty():
-        print("AUDIT COMPLET V11.8 OK: code, scènes, données, 11 royaumes et assets validés.")
+        print("AUDIT COMPLET V11.8 OK: code, scènes, addons, données, 11 royaumes et assets validés.")
         quit(0)
         return
     for failure in _failures:
