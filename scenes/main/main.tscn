@@ -26,7 +26,7 @@
 [ext_resource type="Script" path="res://scripts/v1_30/kingdom_identity_v1_30.gd" id="24_identity"]
 [ext_resource type="Script" path="res://scripts/ui/extreme_ui_customizer_v11_3.gd" id="25_ui_customizer"]
 [ext_resource type="Script" path="res://scripts/v1_30/roaming_crews_fauna_v1_30.gd" id="26_crews_fauna"]
-[ext_resource type="Script" path="res://scripts/ui/endgame_trophy_overlay.gd" id="27_endgame"]
+[ext_resource type="Script" path="res://scripts/ui/endgame_trophy_overlay_v11_8.gd" id="27_endgame"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.38
