@@ -27,6 +27,15 @@ func _run() -> void:
 
     _audit_core_nodes()
     await _audit_menu_layout()
+
+    # Le menu met volontairement SceneTree.paused=true. Les audits de gameplay
+    # doivent ensuite tester leur propre état et non hériter de cette pause.
+    var menu := root.find_child("MainMenu", true, false)
+    if menu != null:
+        menu.queue_free()
+    await process_frame
+    paused = false
+
     await _audit_hud_layout()
     await _audit_touch_controls()
     await _audit_endgame_overlay()
@@ -162,6 +171,7 @@ func _audit_endgame_overlay() -> void:
     if not end_root is Control:
         return
 
+    _check(not paused, "gameplay actif avant le test de fin")
     GameState.set_quest_value("island_11_boss_sorciere_defeated", true)
     await process_frame
     _check(not (end_root as Control).visible, "première sorcière seule ne déclenche pas la fin")
