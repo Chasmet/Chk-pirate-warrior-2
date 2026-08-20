@@ -85,10 +85,10 @@ func _audit_menu_layout() -> void:
     if cards.size() != 3:
         return
 
-    var choices_rect := choices.get_global_rect()
-    var previous_right := -INF
-    for card in cards:
-        var rect := card.get_global_rect()
+    var choices_rect: Rect2 = choices.get_global_rect()
+    var previous_right: float = -INF
+    for card: Control in cards:
+        var rect: Rect2 = card.get_global_rect()
         _check(rect.size.x >= 200.0, "carte %s suffisamment large" % card.name)
         _check(rect.position.x >= choices_rect.position.x - 2.0, "carte %s ne déborde pas à gauche" % card.name)
         _check(rect.end.x <= choices_rect.end.x + 2.0, "carte %s ne déborde pas à droite" % card.name)
@@ -124,9 +124,10 @@ func _audit_hud_layout() -> void:
     if not (stats is Control and mission is Control and map_panel is Control):
         return
 
-    var viewport_rect := root.get_visible_rect()
-    for control in [stats as Control, mission as Control, map_panel as Control]:
-        var rect := control.get_global_rect()
+    var viewport_rect: Rect2 = root.get_visible_rect()
+    var controls: Array[Control] = [stats as Control, mission as Control, map_panel as Control]
+    for control: Control in controls:
+        var rect: Rect2 = control.get_global_rect()
         _check(_rect_inside(rect, viewport_rect, 3.0), "%s reste dans l'écran" % control.name)
 
     _check(not (stats as Control).get_global_rect().intersects((mission as Control).get_global_rect()), "stats et mission ne se chevauchent pas")
@@ -138,7 +139,7 @@ func _audit_touch_controls() -> void:
     if movement == null:
         return
 
-    var viewport_rect := root.get_visible_rect()
+    var viewport_rect: Rect2 = root.get_visible_rect()
     _check(_rect_inside(movement.get_global_rect(), viewport_rect, 3.0), "joystick dans les limites de l'écran")
 
     var touch := InputEventScreenTouch.new()
