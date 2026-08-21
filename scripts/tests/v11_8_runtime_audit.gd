@@ -1,6 +1,7 @@
 extends SceneTree
 
 var _failures: Array[String] = []
+var _game_state: Node
 
 func _initialize() -> void:
     call_deferred("_run")
@@ -13,7 +14,12 @@ func _check(condition: bool, message: String) -> void:
         push_error("AUDIT V11.8 ÉCHEC • " + message)
 
 func _run() -> void:
-    GameState.new_game("cheikh", "aventure")
+    _game_state = root.get_node_or_null("GameState")
+    _check(_game_state != null, "GameState autoload disponible")
+    if _game_state == null:
+        _finish()
+        return
+    _game_state.call("new_game", "cheikh", "aventure")
     var packed := load("res://scenes/main/main.tscn") as PackedScene
     _check(packed != null, "scène principale chargeable")
     if packed == null:
@@ -173,11 +179,11 @@ func _audit_endgame_overlay() -> void:
         return
 
     _check(not paused, "gameplay actif avant le test de fin")
-    GameState.set_quest_value("island_11_boss_sorciere_defeated", true)
+    _game_state.call("set_quest_value", "island_11_boss_sorciere_defeated", true)
     await process_frame
     _check(not (end_root as Control).visible, "première sorcière seule ne déclenche pas la fin")
 
-    GameState.mark_boss_defeated(11)
+    _game_state.call("mark_boss_defeated", 11)
     await process_frame
     await process_frame
     _check((end_root as Control).visible, "victoire du boss final déclenche l'écran trophée")
@@ -187,9 +193,9 @@ func _audit_endgame_overlay() -> void:
         overlay.call("_continue_game")
     await process_frame
     _check(not paused, "CONTINUE reprend correctement la partie")
-    _check(bool(GameState.get_quest_value("endgame_trophy_seen", false)), "CONTINUE mémorise l'écran final")
+    _check(bool(_game_state.call("get_quest_value", "endgame_trophy_seen", false)), "CONTINUE mémorise l'écran final")
 
-    GameState.new_game("cheikh", "aventure")
+    _game_state.call("new_game", "cheikh", "aventure")
     paused = false
 
 func _rect_inside(rect: Rect2, outer: Rect2, margin: float = 0.0) -> bool:
