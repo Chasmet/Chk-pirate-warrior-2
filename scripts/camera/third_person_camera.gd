@@ -22,6 +22,12 @@ func _ready() -> void:
     _follow_target()
     _apply_rotation()
 
+func _notification(what: int) -> void:
+    # Android peut interrompre un contact tactile sans générer le relâchement.
+    # Sans ce reset, la caméra garde l'ancien index et refuse le prochain doigt.
+    if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
+        _look_touch_id = -1
+
 func _process(_delta: float) -> void:
     _follow_target()
 
