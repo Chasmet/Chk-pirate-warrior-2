@@ -22,6 +22,7 @@ les quêtes et le trophée final. Aucun serveur Render ni route MCP distante mod
 | Moyenne | Caméra potentiellement raccourcie par la collision du héros, vitesse au joystick dépendante du FPS. | Héros exclu du SpringArm, vitesse normalisée, sensibilité/distance/FOV réglables. |
 | Moyenne | Aucun menu global de réglages ni circuit de mise à jour vérifié. | Menu accessible depuis l'accueil et en jeu, réglages persistants, plugin Android Java. |
 | Moyenne | Les captures réelles montrent un HUD trop volumineux, des commandes au centre et deux logos superposés à l'accueil. | HUD par défaut compact, commandes regroupées en bas et à droite, accueil nettoyé, thème marine/turquoise/or. Les dispositions personnalisées restent prioritaires. |
+| Moyenne | Les onze noms de royaumes se superposaient dans la mini-carte compacte. | Repères espacés et légende du royaume courant dans la miniature ; les noms restent sur la grande carte. |
 | Moyenne | La capture globale du joystick pouvait traverser le menu de réglages en coop ; la touche pause pouvait être traitée deux fois. | Contacts ignorés pendant les réglages et un seul traitement de la touche pause. |
 | Moyenne | Les plugins MCP de l'éditeur pouvaient être emportés dans l'APK. | Conservés dans le projet source et exclus du circuit d'export V12. |
 
@@ -79,6 +80,17 @@ Les captures ont ensuite guidé la réduction de l'encombrement du HUD. La CI co
 dans la zone centrale, le bouton pause et le blocage du joystick derrière les réglages.
 L'alignement ZIP et ELF à 16 Ko est contrôlé avant signature, conformément à la
 [documentation Android](https://developer.android.com/guide/practices/page-sizes).
+
+La [compilation finale V12](https://github.com/Chasmet/Chk-pirate-warrior-2/actions/runs/34756950549)
+a également réussi : 176 scripts audités, 65 vérifications ciblées V12, tests hérités,
+122 GLB importés, captures du rendu et APK Android. Les bibliothèques `libgodot_android.so`
+et `libc++_shared.so`, ainsi que leur stockage dans le ZIP, passent le contrôle 16 Ko.
+Les outils Godot signalent encore une à deux ressources non libérées à leur fermeture ;
+les marqueurs de réussite passent, sans erreur de script ou d'accès pendant les tests.
+
+Les [captures réelles de la V12](visuels-v12/README.md) présentent l'accueil, les commandes,
+les réglages et les huit modèles. Elles proviennent d'un rendu logiciel OpenGL en CI,
+et ne constituent pas une mesure des performances sur téléphone.
 
 ## Limite de publication à résoudre
 
