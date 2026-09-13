@@ -9,8 +9,12 @@ static func read_json(path: String) -> Dictionary:
         var file := FileAccess.open(candidate, FileAccess.READ)
         if file == null:
             continue
-        var data = JSON.parse_string(file.get_as_text())
+        var parser := JSON.new()
+        var status := parser.parse(file.get_as_text())
         file.close()
+        if status != OK:
+            continue
+        var data = parser.data
         if data is Dictionary and not data.is_empty():
             return data
     return {}
@@ -30,9 +34,10 @@ static func write_json(path: String, data: Dictionary) -> Error:
         # Never replace a valid backup with an already damaged primary file.
         var previous := FileAccess.open(path, FileAccess.READ)
         if previous != null:
-            var valid = JSON.parse_string(previous.get_as_text())
+            var parser := JSON.new()
+            var parsed := parser.parse(previous.get_as_text())
             previous.close()
-            if valid is Dictionary and not valid.is_empty():
+            if parsed == OK and parser.data is Dictionary and not parser.data.is_empty():
                 status = DirAccess.copy_absolute(path, path + ".bak")
                 if status != OK:
                     return status

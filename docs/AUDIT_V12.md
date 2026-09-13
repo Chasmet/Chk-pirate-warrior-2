@@ -1,4 +1,4 @@
-# Audit CHK Pirate Warrior 2 — 12 septembre 2026
+# Audit CHK Pirate Warrior 2 — 13 septembre 2026
 
 ## Base examinée
 
@@ -21,6 +21,8 @@ les quêtes et le trophée final. Aucun serveur Render ni route MCP distante mod
 | Moyenne | Appels directs répétés aux attaques pouvaient répéter dégâts et effets. | Verrou partagé, une attaque suivante en attente, combo à trois coups. Bonus de troisième coup limité au solo pour conserver l'autorité coop. |
 | Moyenne | Caméra potentiellement raccourcie par la collision du héros, vitesse au joystick dépendante du FPS. | Héros exclu du SpringArm, vitesse normalisée, sensibilité/distance/FOV réglables. |
 | Moyenne | Aucun menu global de réglages ni circuit de mise à jour vérifié. | Menu accessible depuis l'accueil et en jeu, réglages persistants, plugin Android Java. |
+| Moyenne | Les captures réelles montrent un HUD trop volumineux, des commandes au centre et deux logos superposés à l'accueil. | HUD par défaut compact, commandes regroupées en bas et à droite, accueil nettoyé, thème marine/turquoise/or. Les dispositions personnalisées restent prioritaires. |
+| Moyenne | La capture globale du joystick pouvait traverser le menu de réglages en coop ; la touche pause pouvait être traitée deux fois. | Contacts ignorés pendant les réglages et un seul traitement de la touche pause. |
 | Moyenne | Les plugins MCP de l'éditeur pouvaient être emportés dans l'APK. | Conservés dans le projet source et exclus du circuit d'export V12. |
 
 ## Ajouts réels
@@ -65,6 +67,19 @@ pause, attaques et placements dans les onze royaumes. Tous ont passé.
 Les limites de validation Android et la compilation définitive sont rapportées dans les
 Actions V12. Aucun test sur téléphone physique n'a encore été réalisé.
 
+La première compilation GitHub du 13 septembre a réussi : plugin Java debug/release,
+audit complet (173 scripts, 5 scènes, 4 JSON, 119 GLB dans assets, 82 audios, 164 images),
+tests V11.8/V10/V12, captures OpenGL et APK complet avec plugin vérifié dans le manifeste.
+122 GLB au total normalisés dans la copie d'export, en incluant les trois GLB racine et
+les deux montures CC0 téléchargées. Le paquet n'est pas signé : la clé historique
+n'est pas disponible dans la configuration de cette compilation.
+
+Les captures ont ensuite guidé la réduction de l'encombrement du HUD. La CI contrôle
+également la conservation d'une ancienne échelle tactile, l'absence de commandes
+dans la zone centrale, le bouton pause et le blocage du joystick derrière les réglages.
+L'alignement ZIP et ELF à 16 Ko est contrôlé avant signature, conformément à la
+[documentation Android](https://developer.android.com/guide/practices/page-sizes).
+
 ## Limite de publication à résoudre
 
 Les anciens workflows ne conservaient pas leur keystore généré. Aucune clé correspondante
@@ -76,7 +91,7 @@ une version installée depuis un ancien artifact reste un cas à vérifier sépa
 
 ## Points restants
 
-- Valider visuellement et sur un appareil Android les performances, la qualité élevée,
+- Valider sur un appareil Android les performances, la qualité élevée,
   la permission d'installation et le maintien des sauvegardes après remplacement.
 - Le projet contient toujours de nombreuses couches héritées V2 à V11 : elles sont
   conservées pour limiter les régressions, mais augmentent le coût des futures évolutions.

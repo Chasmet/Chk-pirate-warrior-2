@@ -79,7 +79,7 @@ jobs:
           CHK_CAPTURE_DIR: ${{ github.workspace }}/artifact/visuels
         run: |
           set -o pipefail
-          timeout 240 xvfb-run -a godot --path ci_export --rendering-method gl_compatibility --resolution 1280x720 --script res://scripts/tests/v12_visual_capture.gd 2>&1 | tee artifact/visual.log
+          timeout 240 xvfb-run -a godot --path ci_export --audio-driver Dummy --rendering-method gl_compatibility --resolution 1280x720 --script res://scripts/tests/v12_visual_capture.gd 2>&1 | tee artifact/visual.log
           grep -q CHK_V12_VISUAL_CAPTURE_OK artifact/visual.log
           if grep -E 'SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access' artifact/visual.log; then exit 1; fi
       - name: Conserver les captures et les résultats du jeu
@@ -108,7 +108,7 @@ jobs:
           godot --headless --path ci_export --install-android-build-template --export-release Android "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_unsigned.apk" 2>&1 | tee artifact/export.log
           test -s artifact/CHK_Pirate_Warrior_2_unsigned.apk
           python - <<'PY'
-          import zipfile
+          import zipfile, struct
           p='artifact/CHK_Pirate_Warrior_2_unsigned.apk'
           with zipfile.ZipFile(p) as z:
               assert z.testzip() is None
@@ -117,7 +117,18 @@ jobs:
               assert any('libgodot_android.so' in n for n in names)
               assert any('phare_corsaire' in n for n in names)
               assert any('settings_menu' in n for n in names)
+              for name in [n for n in names if n.startswith('lib/arm64-v8a/') and n.endswith('.so')]:
+                  data=z.read(name)
+                  assert data[:5] == b'\x7fELF\x02', name
+                  offset=struct.unpack_from('<Q', data, 32)[0]
+                  stride, count=struct.unpack_from('<HH', data, 54)
+                  for index in range(count):
+                      header=offset+index*stride
+                      if struct.unpack_from('<I', data, header)[0] == 1:
+                          assert struct.unpack_from('<Q', data, header+48)[0] >= 16384, name
+                  print('ELF 16 Ko vérifié :', name)
           PY
+          "$ANDROID_HOME/build-tools/36.1.0/zipalign" -c -P 16 4 artifact/CHK_Pirate_Warrior_2_unsigned.apk
           "$ANDROID_HOME/build-tools/36.1.0/aapt" dump xmltree artifact/CHK_Pirate_Warrior_2_unsigned.apk AndroidManifest.xml > artifact/manifest.txt
           grep -q org.godotengine.plugin.v2.CHKUpdater artifact/manifest.txt
           grep -q REQUEST_INSTALL_PACKAGES artifact/manifest.txt
@@ -142,7 +153,7 @@ jobs:
           CHK_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || 'android' }}
           CHK_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'androiddebugkey' }}
         run: |
-          "$ANDROID_HOME/build-tools/36.1.0/zipalign" -f -p 4 artifact/CHK_Pirate_Warrior_2_unsigned.apk artifact/aligned.apk
+          "$ANDROID_HOME/build-tools/36.1.0/zipalign" -f -P 16 4 artifact/CHK_Pirate_Warrior_2_unsigned.apk artifact/aligned.apk
           "$ANDROID_HOME/build-tools/36.1.0/apksigner" sign --ks /tmp/chk-existing.keystore --ks-key-alias "$CHK_ALIAS" --ks-pass env:CHK_STORE_PASSWORD --key-pass env:CHK_KEY_PASSWORD --out artifact/CHK_Pirate_Warrior_2.apk artifact/aligned.apk
           rm artifact/aligned.apk
           python tools/publish_v12_metadata.py

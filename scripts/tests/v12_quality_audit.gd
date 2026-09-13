@@ -57,6 +57,38 @@ func _run() -> void:
     check(paused, "réglages mettent la partie solo en pause")
     overlay.close()
     check(not paused, "retour reprend la partie solo")
+    Input.action_press("pause_game")
+    await process_frame
+    Input.action_release("pause_game")
+    await process_frame
+    check(paused and overlay.is_open(), "touche pause ouvre les réglages une seule fois")
+    var movement := root.find_child("MovementJoystickInput", true, false) as Control
+    var touch := InputEventScreenTouch.new()
+    touch.index = 91
+    touch.pressed = true
+    touch.position = movement.global_position + movement.size * .5
+    movement._input(touch)
+    var drag := InputEventScreenDrag.new()
+    drag.index = 91
+    drag.position = touch.position + Vector2(0, 80)
+    movement._input(drag)
+    check(movement.get_input_value().is_zero_approx(), "les réglages bloquent les contacts destinés au joystick")
+    Input.action_press("pause_game")
+    await process_frame
+    Input.action_release("pause_game")
+    await process_frame
+    check(not paused and not overlay.is_open(), "touche pause reprend sans double bascule")
+    var touch_overlay := main.get_node("MobileInputOverlay")
+    var layout: ConfigFile = touch_overlay.get("_layout_config")
+    layout.set_value(str(movement.name), "scale", .5)
+    layout.set_value(str(movement.name), "center", Vector2(.2, .7))
+    touch_overlay._layout_controls()
+    check(movement.size.is_equal_approx(Vector2(141, 141)), "ancienne échelle personnalisée du joystick conservée")
+    layout.erase_section(str(movement.name))
+    touch_overlay._layout_controls()
+    var view := Rect2(Vector2(350, 310), Vector2(450, 180))
+    for control in touch_overlay._editable_controls():
+        check(not control.get_global_rect().intersects(view), "centre de l'écran libre : " + str(control.name))
 
     hero.set("_attack_lock", 0.0)
     hero.basic_attack()

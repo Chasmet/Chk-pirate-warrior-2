@@ -37,7 +37,8 @@ func _run() -> void:
     await process_frame
     paused = false
     var hero := get_first_node_in_group("player") as Node3D
-    hero.set_physics_process(false)
+    await create_timer(4.2).timeout
+    await _capture("04-jeu-camera-joueur.png")
     # Le véritable port et ses GLB intégrés, cadrés depuis une caméra de contrôle.
     var scenery := main.get_node("SceneryV12")
     var decoration := scenery.get("_scenery") as Node3D
@@ -49,6 +50,10 @@ func _run() -> void:
     camera.far = 700.0
     camera.current = true
     await _capture("04-port-en-jeu.png")
+    for layer in main.find_children("*", "CanvasLayer", true, false):
+        layer.hide()
+    settings.hide()
+    await _capture("04-port-sans-interface.png")
     # Galerie de géométrie : même importeur et mêmes matériaux que dans le jeu.
     for layer in main.find_children("*", "CanvasLayer", true, false):
         layer.hide()
@@ -72,11 +77,14 @@ func _run() -> void:
         var label := Label3D.new()
         label.text = str(models[i].file).trim_suffix(".glb").replace("_", " ")
         label.font_size = 36
-        label.pixel_size = 0.011
+        label.pixel_size = 0.016
         label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-        label.position = model.position + Vector3(0, 0.2, 4.0)
+        label.position = model.position + Vector3(0, 0.7, 4.0)
         gallery.add_child(label)
-    camera.global_position = gallery.global_position + Vector3(22, 33, 53)
+    camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+    camera.size = 32.0
+    camera.far = 120.0
+    camera.global_position = gallery.global_position + Vector3(8, 20, 30)
     camera.look_at(gallery.global_position + Vector3(0, 2, 0))
     await _capture("05-glb-originaux.png")
     print("CHK_V12_VISUAL_CAPTURE_OK")

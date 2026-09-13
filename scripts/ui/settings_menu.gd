@@ -243,7 +243,7 @@ func _install_update() -> void:
     _native.install()
 
 func _unhandled_input(event: InputEvent) -> void:
-    if event.is_action_pressed("pause_game") or event.is_action_pressed("ui_cancel"):
+    if event.is_action_pressed("ui_cancel"):
         close() if is_open() else open()
         get_viewport().set_input_as_handled()
 

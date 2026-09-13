@@ -605,8 +605,8 @@ func _create_notification_ui() -> void:
     _notification_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
     _notification_label.anchor_left = 0.28
     _notification_label.anchor_right = 0.72
-    _notification_label.anchor_top = 0.17
-    _notification_label.anchor_bottom = 0.25
+    _notification_label.anchor_top = 0.62
+    _notification_label.anchor_bottom = 0.68
     _notification_label.add_theme_font_size_override("font_size", 22)
     _notification_label.add_theme_color_override("font_color", Color.WHITE)
     _notification_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))

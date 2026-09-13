@@ -39,6 +39,9 @@ func get_input_value() -> Vector2:
     return _value
 
 func _input(event: InputEvent) -> void:
+    var settings := get_node_or_null("/root/SettingsMenu")
+    if settings != null and settings.is_open():
+        return
     # Sur Android, _gui_input peut cesser de recevoir InputEventScreenDrag dès
     # que le pouce quitte le rectangle initial du Control. On capture donc ici
     # l'identifiant du doigt et on le suit globalement jusqu'au relâchement.

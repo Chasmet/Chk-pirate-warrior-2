@@ -62,7 +62,25 @@ func _build_menu() -> void:
     var logo_path := "res://assets/interface/logo_chk_pirate_warrior_2.png"
     if ResourceLoader.exists(logo_path):
         logo.texture = load(logo_path)
-    _root.add_child(logo)
+    # Le visuel d'accueil contient déjà le logo ; éviter son doublon superposé.
+    if background.texture == null:
+        _root.add_child(logo)
+    else:
+        logo.free()
+
+    var menu_backing := Panel.new()
+    menu_backing.anchor_left = 0.045
+    menu_backing.anchor_right = 0.40
+    menu_backing.anchor_top = 0.267
+    menu_backing.anchor_bottom = 0.97
+    menu_backing.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _root.add_child(menu_backing)
+    var backing_style := StyleBoxFlat.new()
+    backing_style.bg_color = Color(0.025, 0.06, 0.08, 0.97)
+    backing_style.border_color = Color("436071")
+    backing_style.set_border_width_all(1)
+    backing_style.set_corner_radius_all(14)
+    menu_backing.add_theme_stylebox_override("panel", backing_style)
 
     var panel := VBoxContainer.new()
     panel.anchor_left = 0.06
