@@ -1,0 +1,84 @@
+name: V12 - Preparer la livraison signee
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [work/v12-signed-delivery]
+    paths: ['.github/workflows/v12_prepare_delivery.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  export-validated-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Vérifier la provenance de la compilation complète
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/Chasmet/Chk-pirate-warrior-2/actions/runs/34771359057 > /tmp/chk-source-run.json
+          python - <<'PY'
+          import json
+          run = json.load(open('/tmp/chk-source-run.json'))
+          assert run['conclusion'] == 'success'
+          assert run['head_sha'] == '9857d764a5b10320416d8ec4235e7db405597e76'
+          assert run['head_repository']['full_name'] == 'Chasmet/Chk-pirate-warrior-2'
+          print('Provenance V12.0.5 validée : jeu testé et APK complet compilé.')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: CHK-V12-APK-et-audit
+          run-id: 34771359057
+          github-token: ${{ github.token }}
+          path: artifact
+      - uses: android-actions/setup-android@v3
+      - name: Préparer les outils Android officiels
+        run: |
+          sdkmanager 'build-tools;36.1.0'
+          mkdir -p delivery/tools
+          tar -czf delivery/tools/android-signing-tools.tar.gz -C "$ANDROID_HOME" build-tools/36.1.0
+      - name: Exporter l'APK inchangé en deux parties vérifiables
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          source = Path('artifact/CHK_Pirate_Warrior_2_unsigned.apk')
+          size = source.stat().st_size
+          assert 0 < size < 600 * 1024 * 1024, 'Taille APK inattendue'
+          records = []
+          digest = hashlib.sha256()
+          with source.open('rb') as stream:
+              for index in range(2):
+                  payload = stream.read(300 * 1024 * 1024)
+                  assert payload, 'Partie APK absente'
+                  output = Path(f'delivery/part{index + 1}/apk.part{index + 1}')
+                  output.parent.mkdir(parents=True, exist_ok=True)
+                  output.write_bytes(payload)
+                  digest.update(payload)
+                  records.append({'name': output.name, 'size': len(payload), 'sha256': hashlib.sha256(payload).hexdigest()})
+              assert not stream.read(1), 'APK trop volumineux'
+          manifest = {'schema': 1, 'runId': 34771359057, 'headSha': '9857d764a5b10320416d8ec4235e7db405597e76', 'size': size, 'sha256': digest.hexdigest(), 'parts': records}
+          Path('delivery/tools/provenance.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          print(json.dumps(manifest, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CHK-V12-Delivery-Part1
+          path: delivery/part1
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CHK-V12-Delivery-Part2
+          path: delivery/part2
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CHK-V12-Delivery-Tools
+          path: delivery/tools
+          compression-level: 0
+          retention-days: 7
