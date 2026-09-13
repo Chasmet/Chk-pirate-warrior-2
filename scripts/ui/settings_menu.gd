@@ -79,7 +79,7 @@ func _build() -> void:
     _slider(controls, "Distance caméra", "camera_distance", .85, 1.7, .05)
     _toggle(controls, "Aide à la visée au corps à corps", "aim_assist")
     _toggle(controls, "Vibrations", "vibration")
-    _text(controls, "Effleure le joystick pour marcher. Double enchaînement puis troisième coup renforcé en solo. Le saut peut être préparé juste avant de toucher le sol.\nPersonnalisation des touches et du HUD : bouton ÉDITER dans le jeu.")
+    _text(controls, "Effleure le joystick pour marcher. Double enchaînement puis troisième coup renforcé en solo. Le saut peut être préparé juste avant de toucher le sol.\nPersonnalisation des touches et du HUD : bouton MODIFIER dans le jeu.")
     var audio := _tab(tabs, "SON")
     for pair in [["Musique", "music"], ["Voix des héros", "voice"], ["Effets", "sfx"], ["Ambiance", "ambience"]]:
         _slider(audio, pair[0], pair[1], 0, 1, .05)

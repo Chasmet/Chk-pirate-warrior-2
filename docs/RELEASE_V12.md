@@ -11,6 +11,10 @@ enchaînement de trois coups, correction des collisions de caméra et des placem
 de végétation. Les réglages conservent l'état de pause ; la coop continue pour les
 autres joueurs.
 
+HUD compact et commandes regroupées pour dégager la vue de combat, avec conservation
+des tailles et positions personnalisées. Mini-carte lisible, accueil nettoyé et menus
+marine, turquoise et or. Les réglages bloquent les contacts destinés au joystick.
+
 Sauvegardes JSON atomiques avec copie de secours et récupération après corruption.
 Les chemins de sauvegarde, le package Android et les données précédentes sont conservés.
 Les releases signées sont bloquées si leur certificat diffère de la dernière release.
