@@ -25,18 +25,7 @@ func hero_identity_color_hex(hero_id: String = selected_hero) -> String:
 func hero_identity_color(hero_id: String = selected_hero) -> Color:
     return Color(hero_identity_color_hex(hero_id))
 
-func _write_coop_save() -> void:
-    super._write_coop_save()
-    if not FileAccess.file_exists(COOP_SAVE_PATH):
-        return
-
-    var read_file := FileAccess.open(COOP_SAVE_PATH, FileAccess.READ)
-    if read_file == null:
-        return
-    var parsed = JSON.parse_string(read_file.get_as_text())
-    if not parsed is Dictionary:
-        return
-    var data: Dictionary = parsed
+func _decorate_coop_save(data: Dictionary) -> void:
     data["local_player_profile_id"] = profile_id()
     data["identity_schema"] = 1
 
@@ -48,10 +37,6 @@ func _write_coop_save() -> void:
             var seats = network.call("vehicle_seats_snapshot")
             if seats is Dictionary:
                 data["coop_vehicle_seats"] = seats
-
-    var write_file := FileAccess.open(COOP_SAVE_PATH, FileAccess.WRITE)
-    if write_file != null:
-        write_file.store_string(JSON.stringify(data, "  "))
 
 func _ensure_player_profile_id() -> void:
     if not player_profile_id.is_empty():

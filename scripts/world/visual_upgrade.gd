@@ -117,7 +117,7 @@ func _ensure_environment(root: Node) -> void:
         var world_environment := _find_world_environment(root)
         if world_environment != null and world_environment.environment != null:
             _environment = world_environment.environment
-    if _sun == null:
+    if not is_instance_valid(_sun):
         _sun = _find_sun(root)
     if _environment == null:
         return
@@ -143,8 +143,8 @@ func _ensure_environment(root: Node) -> void:
         _environment.adjustment_contrast = 1.07
         _environment.adjustment_saturation = 1.08
         _environment.fog_sky_affect = 0.54
-    if _sun != null:
-        _sun.shadow_enabled = true
+    if is_instance_valid(_sun):
+        _sun.shadow_enabled = int(GameSettings.get_value("quality")) > 0
         _sun.shadow_bias = 0.035
         _sun.shadow_normal_bias = 1.1
 
@@ -257,7 +257,7 @@ func _enable_prop_shadows(root: Node) -> void:
         _enable_prop_shadows(child)
 
 func _update_atmosphere() -> void:
-    if _sun == null or _environment == null or _sky_material == null:
+    if not is_instance_valid(_sun) or _environment == null or _sky_material == null:
         return
     var daylight := clampf((_sun.light_energy - 0.15) / 1.25, 0.0, 1.0)
     var night_top := Color("071322")

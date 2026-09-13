@@ -28,7 +28,9 @@ func _repair_all() -> void:
 func _notification(what: int) -> void:
     if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
         _cancel_mobile_inputs()
-        GameState.quick_save()
+        var menu := get_tree().root.find_child("MainMenu", true, false)
+        if menu == null or not is_instance_valid(menu.get("_root")) or not menu.get("_root").visible:
+            GameState.quick_save()
         _log_event("APP_SUSPEND", "Entrées tactiles annulées et sauvegarde demandée")
     elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
         _repair_all.call_deferred()

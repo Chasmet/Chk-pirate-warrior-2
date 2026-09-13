@@ -74,8 +74,8 @@ func _rebuild(island_id: int, serial: int) -> void:
     _island_info = WorldCatalog.island(island_id - 1)
     _root = Node3D.new()
     _root.name = "EquipagesEtFauneV130_%02d" % island_id
-    _root.global_position = WorldCatalog.world_positions()[island_id - 1]
     add_child(_root)
+    _root.global_position = WorldCatalog.world_positions()[island_id - 1]
 
     _spawn_shore_parties(island_id)
     _spawn_real_fauna(island_id)

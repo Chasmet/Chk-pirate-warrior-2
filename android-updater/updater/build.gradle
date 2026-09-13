@@ -1,0 +1,14 @@
+plugins { id 'com.android.library' }
+android {
+    namespace 'com.chasmet.chk.updater'
+    compileSdk 34
+    defaultConfig { minSdk 21; targetSdk 34 }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+dependencies {
+    compileOnly files(System.getenv('GODOT_ANDROID_AAR') ?: '../godot.aar')
+    implementation 'androidx.core:core:1.12.0'
+}

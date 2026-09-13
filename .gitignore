@@ -3,3 +3,12 @@ build/
 ci_export/
 artifact/
 *.log
+
+android-updater/.gradle/
+android-updater/**/build/
+android-updater/local.properties
+android/build/
+android/.build_version
+addons/chk_updater/*.aar
+*.keystore
+*.jks

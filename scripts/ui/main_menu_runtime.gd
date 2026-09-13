@@ -66,7 +66,7 @@ func _build_menu() -> void:
     var panel := VBoxContainer.new()
     panel.anchor_left = 0.06
     panel.anchor_right = 0.38
-    panel.anchor_top = 0.33
+    panel.anchor_top = 0.28
     panel.anchor_bottom = 0.92
     panel.add_theme_constant_override("separation", 10)
     _root.add_child(panel)
@@ -81,6 +81,7 @@ func _build_menu() -> void:
     _add_menu_button(panel, "CONTINUER", _continue_game)
     _add_menu_button(panel, "CHOISIR LE HÉROS", _toggle_hero_panel)
     _add_menu_button(panel, "COOP LOCALE WI-FI", _open_multiplayer_panel)
+    _add_menu_button(panel, "RÉGLAGES ET MISES À JOUR", func(): get_node("/root/SettingsMenu").open())
 
     _status = Label.new()
     _status.text = "11 royaumes • solo ou coop locale jusqu'à 3 joueurs • progression sauvegardée"

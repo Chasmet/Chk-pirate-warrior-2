@@ -2,6 +2,7 @@ class_name GameStateV11_2
 extends "res://scripts/systems/game_state_v10.gd"
 
 const COOP_SAVE_PATH := "user://savegame_coop_v11_2.json"
+var _last_coop_disk_write_ms := -5000
 
 func quick_save() -> void:
     if _is_coop_session_active():
@@ -23,21 +24,15 @@ func has_personal_save() -> bool:
     return FileAccess.file_exists(SAVE_PATH) or FileAccess.file_exists("user://savegame.json")
 
 func has_coop_save() -> bool:
-    return FileAccess.file_exists(COOP_SAVE_PATH)
+    return not CHKSaveFiles.read_json(COOP_SAVE_PATH).is_empty()
 
 func load_personal_save() -> bool:
     return super.load_save()
 
 func load_coop_save() -> bool:
-    if not FileAccess.file_exists(COOP_SAVE_PATH):
+    var data := CHKSaveFiles.read_json(COOP_SAVE_PATH)
+    if data.is_empty():
         return false
-    var file := FileAccess.open(COOP_SAVE_PATH, FileAccess.READ)
-    if file == null:
-        return false
-    var parsed = JSON.parse_string(file.get_as_text())
-    if not parsed is Dictionary:
-        return false
-    var data: Dictionary = parsed
 
     var saved_hero := str(data.get("hero", selected_hero))
     if not get_hero_data(saved_hero).is_empty():
@@ -53,7 +48,7 @@ func load_coop_save() -> bool:
 
 func apply_multiplayer_snapshot(data: Dictionary) -> void:
     super.apply_multiplayer_snapshot(data)
-    if _is_coop_session_active():
+    if _is_coop_session_active() and Time.get_ticks_msec() - _last_coop_disk_write_ms >= 5000:
         _write_coop_save()
 
 func save_coop_snapshot() -> void:
@@ -113,6 +108,9 @@ func _write_coop_save() -> void:
         "coop_players": players,
         "coop_saved_at_unix": int(Time.get_unix_time_from_system())
     }
-    var file := FileAccess.open(COOP_SAVE_PATH, FileAccess.WRITE)
-    if file != null:
-        file.store_string(JSON.stringify(data, "  "))
+    _decorate_coop_save(data)
+    if CHKSaveFiles.write_json(COOP_SAVE_PATH, data) == OK:
+        _last_coop_disk_write_ms = Time.get_ticks_msec()
+
+func _decorate_coop_save(_data: Dictionary) -> void:
+    pass
