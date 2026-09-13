@@ -33,6 +33,7 @@ func _connect_network_signals() -> void:
 
 func _build_menu() -> void:
     _root = Control.new()
+    _root.theme = CHKPirateTheme.create()
     _root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     add_child(_root)
 
@@ -55,7 +56,7 @@ func _build_menu() -> void:
     logo.anchor_left = 0.04
     logo.anchor_right = 0.36
     logo.anchor_top = 0.035
-    logo.anchor_bottom = 0.34
+    logo.anchor_bottom = 0.25
     logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     var logo_path := "res://assets/interface/logo_chk_pirate_warrior_2.png"

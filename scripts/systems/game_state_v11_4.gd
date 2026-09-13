@@ -42,15 +42,11 @@ func _ensure_player_profile_id() -> void:
     if not player_profile_id.is_empty():
         return
 
-    if FileAccess.file_exists(PLAYER_ID_PATH):
-        var file := FileAccess.open(PLAYER_ID_PATH, FileAccess.READ)
-        if file != null:
-            var parsed = JSON.parse_string(file.get_as_text())
-            if parsed is Dictionary:
-                var saved := str((parsed as Dictionary).get("player_profile_id", "")).strip_edges()
-                if not saved.is_empty():
-                    player_profile_id = saved
-                    return
+    var existing := CHKSaveFiles.read_json(PLAYER_ID_PATH)
+    var saved := str(existing.get("player_profile_id", "")).strip_edges()
+    if not saved.is_empty():
+        player_profile_id = saved
+        return
 
     var rng := RandomNumberGenerator.new()
     rng.randomize()
@@ -65,6 +61,6 @@ func _ensure_player_profile_id() -> void:
         "player_profile_id": player_profile_id,
         "created_at_unix": int(Time.get_unix_time_from_system())
     }
-    var file := FileAccess.open(PLAYER_ID_PATH, FileAccess.WRITE)
-    if file != null:
-        file.store_string(JSON.stringify(data, "  "))
+    var result := CHKSaveFiles.write_json(PLAYER_ID_PATH, data)
+    if result != OK:
+        push_warning("Identité coop non sauvegardée : %s" % error_string(result))

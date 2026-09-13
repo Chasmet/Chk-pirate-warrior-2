@@ -21,7 +21,7 @@ func load_save() -> bool:
     return super.load_save()
 
 func has_personal_save() -> bool:
-    return FileAccess.file_exists(SAVE_PATH) or FileAccess.file_exists("user://savegame.json")
+    return super.has_save()
 
 func has_coop_save() -> bool:
     return not CHKSaveFiles.read_json(COOP_SAVE_PATH).is_empty()
@@ -55,15 +55,9 @@ func save_coop_snapshot() -> void:
     _write_coop_save()
 
 func coop_save_summary() -> Dictionary:
-    if not FileAccess.file_exists(COOP_SAVE_PATH):
+    var data := CHKSaveFiles.read_json(COOP_SAVE_PATH)
+    if data.is_empty():
         return {}
-    var file := FileAccess.open(COOP_SAVE_PATH, FileAccess.READ)
-    if file == null:
-        return {}
-    var parsed = JSON.parse_string(file.get_as_text())
-    if not parsed is Dictionary:
-        return {}
-    var data: Dictionary = parsed
     return {
         "island": clampi(int(data.get("island", 1)), 1, 11),
         "level": clampi(int(data.get("level", 1)), 1, MAX_PLAYER_LEVEL),

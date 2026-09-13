@@ -25,6 +25,7 @@ func _ready() -> void:
 
 func _build() -> void:
     _trigger = Button.new()
+    _trigger.theme = CHKPirateTheme.create()
     _trigger.name = "OpenSettings"
     _trigger.text = "⚙"
     _trigger.add_theme_font_size_override("font_size", 27)
@@ -41,6 +42,7 @@ func _build() -> void:
     add_child(_fps)
 
     _panel = Control.new()
+    _panel.theme = CHKPirateTheme.create()
     _panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     add_child(_panel)
     var dim := ColorRect.new()
