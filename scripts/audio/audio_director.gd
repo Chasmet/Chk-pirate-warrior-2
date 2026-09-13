@@ -39,6 +39,8 @@ func _ready() -> void:
     _music_bus_index = AudioServer.get_bus_index(MUSIC_BUS_NAME)
     if _music_bus_index >= 0:
         AudioServer.set_bus_volume_db(_music_bus_index, NORMAL_MUSIC_BUS_DB)
+    # Le chargement des bus ne doit pas effacer les volumes enregistrés.
+    GameSettings.apply()
 
     music_player = _new_music_player("MusicPrimary")
     transition_player = _new_music_player("MusicTransition")
@@ -273,14 +275,15 @@ func _update_voice_ducking(delta: float) -> void:
         var voice_player := voice_director.get_node_or_null("PlayableHeroVoice") as AudioStreamPlayer
         voice_playing = voice_player != null and voice_player.playing
     var current_volume := AudioServer.get_bus_volume_db(_music_bus_index)
+    var preferred_volume := linear_to_db(maxf(float(GameSettings.get_value("music")), 0.001))
     if voice_playing:
         # Baisse immédiate de tout le bus Music : les deux lecteurs du fondu
         # sont atténués ensemble et aucune syllabe n'est masquée.
-        AudioServer.set_bus_volume_db(_music_bus_index, VOICE_DUCK_DB)
+        AudioServer.set_bus_volume_db(_music_bus_index, preferred_volume + VOICE_DUCK_DB)
     else:
         AudioServer.set_bus_volume_db(
             _music_bus_index,
-            move_toward(current_volume, NORMAL_MUSIC_BUS_DB, MUSIC_RECOVERY_DB_PER_SECOND * delta)
+            move_toward(current_volume, preferred_volume, MUSIC_RECOVERY_DB_PER_SECOND * delta)
         )
 
 func _find_music_file(folder: String, preferred_stems: Array[String]) -> String:

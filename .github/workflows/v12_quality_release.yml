@@ -1,0 +1,160 @@
+name: V12 - Jeu, GLB, reglages et APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, work/v12-world-updater]
+    paths-ignore: ['docs/**', '**/*.md']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: chk-v12-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  game-and-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GODOT_VERSION: 4.7.1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Vérifier la continuité de signature
+        run: python tools/test_v12_signing.py
+      - uses: android-actions/setup-android@v3
+      - name: SDK correspondant au moteur existant et au plugin Java
+        run: |
+          sdkmanager 'platform-tools' 'platforms;android-34' 'build-tools;34.0.0' 'platforms;android-36' 'build-tools;36.1.0' 'ndk;29.0.14206865'
+      - name: Godot et modèles Android
+        run: |
+          mkdir -p /tmp/godot "$HOME/.local/share/godot/export_templates/4.7.1.stable" artifact
+          curl -fsSL --retry 2 https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/godot/editor.zip
+          unzip -q /tmp/godot/editor.zip -d /tmp/godot
+          chmod +x /tmp/godot/Godot_v4.7.1-stable_linux.x86_64
+          sudo ln -s /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 /usr/local/bin/godot
+          curl -fsSL --retry 2 https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_export_templates.tpz -o /tmp/godot/templates.tpz
+          unzip -q -j /tmp/godot/templates.tpz 'templates/android*' 'templates/version.txt' -d "$HOME/.local/share/godot/export_templates/4.7.1.stable"
+          unzip -q "$HOME/.local/share/godot/export_templates/4.7.1.stable/android_source.zip" -d /tmp/godot/android
+          echo "GODOT_ANDROID_AAR=/tmp/godot/android/libs/debug/godot-lib.template_debug.aar" >> "$GITHUB_ENV"
+      - name: Compiler le plugin natif Java avec Gradle
+        working-directory: android-updater
+        run: |
+          chmod +x gradlew
+          ./gradlew :updater:assembleDebug :updater:assembleRelease --no-daemon
+          cp updater/build/outputs/aar/updater-release.aar ../addons/chk_updater/CHKUpdater.aar
+      - name: Préparer les ressources complètes
+        run: |
+          bash tools/fetch_cc0_ride_assets.sh "$GITHUB_WORKSPACE"
+          python tools/prepare_v12_export.py
+          npm install --prefix /tmp/godot --silent @gltf-transform/core@4 @gltf-transform/extensions@4 @gltf-transform/functions@4 draco3dgltf
+          cp tools/repair_all_glb.mjs /tmp/godot/
+          node /tmp/godot/repair_all_glb.mjs "$GITHUB_WORKSPACE/ci_export" "$GITHUB_WORKSPACE/artifact/GLB_AUDIT.txt"
+          grep -q '^Isolés=0$' artifact/GLB_AUDIT.txt
+      - name: Importer et vérifier les scripts
+        run: |
+          set -o pipefail
+          godot --headless --path ci_export --import 2>&1 | tee artifact/import.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|Cannot open file' artifact/import.log; then exit 1; fi
+      - name: Audit complet et régressions du jeu
+        run: |
+          set -o pipefail
+          godot --headless --path ci_export --script res://scripts/tests/full_repo_audit.gd 2>&1 | tee artifact/audit.log
+          timeout 180 godot --headless --path ci_export --script res://scripts/tests/v11_8_runtime_audit.gd 2>&1 | tee artifact/regression.log
+          grep -q CHK_PIRATE_WARRIOR_2_V11_8_RUNTIME_AUDIT_OK artifact/regression.log
+          timeout 180 godot --headless --path ci_export res://scenes/tests/v10_mobile_feedback_runtime_test.tscn 2>&1 | tee artifact/touch.log
+          grep -q CHK_PIRATE_WARRIOR_2_V10_MOBILE_FEEDBACK_OK artifact/touch.log
+          timeout 180 godot --headless --path ci_export --script res://scripts/tests/v12_quality_audit.gd 2>&1 | tee artifact/v12.log
+          grep -q CHK_V12_QUALITY_AUDIT_OK artifact/v12.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|!is_inside_tree' artifact/{regression,touch,v12}.log; then exit 1; fi
+      - name: Captures du rendu réel
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          CHK_CAPTURE_DIR: ${{ github.workspace }}/artifact/visuels
+        run: |
+          set -o pipefail
+          timeout 240 xvfb-run -a godot --path ci_export --audio-driver Dummy --rendering-method gl_compatibility --resolution 1280x720 --script res://scripts/tests/v12_visual_capture.gd 2>&1 | tee artifact/visual.log
+          grep -q CHK_V12_VISUAL_CAPTURE_OK artifact/visual.log
+          if grep -E 'SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access' artifact/visual.log; then exit 1; fi
+      - name: Conserver les captures et les résultats du jeu
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CHK-V12-Visuels-et-tests
+          path: |
+            artifact/visuels/
+            artifact/*.log
+            artifact/GLB_AUDIT.txt
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Configurer l'export Android
+        run: |
+          mkdir -p "$HOME/.config/godot"
+          cat > "$HOME/.config/godot/editor_settings-4.7.tres" <<EOF
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          EOF
+      - name: Compiler le véritable APK complet via Gradle
+        run: |
+          set -o pipefail
+          godot --headless --path ci_export --install-android-build-template --export-release Android "$GITHUB_WORKSPACE/artifact/CHK_Pirate_Warrior_2_unsigned.apk" 2>&1 | tee artifact/export.log
+          test -s artifact/CHK_Pirate_Warrior_2_unsigned.apk
+          python - <<'PY'
+          import zipfile, struct
+          p='artifact/CHK_Pirate_Warrior_2_unsigned.apk'
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              names=z.namelist()
+              assert 'AndroidManifest.xml' in names and 'classes.dex' in names
+              assert any('libgodot_android.so' in n for n in names)
+              assert any('phare_corsaire' in n for n in names)
+              assert any('settings_menu' in n for n in names)
+              for name in [n for n in names if n.startswith('lib/arm64-v8a/') and n.endswith('.so')]:
+                  data=z.read(name)
+                  assert data[:5] == b'\x7fELF\x02', name
+                  offset=struct.unpack_from('<Q', data, 32)[0]
+                  stride, count=struct.unpack_from('<HH', data, 54)
+                  for index in range(count):
+                      header=offset+index*stride
+                      if struct.unpack_from('<I', data, header)[0] == 1:
+                          assert struct.unpack_from('<Q', data, header+48)[0] >= 16384, name
+                  print('ELF 16 Ko vérifié :', name)
+          PY
+          "$ANDROID_HOME/build-tools/36.1.0/zipalign" -c -P 16 4 artifact/CHK_Pirate_Warrior_2_unsigned.apk
+          "$ANDROID_HOME/build-tools/36.1.0/aapt" dump xmltree artifact/CHK_Pirate_Warrior_2_unsigned.apk AndroidManifest.xml > artifact/manifest.txt
+          grep -q org.godotengine.plugin.v2.CHKUpdater artifact/manifest.txt
+          grep -q REQUEST_INSTALL_PACKAGES artifact/manifest.txt
+      - name: Signer automatiquement avec la clé permanente
+        id: signing
+        env:
+          CHK_SIGNING_BUNDLE: ${{ secrets.CHK_ANDROID_SIGNING }}
+        run: python tools/sign_v12_apk.py
+      - name: Vérifier la signature et le circuit de mise à jour
+        if: steps.signing.outputs.available == 'true'
+        id: release
+        run: python tools/publish_v12_metadata.py
+      - name: Publier dans le circuit de mise à jour
+        if: steps.release.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          gh release create "$RELEASE_TAG" artifact/CHK_Pirate_Warrior_2.apk artifact/update.json artifact/SHA256.txt artifact/SIGNATURE.txt --target "$GITHUB_SHA" --title "CHK Pirate Warrior 2 $RELEASE_TAG" --notes-file artifact/RELEASE_NOTES.md
+      - name: Conserver les preuves de compilation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CHK-V12-APK-et-audit
+          path: artifact/
+          if-no-files-found: warn
+          retention-days: 30

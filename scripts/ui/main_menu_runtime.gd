@@ -33,6 +33,7 @@ func _connect_network_signals() -> void:
 
 func _build_menu() -> void:
     _root = Control.new()
+    _root.theme = CHKPirateTheme.create()
     _root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     add_child(_root)
 
@@ -55,18 +56,36 @@ func _build_menu() -> void:
     logo.anchor_left = 0.04
     logo.anchor_right = 0.36
     logo.anchor_top = 0.035
-    logo.anchor_bottom = 0.34
+    logo.anchor_bottom = 0.25
     logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
     var logo_path := "res://assets/interface/logo_chk_pirate_warrior_2.png"
     if ResourceLoader.exists(logo_path):
         logo.texture = load(logo_path)
-    _root.add_child(logo)
+    # Le visuel d'accueil contient déjà le logo ; éviter son doublon superposé.
+    if background.texture == null:
+        _root.add_child(logo)
+    else:
+        logo.free()
+
+    var menu_backing := Panel.new()
+    menu_backing.anchor_left = 0.045
+    menu_backing.anchor_right = 0.40
+    menu_backing.anchor_top = 0.267
+    menu_backing.anchor_bottom = 0.97
+    menu_backing.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _root.add_child(menu_backing)
+    var backing_style := StyleBoxFlat.new()
+    backing_style.bg_color = Color(0.025, 0.06, 0.08, 0.97)
+    backing_style.border_color = Color("436071")
+    backing_style.set_border_width_all(1)
+    backing_style.set_corner_radius_all(14)
+    menu_backing.add_theme_stylebox_override("panel", backing_style)
 
     var panel := VBoxContainer.new()
     panel.anchor_left = 0.06
     panel.anchor_right = 0.38
-    panel.anchor_top = 0.33
+    panel.anchor_top = 0.28
     panel.anchor_bottom = 0.92
     panel.add_theme_constant_override("separation", 10)
     _root.add_child(panel)
@@ -81,6 +100,7 @@ func _build_menu() -> void:
     _add_menu_button(panel, "CONTINUER", _continue_game)
     _add_menu_button(panel, "CHOISIR LE HÉROS", _toggle_hero_panel)
     _add_menu_button(panel, "COOP LOCALE WI-FI", _open_multiplayer_panel)
+    _add_menu_button(panel, "RÉGLAGES ET MISES À JOUR", func(): get_node("/root/SettingsMenu").open())
 
     _status = Label.new()
     _status.text = "11 royaumes • solo ou coop locale jusqu'à 3 joueurs • progression sauvegardée"

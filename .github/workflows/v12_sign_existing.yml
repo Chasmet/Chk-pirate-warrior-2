@@ -1,0 +1,81 @@
+name: V12 - Signer le jeu valide
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [work/v12-world-updater]
+    paths:
+      - '.github/workflows/v12_sign_existing.yml'
+      - 'android-signing/identity.json'
+      - 'tools/sign_v12_apk.py'
+      - 'tools/publish_v12_metadata.py'
+      - 'tools/test_v12_signing.py'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: chk-v12-signing
+  cancel-in-progress: false
+
+jobs:
+  sign-validated-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Vérifier les gardes de publication
+        run: python tools/test_v12_signing.py
+      - name: Vérifier la provenance du jeu déjà testé
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/Chasmet/Chk-pirate-warrior-2/actions/runs/34756950549 > /tmp/chk-source-run.json
+          python - <<'PY'
+          import json
+          run = json.load(open('/tmp/chk-source-run.json'))
+          assert run['conclusion'] == 'success'
+          assert run['head_sha'] == '33c7e79a9a0871b8d1018c17f820ed9a54b36b6f'
+          assert run['head_repository']['full_name'] == 'Chasmet/Chk-pirate-warrior-2'
+          print('APK V12.0.4 : tests du jeu, rendu et Android déjà réussis.')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: CHK-V12-APK-et-audit
+          run-id: 34756950549
+          github-token: ${{ github.token }}
+          path: artifact
+      - uses: android-actions/setup-android@v3
+      - name: Outils officiels de signature Android
+        run: sdkmanager 'build-tools;36.1.0'
+      - name: Signer avec la clé permanente
+        id: signing
+        env:
+          CHK_SIGNING_BUNDLE: ${{ secrets.CHK_ANDROID_SIGNING }}
+        run: python tools/sign_v12_apk.py
+      - name: Contrôler le certificat et la première installation
+        if: steps.signing.outputs.available == 'true'
+        id: release
+        run: python tools/publish_v12_metadata.py
+      - name: Publier l'APK signé et son manifeste de mise à jour
+        if: steps.release.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          gh release create "$RELEASE_TAG" artifact/CHK_Pirate_Warrior_2.apk artifact/update.json artifact/SHA256.txt artifact/SIGNATURE.txt --target "$GITHUB_SHA" --title "CHK Pirate Warrior 2 $RELEASE_TAG" --notes-file artifact/RELEASE_NOTES.md
+      - name: Résultat de la signature
+        if: always()
+        env:
+          SIGNED: ${{ steps.signing.outputs.available }}
+        run: |
+          if [ "$SIGNED" = 'true' ]; then
+            echo 'APK signé avec la clé permanente et vérifié par les outils Android.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'APK validé prêt. Configuration privée de signature encore absente ; aucune nouvelle clé générée en CI.' >> "$GITHUB_STEP_SUMMARY"
+          fi

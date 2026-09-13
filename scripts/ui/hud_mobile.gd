@@ -31,9 +31,13 @@ func _ready() -> void:
     _connect_player.call_deferred()
 
 func _process(_delta: float) -> void:
-    if Input.is_action_just_pressed("open_inventory"):
+    var settings := get_node_or_null("/root/SettingsMenu")
+    if Input.is_action_just_pressed("open_inventory") and (settings == null or not settings.is_open()):
         toggle_inventory()
     if Input.is_action_just_pressed("pause_game"):
+        if settings != null:
+            settings.close() if settings.is_open() else settings.open()
+            return
         get_tree().paused = not get_tree().paused
         show_subtitle("Jeu en pause" if get_tree().paused else "Reprise", 1.2)
 

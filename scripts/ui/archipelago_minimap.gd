@@ -58,17 +58,26 @@ func _draw() -> void:
     for i in range(WorldCatalog.island_count()):
         _draw_island(i, _map_point(_points[i]))
 
-    var compass := Vector2(size.x - 28.0, 26.0)
-    draw_circle(compass, 14.0, Color(0.02, 0.05, 0.07, 0.72))
-    draw_arc(compass, 14.0, 0.0, TAU, 24, GOLD, 1.5, true)
-    draw_line(compass + Vector2(0, 10), compass + Vector2(0, -10), GOLD_BRIGHT, 1.5)
-    draw_line(compass + Vector2(-10, 0), compass + Vector2(10, 0), GOLD_BRIGHT, 1.5)
-    draw_string(ThemeDB.fallback_font, compass + Vector2(-5, -17), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, GOLD_BRIGHT)
+    var compact := _is_compact()
+    var compass := Vector2(size.x - 20.0, 20.0) if compact else Vector2(size.x - 28.0, 26.0)
+    var compass_radius := 8.0 if compact else 14.0
+    var arm := compass_radius - 3.0
+    draw_circle(compass, compass_radius, Color(0.02, 0.05, 0.07, 0.72))
+    draw_arc(compass, compass_radius, 0.0, TAU, 24, GOLD, 1.5, true)
+    draw_line(compass + Vector2(0, arm), compass + Vector2(0, -arm), GOLD_BRIGHT, 1.5)
+    draw_line(compass + Vector2(-arm, 0), compass + Vector2(arm, 0), GOLD_BRIGHT, 1.5)
+    draw_string(ThemeDB.fallback_font, compass + Vector2(-4, -compass_radius - 3), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 9 if compact else 11, GOLD_BRIGHT)
+    if compact:
+        var current_name := _short_name(str(WorldCatalog.island(GameState.current_island - 1).get("name", "ÎLE")))
+        var caption := "%d · %s" % [GameState.current_island, current_name]
+        var text_width := ThemeDB.fallback_font.get_string_size(caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+        draw_string(ThemeDB.fallback_font, Vector2((size.x - text_width) * 0.5, size.y - 6), caption, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, CURRENT)
 
 func _draw_island(index: int, center: Vector2) -> void:
     var island_id := index + 1
     var info := WorldCatalog.island(index)
-    var radius := 8.0 + float(index % 3) * 1.5
+    var compact := _is_compact()
+    var radius := 4.5 + float(index % 3) * 0.6 if compact else 8.0 + float(index % 3) * 1.5
     var discovered := GameState.discovered_islands.has(island_id)
     var defeated := GameState.is_boss_defeated(island_id)
     var locked := island_id == 11 and not GameState.can_enter_island(11)
@@ -88,19 +97,28 @@ func _draw_island(index: int, center: Vector2) -> void:
     draw_polyline(poly + PackedVector2Array([poly[0]]), GOLD if discovered else Color(0.48, 0.51, 0.52, 0.8), 1.4, true)
 
     if current:
-        draw_arc(center, radius + 7.0, 0.0, TAU, 32, CURRENT, 3.0, true)
-        draw_circle(center, 3.0, Color.WHITE)
-    elif defeated:
+        draw_arc(center, radius + (3.0 if compact else 7.0), 0.0, TAU, 32, CURRENT, 1.8 if compact else 3.0, true)
+        draw_circle(center, 1.8 if compact else 3.0, Color.WHITE)
+    elif defeated and not compact:
         draw_arc(center, radius + 4.0, 0.0, TAU, 28, LIBERATED, 2.0, true)
-    elif discovered and not locked:
+    elif discovered and not locked and not compact:
         draw_arc(center, radius + 4.0, 0.0, TAU, 28, GOLD_BRIGHT, 1.8, true)
 
+    # La miniature indique le royaume courant sous la carte ; les noms de tous
+    # les royaumes restent sur la grande carte accessible par CARTE.
+    if compact:
+        return
     var label := _short_name(str(info.get("name", "ÎLE")))
     var label_pos := center + Vector2(-28.0, radius + 15.0)
     draw_string(ThemeDB.fallback_font, label_pos, label, HORIZONTAL_ALIGNMENT_CENTER, 56.0, 10, Color(0.94, 0.91, 0.79, 0.95))
 
 func _map_point(normalized: Vector2) -> Vector2:
+    if _is_compact():
+        return Vector2(12.0 + normalized.x * maxf(1.0, size.x - 38.0), 10.0 + normalized.y * maxf(1.0, size.y - 39.0))
     return Vector2(18.0 + normalized.x * maxf(1.0, size.x - 36.0), 28.0 + normalized.y * maxf(1.0, size.y - 50.0))
+
+func _is_compact() -> bool:
+    return size.x < 300.0 or size.y < 160.0
 
 func _draw_dotted_line(a: Vector2, b: Vector2, color: Color, width: float, spacing: float) -> void:
     var delta := b - a
