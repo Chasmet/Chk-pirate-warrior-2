@@ -12,3 +12,7 @@ android/.build_version
 addons/chk_updater/*.aar
 *.keystore
 *.jks
+*.p12
+*.pfx
+CHK_ANDROID_SIGNING*.json
+__pycache__/

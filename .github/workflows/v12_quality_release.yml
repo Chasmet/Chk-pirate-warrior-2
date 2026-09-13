@@ -28,6 +28,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Vérifier la continuité de signature
+        run: python tools/test_v12_signing.py
       - uses: android-actions/setup-android@v3
       - name: SDK correspondant au moteur existant et au plugin Java
         run: |
@@ -132,38 +134,22 @@ jobs:
           "$ANDROID_HOME/build-tools/36.1.0/aapt" dump xmltree artifact/CHK_Pirate_Warrior_2_unsigned.apk AndroidManifest.xml > artifact/manifest.txt
           grep -q org.godotengine.plugin.v2.CHKUpdater artifact/manifest.txt
           grep -q REQUEST_INSTALL_PACKAGES artifact/manifest.txt
-      - name: Réutiliser uniquement la clé existante
+      - name: Signer automatiquement avec la clé permanente
         id: signing
         env:
-          EXISTING_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: |
-          if [ -n "$EXISTING_KEYSTORE" ]; then
-            umask 077
-            printf '%s' "$EXISTING_KEYSTORE" | base64 --decode > /tmp/chk-existing.keystore
-            echo 'available=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'available=false' >> "$GITHUB_OUTPUT"
-            echo 'APK compilé et vérifié. Publication suspendue : clé historique absente. Aucune nouvelle clé générée.' >> "$GITHUB_STEP_SUMMARY"
-          fi
-      - name: Signer et vérifier la continuité avec la dernière release
+          CHK_SIGNING_BUNDLE: ${{ secrets.CHK_ANDROID_SIGNING }}
+        run: python tools/sign_v12_apk.py
+      - name: Vérifier la signature et le circuit de mise à jour
         if: steps.signing.outputs.available == 'true'
         id: release
-        env:
-          CHK_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'android' }}
-          CHK_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || 'android' }}
-          CHK_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'androiddebugkey' }}
-        run: |
-          "$ANDROID_HOME/build-tools/36.1.0/zipalign" -f -P 16 4 artifact/CHK_Pirate_Warrior_2_unsigned.apk artifact/aligned.apk
-          "$ANDROID_HOME/build-tools/36.1.0/apksigner" sign --ks /tmp/chk-existing.keystore --ks-key-alias "$CHK_ALIAS" --ks-pass env:CHK_STORE_PASSWORD --key-pass env:CHK_KEY_PASSWORD --out artifact/CHK_Pirate_Warrior_2.apk artifact/aligned.apk
-          rm artifact/aligned.apk
-          python tools/publish_v12_metadata.py
+        run: python tools/publish_v12_metadata.py
       - name: Publier dans le circuit de mise à jour
         if: steps.release.outputs.tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
-          gh release create "$RELEASE_TAG" artifact/CHK_Pirate_Warrior_2.apk artifact/update.json artifact/SHA256.txt --target "$GITHUB_SHA" --title "CHK Pirate Warrior 2 $RELEASE_TAG" --notes-file docs/RELEASE_V12.md
+          gh release create "$RELEASE_TAG" artifact/CHK_Pirate_Warrior_2.apk artifact/update.json artifact/SHA256.txt artifact/SIGNATURE.txt --target "$GITHUB_SHA" --title "CHK Pirate Warrior 2 $RELEASE_TAG" --notes-file artifact/RELEASE_NOTES.md
       - name: Conserver les preuves de compilation
         if: always()
         uses: actions/upload-artifact@v4

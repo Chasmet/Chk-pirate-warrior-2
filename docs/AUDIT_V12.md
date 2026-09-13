@@ -92,14 +92,21 @@ Les [captures réelles de la V12](visuels-v12/README.md) présentent l'accueil, 
 les réglages et les huit modèles. Elles proviennent d'un rendu logiciel OpenGL en CI,
 et ne constituent pas une mesure des performances sur téléphone.
 
-## Limite de publication à résoudre
+## Signature : constat initial et nouvelle configuration
 
 Les anciens workflows ne conservaient pas leur keystore généré. Aucune clé correspondante
 n'a été trouvée dans le dépôt audité. Une clé privée ne peut pas être reconstruite à partir
-de l'APK. La CI peut produire un APK non signé vérifiable ; elle ne publie une version
-installable qu'avec la clé historique et après comparaison au certificat de la dernière
-release. Aucun nouveau secret ni nouvelle clé n'est créé. Une signature différente sur
-une version installée depuis un ancien artifact reste un cas à vérifier séparément.
+de l'APK. Les quatre premières compilations ont donc produit des APK non signés.
+
+À la demande du propriétaire de préparer une version signée automatiquement, une
+nouvelle clé permanente a ensuite été créée et sauvegardée en privé. Son empreinte
+publique est fixée dans le dépôt. La configuration privée GitHub doit être enregistrée
+une seule fois pour activer la signature et la publication automatiques.
+
+La première transition est limitée à la release historique exacte ; elle nécessite
+une nouvelle installation et ne conserve pas automatiquement les données de l'ancien
+APK. Les V12 suivantes doivent garder la même clé et un numéro de version croissant.
+Les sept tests de signature passent. Voir [la configuration de signature](SIGNATURE_ANDROID_V12.md).
 
 ## Points restants
 
