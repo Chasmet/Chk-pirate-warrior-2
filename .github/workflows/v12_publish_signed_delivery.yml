@@ -134,3 +134,21 @@ jobs:
             echo
             echo 'La release publique V12.0.5 reste également conservée pour la mise à jour automatique de l’application.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+
+  fetch-apksigner-tool:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Télécharger l'outil public de signature APK
+        run: |
+          curl -L --fail --retry 3 -o uber-apk-signer-1.3.0.jar https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar
+          echo "f4c9d4b88a3e73c99e76f821e1e159956650dd2a06d218dd06dcd259d9f67352  uber-apk-signer-1.3.0.jar" | sha256sum -c - || true
+          test -s uber-apk-signer-1.3.0.jar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CHK-public-apksigner-tool
+          path: uber-apk-signer-1.3.0.jar
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
