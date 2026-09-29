@@ -18,20 +18,28 @@ concurrency:
   group: chk-v12-signing
   cancel-in-progress: false
 
+env:
+  RELEASE_TAG: v12.0.5
+  APK_NAME: CHK_Pirate_Warrior_2.apk
+  ACTION_ARTIFACT_NAME: CHK-Pirate-Warrior-2-V12.0.5-APK
+
 jobs:
   publish-signed-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - name: Vérifier les gardes de livraison et de signature
         run: |
           python tools/test_v12_signed_delivery.py
           python tools/test_v12_signing.py
+
       - name: Vérifier la provenance de la compilation complète
         env:
           GH_TOKEN: ${{ github.token }}
@@ -44,32 +52,85 @@ jobs:
           assert run['head_sha'] == '9857d764a5b10320416d8ec4235e7db405597e76'
           assert run['head_repository']['full_name'] == 'Chasmet/Chk-pirate-warrior-2'
           PY
+
       - uses: actions/download-artifact@v4
         with:
           name: CHK-V12-APK-et-audit
           run-id: 34771359057
           github-token: ${{ github.token }}
           path: artifact
+
       - name: Restituer exactement l'APK signé avec la clé permanente
         run: |
           echo '50a75417a50eae6dcc7de84ee4b2e7e929362fa52f6c7d82e475d107e35e6a20  artifact/CHK_Pirate_Warrior_2_unsigned.apk' | sha256sum --check
           python tools/v12_signed_delivery.py apply android-signing/releases/v12.0.5.json artifact/CHK_Pirate_Warrior_2_unsigned.apk artifact/CHK_Pirate_Warrior_2.apk
+
       - uses: android-actions/setup-android@v3
         with:
           packages: 'build-tools;36.1.0'
+
       - name: Vérifier la signature Android et l'alignement 16 Ko
         run: |
-          "$ANDROID_HOME/build-tools/36.1.0/apksigner" verify --verbose --print-certs artifact/CHK_Pirate_Warrior_2.apk
-          "$ANDROID_HOME/build-tools/36.1.0/zipalign" -c -P 16 4 artifact/CHK_Pirate_Warrior_2.apk
-      - name: Contrôler le certificat permanent et le circuit de mise à jour
-        id: release
-        run: python tools/publish_v12_metadata.py
-      - name: Publier l'APK signé et le manifeste de mise à jour
+          "$ANDROID_HOME/build-tools/36.1.0/apksigner" verify --verbose --print-certs "artifact/$APK_NAME"
+          "$ANDROID_HOME/build-tools/36.1.0/zipalign" -c -P 16 4 "artifact/$APK_NAME"
+
+      - name: Mettre l'APK directement dans cette exécution Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ACTION_ARTIFACT_NAME }}
+          path: artifact/CHK_Pirate_Warrior_2.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: Vérifier si la release V12.0.5 existe déjà
+        id: existing_release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
-          gh release create "$RELEASE_TAG" artifact/CHK_Pirate_Warrior_2.apk artifact/update.json artifact/SHA256.txt artifact/SIGNATURE.txt --target "$GITHUB_SHA" --title "CHK Pirate Warrior 2 $RELEASE_TAG" --notes-file artifact/RELEASE_NOTES.md
+          if gh release view "$RELEASE_TAG" --repo Chasmet/Chk-pirate-warrior-2 >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Contrôler le certificat permanent et le circuit de mise à jour
+        if: steps.existing_release.outputs.exists != 'true'
+        id: release
+        run: python tools/publish_v12_metadata.py
+
+      - name: Publier l'APK signé et le manifeste de mise à jour
+        if: steps.existing_release.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG_FROM_CHECK: ${{ steps.release.outputs.tag }}
+        run: |
+          gh release create "$RELEASE_TAG_FROM_CHECK" artifact/CHK_Pirate_Warrior_2.apk artifact/update.json artifact/SHA256.txt artifact/SIGNATURE.txt --target "$GITHUB_SHA" --title "CHK Pirate Warrior 2 $RELEASE_TAG_FROM_CHECK" --notes-file artifact/RELEASE_NOTES.md
+
+      - name: Vérifier la release existante
+        if: steps.existing_release.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LOCAL_SHA="sha256:$(sha256sum "artifact/$APK_NAME" | awk '{print $1}')"
+          REMOTE_SHA="$(gh api "repos/Chasmet/Chk-pirate-warrior-2/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name == "CHK_Pirate_Warrior_2.apk") | .digest')"
+          test -n "$REMOTE_SHA"
+          test "$LOCAL_SHA" = "$REMOTE_SHA"
+
       - name: Résultat
         run: |
-          echo 'V12.0.5 signée avec la clé permanente, vérifiée par Android et publiée. Aucune clé privée dans les sources ni les artifacts.' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo '## APK Android prêt'
+            echo
+            echo '✅ **CHK Pirate Warrior 2 V12.0.5** est signé et vérifié.'
+            echo
+            echo '### Téléchargement depuis cette page Actions'
+            echo
+            echo "Le fichier est disponible dans la section **Artifacts** de cette exécution sous le nom :"
+            echo
+            echo "`$ACTION_ARTIFACT_NAME`"
+            echo
+            echo 'APK contenu : `CHK_Pirate_Warrior_2.apk`'
+            echo
+            echo 'La release publique V12.0.5 reste également conservée pour la mise à jour automatique de l’application.'
+          } >> "$GITHUB_STEP_SUMMARY"
