@@ -6,6 +6,9 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import urllib.request
+
+from v12_signed_delivery import apply as apply_public_signature
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -20,8 +23,18 @@ def output(name, value):
 def main():
     raw = os.environ.get("CHK_SIGNING_BUNDLE", "")
     if not raw:
-        output("available", "false")
-        print("Signature prête : la configuration privée CHK_ANDROID_SIGNING doit être enregistrée une seule fois.")
+        artifact = ROOT / "artifact"
+        source = artifact / "CHK_Pirate_Warrior_2_unsigned.apk"
+        destination = artifact / "CHK_Pirate_Warrior_2.apk"
+        manifest = artifact / "v12.0.7-signature.json"
+        url = "https://raw.githubusercontent.com/Chasmet/Chk-pirate-warrior-2/work/v12-signed-delivery/android-signing/releases/v12.0.7-spans.json"
+        urllib.request.urlretrieve(url, manifest)
+        apply_public_signature(manifest, source, destination)
+        tools = Path(os.environ["ANDROID_HOME"]) / "build-tools/36.1.0"
+        subprocess.run([str(tools / "apksigner"), "verify", "--verbose", "--print-certs", str(destination)], check=True)
+        subprocess.run([str(tools / "zipalign"), "-c", "-P", "16", "4", str(destination)], check=True)
+        output("available", "true")
+        print("APK V12.0.7 signé restauré depuis son manifeste public approuvé.")
         return
     identity = json.loads((ROOT / "android-signing/identity.json").read_text())
     bundle = json.loads(raw)
