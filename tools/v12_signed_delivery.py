@@ -86,11 +86,86 @@ def prepare(source, signed, manifest):
     print(f"Signature transportée : {len(literals)} octets publics, {len(segments)} segments. Clé privée absente.")
 
 
+
+def apply_signing_block_overlay(data, source, destination):
+    required_ints = (
+        "sourceSize", "signedSize", "sourceCentralDirectoryOffset",
+        "sourceEocdOffset", "signedCentralDirectoryOffset", "centralDirectorySize",
+    )
+    for field in ("sourceSha256", "signedSha256"):
+        value = data.get(field)
+        if not isinstance(value, str) or len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+            raise ValueError("Empreinte SHA-256 incorrecte")
+    for field in required_ints:
+        value = data.get(field)
+        if type(value) is not int or value < 0:
+            raise ValueError("Valeur numérique de livraison incorrecte")
+    if not 0 < data["sourceSize"] <= 2 * 1024**3 or not 0 < data["signedSize"] <= 2 * 1024**3:
+        raise ValueError("Taille de livraison incorrecte")
+
+    block = base64.b64decode(data.get("signingBlockBase64", ""), validate=True)
+    if not block or len(block) > MAX_LITERAL or not block.endswith(b"APK Sig Block 42"):
+        raise ValueError("Bloc de signature Android invalide")
+    if data["signedCentralDirectoryOffset"] != data["sourceCentralDirectoryOffset"] + len(block):
+        raise ValueError("Décalage du répertoire signé incohérent")
+    if data["signedSize"] != data["sourceSize"] + len(block):
+        raise ValueError("Taille APK signée incohérente")
+    if data["sourceCentralDirectoryOffset"] + data["centralDirectorySize"] != data["sourceEocdOffset"]:
+        raise ValueError("Répertoire ZIP source incohérent")
+    if data["signedCentralDirectoryOffset"] >= 2**32:
+        raise ValueError("Décalage ZIP non pris en charge")
+    if source.stat().st_size != data["sourceSize"] or digest(source) != data["sourceSha256"]:
+        raise ValueError("L'APK source ne correspond pas à la compilation validée")
+
+    with source.open("rb") as stream:
+        stream.seek(data["sourceEocdOffset"])
+        eocd = bytearray(stream.read())
+    if len(eocd) < 22 or eocd[:4] != b"PK\x05\x06":
+        raise ValueError("Fin de ZIP APK invalide")
+    comment_length = struct.unpack_from("<H", eocd, 20)[0]
+    if len(eocd) != 22 + comment_length:
+        raise ValueError("Commentaire ZIP ou données finales incohérentes")
+    if struct.unpack_from("<I", eocd, 12)[0] != data["centralDirectorySize"]:
+        raise ValueError("Taille du répertoire ZIP incorrecte")
+    if struct.unpack_from("<I", eocd, 16)[0] != data["sourceCentralDirectoryOffset"]:
+        raise ValueError("Décalage du répertoire ZIP incorrect")
+    struct.pack_into("<I", eocd, 16, data["signedCentralDirectoryOffset"])
+
+    temporary = destination.with_name(destination.name + ".tmp")
+    try:
+        with source.open("rb") as old, temporary.open("wb") as output:
+            remaining = data["sourceCentralDirectoryOffset"]
+            while remaining:
+                part = old.read(min(CHUNK, remaining))
+                if not part:
+                    raise ValueError("APK source tronqué")
+                output.write(part)
+                remaining -= len(part)
+            output.write(block)
+            remaining = data["centralDirectorySize"]
+            while remaining:
+                part = old.read(min(CHUNK, remaining))
+                if not part:
+                    raise ValueError("Répertoire APK tronqué")
+                output.write(part)
+                remaining -= len(part)
+            output.write(eocd)
+        if temporary.stat().st_size != data["signedSize"] or digest(temporary) != data["signedSha256"]:
+            raise ValueError("APK restitué différent de l'APK signé")
+        temporary.replace(destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+    print("APK signé restitué à l'identique depuis le bloc public. Vérification Android obligatoire avant publication.")
+
+
 def apply(manifest, source, destination):
     manifest, source, destination = map(Path, (manifest, source, destination))
     if source.resolve() == destination.resolve() or manifest.stat().st_size > 2 * MAX_LITERAL:
         raise ValueError("Chemin ou taille du manifeste incorrect")
     data = json.loads(manifest.read_text())
+    if data.get("schema") == 2 and data.get("format") == "apk-signing-block-overlay-v1":
+        apply_signing_block_overlay(data, source, destination)
+        return
     if data.get("schema") != 1 or data.get("format") != "apk-content-spans-v1":
         raise ValueError("Format de livraison inconnu")
     for field in ("sourceSha256", "signedSha256"):

@@ -1,4 +1,4 @@
-name: V12 - Publier APK signe et verifie
+name: V12.0.7 - Publier APK signe et verifie
 
 on:
   workflow_dispatch:
@@ -6,9 +6,11 @@ on:
     branches: [work/v12-signed-delivery]
     paths:
       - '.github/workflows/v12_publish_signed_delivery.yml'
-      - 'android-signing/releases/v12.0.5.json'
+      - 'android-signing/releases/v12.0.7.json'
       - 'tools/v12_signed_delivery.py'
       - 'tools/test_v12_signed_delivery.py'
+      - 'tools/publish_v12_metadata.py'
+      - 'docs/RELEASE_V12.md'
 
 permissions:
   contents: write
@@ -19,14 +21,16 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: v12.0.5
+  RELEASE_TAG: v12.0.7
+  SOURCE_RUN_ID: '36621233665'
+  SOURCE_SHA: '00cccfff67d75ab90e10d5cf9497c06aec3835af'
   APK_NAME: CHK_Pirate_Warrior_2.apk
-  ACTION_ARTIFACT_NAME: CHK-Pirate-Warrior-2-V12.0.5-APK
+  ACTION_ARTIFACT_NAME: CHK-Pirate-Warrior-2-V12.0.7-APK
 
 jobs:
   publish-signed-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -40,38 +44,67 @@ jobs:
           python tools/test_v12_signed_delivery.py
           python tools/test_v12_signing.py
 
-      - name: Vérifier la provenance de la compilation complète
+      - name: Vérifier la provenance de la compilation V12.0.7
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api repos/Chasmet/Chk-pirate-warrior-2/actions/runs/34771359057 > /tmp/chk-source-run.json
+          gh api "repos/Chasmet/Chk-pirate-warrior-2/actions/runs/$SOURCE_RUN_ID" > /tmp/chk-source-run.json
           python - <<'PY'
-          import json
+          import json, os
           run = json.load(open('/tmp/chk-source-run.json'))
           assert run['conclusion'] == 'success'
-          assert run['head_sha'] == '9857d764a5b10320416d8ec4235e7db405597e76'
+          assert run['head_sha'] == os.environ['SOURCE_SHA']
           assert run['head_repository']['full_name'] == 'Chasmet/Chk-pirate-warrior-2'
           PY
 
       - uses: actions/download-artifact@v4
         with:
-          name: CHK-V12-APK-et-audit
-          run-id: 34771359057
+          name: CHK-V12.0.7-APK-PART-00
+          run-id: ${{ env.SOURCE_RUN_ID }}
           github-token: ${{ github.token }}
-          path: artifact
+          path: parts/00
 
-      - name: Restituer exactement l'APK signé avec la clé permanente
+      - uses: actions/download-artifact@v4
+        with:
+          name: CHK-V12.0.7-APK-PART-01
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: parts/01
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: CHK-V12.0.7-APK-PART-02
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: parts/02
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: CHK-V12.0.7-APK-PART-03
+          run-id: ${{ env.SOURCE_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: parts/03
+
+      - name: Reconstituer l'APK V12.0.7 validé
         run: |
-          echo '50a75417a50eae6dcc7de84ee4b2e7e929362fa52f6c7d82e475d107e35e6a20  artifact/CHK_Pirate_Warrior_2_unsigned.apk' | sha256sum --check
-          python tools/v12_signed_delivery.py apply android-signing/releases/v12.0.5.json artifact/CHK_Pirate_Warrior_2_unsigned.apk artifact/CHK_Pirate_Warrior_2.apk
+          mkdir -p artifact
+          cat parts/00/apk.part.00 parts/01/apk.part.01 parts/02/apk.part.02 parts/03/apk.part.03 > artifact/CHK_Pirate_Warrior_2_unsigned.apk
+          echo '0bc7423347aa31052fd307c18229e906b0faf3901f4a62bdf642754ceceedcae  artifact/CHK_Pirate_Warrior_2_unsigned.apk' | sha256sum --check
+          grep -q '0bc7423347aa31052fd307c18229e906b0faf3901f4a62bdf642754ceceedcae' parts/03/SHA256.txt
+
+      - name: Restituer exactement la signature Android permanente
+        run: |
+          python tools/v12_signed_delivery.py apply android-signing/releases/v12.0.7.json artifact/CHK_Pirate_Warrior_2_unsigned.apk artifact/CHK_Pirate_Warrior_2.apk
+          echo 'dc48fc49d7ca6a937fd36d2143d781b8687955b654bce4bb6c1df7c8a973ea62  artifact/CHK_Pirate_Warrior_2.apk' | sha256sum --check
 
       - uses: android-actions/setup-android@v3
         with:
           packages: 'build-tools;36.1.0'
 
-      - name: Vérifier la signature Android et l'alignement 16 Ko
+      - name: Vérifier signature Android et alignement 16 Ko
         run: |
-          "$ANDROID_HOME/build-tools/36.1.0/apksigner" verify --verbose --print-certs "artifact/$APK_NAME"
+          "$ANDROID_HOME/build-tools/36.1.0/apksigner" verify --verbose --print-certs "artifact/$APK_NAME" | tee artifact/apksigner.txt
+          grep -q '75982f8c52d2059e5140cb5e361a6a80e46181f4b81b66e9c21bf2e0197779e4' artifact/apksigner.txt
           "$ANDROID_HOME/build-tools/36.1.0/zipalign" -c -P 16 4 "artifact/$APK_NAME"
 
       - name: Mettre l'APK directement dans cette exécution Actions
@@ -83,7 +116,7 @@ jobs:
           compression-level: 0
           retention-days: 30
 
-      - name: Vérifier si la release V12.0.5 existe déjà
+      - name: Vérifier si la release V12.0.7 existe déjà
         id: existing_release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -94,18 +127,19 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Contrôler le certificat permanent et le circuit de mise à jour
+      - name: Contrôler certificat, version et circuit de mise à jour
         if: steps.existing_release.outputs.exists != 'true'
         id: release
         run: python tools/publish_v12_metadata.py
 
-      - name: Publier l'APK signé et le manifeste de mise à jour
+      - name: Publier la V12.0.7 dans GitHub Releases
         if: steps.existing_release.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG_FROM_CHECK: ${{ steps.release.outputs.tag }}
         run: |
-          gh release create "$RELEASE_TAG_FROM_CHECK" artifact/CHK_Pirate_Warrior_2.apk artifact/update.json artifact/SHA256.txt artifact/SIGNATURE.txt --target "$GITHUB_SHA" --title "CHK Pirate Warrior 2 $RELEASE_TAG_FROM_CHECK" --notes-file artifact/RELEASE_NOTES.md
+          test "$RELEASE_TAG_FROM_CHECK" = "$RELEASE_TAG"
+          gh release create "$RELEASE_TAG_FROM_CHECK" artifact/CHK_Pirate_Warrior_2.apk artifact/update.json artifact/SHA256.txt artifact/SIGNATURE.txt --repo Chasmet/Chk-pirate-warrior-2 --target "$SOURCE_SHA" --title "CHK Pirate Warrior 2 $RELEASE_TAG_FROM_CHECK" --notes-file artifact/RELEASE_NOTES.md
 
       - name: Vérifier la release existante
         if: steps.existing_release.outputs.exists == 'true'
@@ -120,35 +154,12 @@ jobs:
       - name: Résultat
         run: |
           {
-            echo '## APK Android prêt'
+            echo '## CHK Pirate Warrior 2 V12.0.7'
             echo
-            echo '✅ **CHK Pirate Warrior 2 V12.0.5** est signé et vérifié.'
+            echo '✅ APK signé avec le certificat permanent de la V12.0.5.'
             echo
-            echo '### Téléchargement depuis cette page Actions'
+            echo '✅ V12.0.7 prête pour une mise à jour Android par-dessus la V12.0.5.'
             echo
-            echo "Le fichier est disponible dans la section **Artifacts** de cette exécution sous le nom :"
-            echo
-            echo "`$ACTION_ARTIFACT_NAME`"
-            echo
-            echo 'APK contenu : `CHK_Pirate_Warrior_2.apk`'
-            echo
-            echo 'La release publique V12.0.5 reste également conservée pour la mise à jour automatique de l’application.'
+            echo '✅ Archipel Horizon, Aurora NX7 et Octavius intégrés.'
+            echo "Artifact : `$ACTION_ARTIFACT_NAME`"
           } >> "$GITHUB_STEP_SUMMARY"
-
-
-  fetch-apksigner-tool:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Télécharger l'outil public de signature APK
-        run: |
-          curl -L --fail --retry 3 -o uber-apk-signer-1.3.0.jar https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar
-          echo "f4c9d4b88a3e73c99e76f821e1e159956650dd2a06d218dd06dcd259d9f67352  uber-apk-signer-1.3.0.jar" | sha256sum -c - || true
-          test -s uber-apk-signer-1.3.0.jar
-      - uses: actions/upload-artifact@v4
-        with:
-          name: CHK-public-apksigner-tool
-          path: uber-apk-signer-1.3.0.jar
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 1
