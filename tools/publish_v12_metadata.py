@@ -57,7 +57,11 @@ def main():
     tools = Path(os.environ["ANDROID_HOME"]) / "build-tools/36.1.0"
     identity = json.loads((ROOT / "android-signing/identity.json").read_text())
     new_cert = certificate(tools / "apksigner", apk)
-    request = urllib.request.Request(API, headers={"User-Agent": "CHK-APK-CI"})
+    headers = {"User-Agent": "CHK-APK-CI", "Accept": "application/vnd.github+json"}
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    request = urllib.request.Request(API, headers=headers)
     with urllib.request.urlopen(request, timeout=30) as response:
         release = json.load(response)
     prior = next((a for a in release.get("assets", []) if a["name"].lower().endswith(".apk")), None)
