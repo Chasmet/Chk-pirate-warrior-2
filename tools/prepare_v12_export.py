@@ -16,7 +16,7 @@ for file in ROOT.glob("*.glb"):
 # Editor MCP remains in the source project, but cannot run or enter an APK.
 project = (DEST / "project.godot").read_text()
 project = re.sub(r'enabled=PackedStringArray\([^\n]*\)', 'enabled=PackedStringArray("res://addons/chk_updater/plugin.cfg")', project)
-version = "12.0." + os.environ.get("GITHUB_RUN_NUMBER", "0")
+version = os.environ.get("CHK_RELEASE_VERSION") or ("12.0." + os.environ.get("GITHUB_RUN_NUMBER", "0"))
 project = re.sub(r'config/version="[^"]+"', f'config/version="{version}"', project)
 (DEST / "project.godot").write_text(project)
 preset = (DEST / "export_presets.cfg").read_text()
