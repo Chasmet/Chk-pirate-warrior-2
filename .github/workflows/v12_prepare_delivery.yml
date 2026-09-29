@@ -34,7 +34,6 @@ jobs:
           run-id: 34771359057
           github-token: ${{ github.token }}
           path: artifact
-      - uses: android-actions/setup-android@v3
       - name: Préparer les outils Android officiels
         run: |
           sdkmanager 'build-tools;36.1.0'
