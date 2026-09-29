@@ -130,6 +130,8 @@ jobs:
       - name: Contrôler certificat, version et circuit de mise à jour
         if: steps.existing_release.outputs.exists != 'true'
         id: release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: python tools/publish_v12_metadata.py
 
       - name: Publier la V12.0.7 dans GitHub Releases
