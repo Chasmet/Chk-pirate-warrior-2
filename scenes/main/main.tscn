@@ -1,4 +1,4 @@
-[gd_scene load_steps=31 format=3]
+[gd_scene load_steps=32 format=3]
 
 [ext_resource type="Script" path="res://scripts/player/hero_controller_v12.gd" id="1_hero"]
 [ext_resource type="Script" path="res://scripts/camera/third_person_camera_v12.gd" id="2_camera"]
@@ -29,6 +29,7 @@
 [ext_resource type="Script" path="res://scripts/ui/endgame_trophy_overlay_v11_8.gd" id="27_endgame"]
 
 [ext_resource type="Script" path="res://scripts/world/scenery_v12.gd" id="28_scenery_v12"]
+[ext_resource type="Script" path="res://scripts/world/latest_glb_integration_v12.gd" id="29_latest_glb"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape_player"]
 radius = 0.38
@@ -141,3 +142,6 @@ script = ExtResource("27_endgame")
 
 [node name="SceneryV12" type="Node3D" parent="."]
 script = ExtResource("28_scenery_v12")
+
+[node name="LatestGLBIntegrationV12" type="Node3D" parent="."]
+script = ExtResource("29_latest_glb")

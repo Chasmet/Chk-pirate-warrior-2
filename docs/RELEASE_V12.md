@@ -1,3 +1,9 @@
+Trois GLB récents du dépôt sont maintenant utilisés directement dans le jeu : l'Archipel
+Horizon Simulateur sert de panorama lointain adaptatif, l'Aurora NX7 effectue une
+patrouille aérienne dans le royaume urbain et Octavius devient un ennemi élite à distance.
+Les deux éléments purement visuels sont désactivés en mode Économie pour préserver les
+performances mobiles.
+
 Huit nouveaux GLB originaux intégrés aux onze royaumes : phare et bannière animés,
 marché, arche, sanctuaire animé, réserves, passerelle et corail. Le refuge soigne
 hors combat et sauvegarde la progression.

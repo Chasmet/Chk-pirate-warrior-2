@@ -119,6 +119,13 @@ jobs:
               assert any('libgodot_android.so' in n for n in names)
               assert any('phare_corsaire' in n for n in names)
               assert any('settings_menu' in n for n in names)
+              for required in [
+                  'Archipel_Horizon_Simulateur.glb',
+                  'aurora-nx7 (1).glb',
+                  'octavius.glb',
+                  'latest_glb_integration_v12.gd',
+              ]:
+                  assert any(required in n for n in names), required
               for name in [n for n in names if n.startswith('lib/arm64-v8a/') and n.endswith('.so')]:
                   data=z.read(name)
                   assert data[:5] == b'\x7fELF\x02', name

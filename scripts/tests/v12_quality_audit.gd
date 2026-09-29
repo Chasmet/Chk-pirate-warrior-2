@@ -120,6 +120,23 @@ func _run() -> void:
             check(not model.find_children("*", "AnimationPlayer", true, false).is_empty(), "animation embarquée : " + str(entry.file))
         model.free()
 
+
+    var latest_glb_node := main.get_node_or_null("LatestGLBIntegrationV12")
+    check(latest_glb_node != null, "directeur des trois derniers GLB intégré à la scène principale")
+    var latest_assets := [
+        "res://assets/vrac/Archipel_Horizon_Simulateur.glb",
+        "res://assets/vrac/aurora-nx7 (1).glb",
+        "res://assets/vrac/octavius.glb"
+    ]
+    for asset_path in latest_assets:
+        check(ResourceLoader.exists(asset_path), "dernier GLB embarqué : " + asset_path.get_file())
+        var latest_resource := load(asset_path) as PackedScene
+        check(latest_resource != null, "dernier GLB importable : " + asset_path.get_file())
+        if latest_resource != null:
+            var latest_model := latest_resource.instantiate()
+            check(not latest_model.find_children("*", "MeshInstance3D", true, false).is_empty(), "géométrie du dernier GLB : " + asset_path.get_file())
+            latest_model.free()
+
     main.queue_free()
     await process_frame
     if failures.is_empty():
