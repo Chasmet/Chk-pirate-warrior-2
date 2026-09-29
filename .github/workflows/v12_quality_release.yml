@@ -31,6 +31,8 @@ jobs:
       - name: Vérifier la continuité de signature
         run: python tools/test_v12_signing.py
       - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
       - name: SDK correspondant au moteur existant et au plugin Java
         run: |
           sdkmanager 'platform-tools' 'platforms;android-34' 'build-tools;34.0.0' 'platforms;android-36' 'build-tools;36.1.0' 'ndk;29.0.14206865'
