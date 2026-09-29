@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 60
     env:
       GODOT_VERSION: 4.7.1
+      CHK_RELEASE_VERSION: 12.0.7
+      CHK_VERSION_CODE: 1200007
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -143,6 +145,42 @@ jobs:
           "$ANDROID_HOME/build-tools/36.1.0/aapt" dump xmltree artifact/CHK_Pirate_Warrior_2_unsigned.apk AndroidManifest.xml > artifact/manifest.txt
           grep -q org.godotengine.plugin.v2.CHKUpdater artifact/manifest.txt
           grep -q REQUEST_INSTALL_PACKAGES artifact/manifest.txt
+
+      - name: Découper l'APK V12.0.7 pour contrôle hors CI
+        run: |
+          mkdir -p artifact/chunks
+          split -b 180M -d -a 2 artifact/CHK_Pirate_Warrior_2_unsigned.apk artifact/chunks/apk.part.
+          sha256sum artifact/CHK_Pirate_Warrior_2_unsigned.apk > artifact/chunks/SHA256.txt
+          test -s artifact/chunks/apk.part.00
+          test -s artifact/chunks/apk.part.01
+          test -s artifact/chunks/apk.part.02
+          test -s artifact/chunks/apk.part.03
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CHK-V12.0.7-APK-PART-00
+          path: artifact/chunks/apk.part.00
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CHK-V12.0.7-APK-PART-01
+          path: artifact/chunks/apk.part.01
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CHK-V12.0.7-APK-PART-02
+          path: artifact/chunks/apk.part.02
+          compression-level: 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CHK-V12.0.7-APK-PART-03
+          path: |
+            artifact/chunks/apk.part.03
+            artifact/chunks/SHA256.txt
+          compression-level: 0
       - name: Signer automatiquement avec la clé permanente
         id: signing
         env:
