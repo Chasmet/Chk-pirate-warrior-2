@@ -36,7 +36,7 @@ jobs:
           path: artifact
       - name: Préparer les outils Android officiels
         run: |
-          sdkmanager 'build-tools;36.1.0'
+          "$ANDROID_HOME/cmdline-tools/16.0/bin/sdkmanager" 'build-tools;36.1.0'
           mkdir -p delivery/tools
           tar -czf delivery/tools/android-signing-tools.tar.gz -C "$ANDROID_HOME" build-tools/36.1.0
       - name: Exporter l'APK inchangé en deux parties vérifiables
