@@ -1,4 +1,4 @@
-name: V12.0.7 - Publier APK signe et verifie
+name: V12.0.8 - Publier APK signe et verifie
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
     branches: [work/v12-signed-delivery]
     paths:
       - '.github/workflows/v12_publish_signed_delivery.yml'
-      - 'android-signing/releases/v12.0.7.json'
+      - 'android-signing/releases/v12.0.8.json'
       - 'tools/v12_signed_delivery.py'
       - 'tools/test_v12_signed_delivery.py'
       - 'tools/publish_v12_metadata.py'
@@ -21,11 +21,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: v12.0.7
-  SOURCE_RUN_ID: '36621233665'
-  SOURCE_SHA: '00cccfff67d75ab90e10d5cf9497c06aec3835af'
+  RELEASE_TAG: v12.0.8
+  SOURCE_RUN_ID: '36721195662'
+  SOURCE_SHA: '3d23fc12d1d9aef2f3f2ec41c10de7ecd5d7b3cd'
   APK_NAME: CHK_Pirate_Warrior_2.apk
-  ACTION_ARTIFACT_NAME: CHK-Pirate-Warrior-2-V12.0.7-APK
+  ACTION_ARTIFACT_NAME: CHK-Pirate-Warrior-2-V12.0.8-APK
 
 jobs:
   publish-signed-apk:
@@ -44,58 +44,70 @@ jobs:
           python tools/test_v12_signed_delivery.py
           python tools/test_v12_signing.py
 
-      - name: Vérifier la provenance de la compilation V12.0.7
+      - name: Vérifier la provenance de la compilation V12.0.8
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh api "repos/Chasmet/Chk-pirate-warrior-2/actions/runs/$SOURCE_RUN_ID" > /tmp/chk-source-run.json
+          gh api "repos/Chasmet/Chk-pirate-warrior-2/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100" > /tmp/chk-source-jobs.json
           python - <<'PY'
           import json, os
           run = json.load(open('/tmp/chk-source-run.json'))
-          assert run['conclusion'] == 'success'
+          jobs = json.load(open('/tmp/chk-source-jobs.json'))['jobs']
           assert run['head_sha'] == os.environ['SOURCE_SHA']
           assert run['head_repository']['full_name'] == 'Chasmet/Chk-pirate-warrior-2'
+          required = {
+              'Audit complet et régressions du jeu',
+              'Captures du rendu réel',
+              'Compiler le véritable APK complet via Gradle',
+          }
+          conclusions = {}
+          for job in jobs:
+              for step in job.get('steps', []):
+                  if step.get('name') in required:
+                      conclusions[step['name']] = step.get('conclusion')
+          assert conclusions == {name: 'success' for name in required}, conclusions
           PY
 
       - uses: actions/download-artifact@v4
         with:
-          name: CHK-V12.0.7-APK-PART-00
+          name: CHK-V12.0.8-APK-PART-00
           run-id: ${{ env.SOURCE_RUN_ID }}
           github-token: ${{ github.token }}
           path: parts/00
 
       - uses: actions/download-artifact@v4
         with:
-          name: CHK-V12.0.7-APK-PART-01
+          name: CHK-V12.0.8-APK-PART-01
           run-id: ${{ env.SOURCE_RUN_ID }}
           github-token: ${{ github.token }}
           path: parts/01
 
       - uses: actions/download-artifact@v4
         with:
-          name: CHK-V12.0.7-APK-PART-02
+          name: CHK-V12.0.8-APK-PART-02
           run-id: ${{ env.SOURCE_RUN_ID }}
           github-token: ${{ github.token }}
           path: parts/02
 
       - uses: actions/download-artifact@v4
         with:
-          name: CHK-V12.0.7-APK-PART-03
+          name: CHK-V12.0.8-APK-PART-03
           run-id: ${{ env.SOURCE_RUN_ID }}
           github-token: ${{ github.token }}
           path: parts/03
 
-      - name: Reconstituer l'APK V12.0.7 validé
+      - name: Reconstituer l'APK V12.0.8 validé
         run: |
           mkdir -p artifact
           cat parts/00/apk.part.00 parts/01/apk.part.01 parts/02/apk.part.02 parts/03/apk.part.03 > artifact/CHK_Pirate_Warrior_2_unsigned.apk
-          echo '0bc7423347aa31052fd307c18229e906b0faf3901f4a62bdf642754ceceedcae  artifact/CHK_Pirate_Warrior_2_unsigned.apk' | sha256sum --check
-          grep -q '0bc7423347aa31052fd307c18229e906b0faf3901f4a62bdf642754ceceedcae' parts/03/SHA256.txt
+          echo 'f65c2dba5b189bd94a5f34f558e7fbebe99c39587e71520be0a164d8535dabac  artifact/CHK_Pirate_Warrior_2_unsigned.apk' | sha256sum --check
+          grep -q 'f65c2dba5b189bd94a5f34f558e7fbebe99c39587e71520be0a164d8535dabac' parts/03/SHA256.txt
 
       - name: Restituer exactement la signature Android permanente
         run: |
-          python tools/v12_signed_delivery.py apply android-signing/releases/v12.0.7.json artifact/CHK_Pirate_Warrior_2_unsigned.apk artifact/CHK_Pirate_Warrior_2.apk
-          echo 'dc48fc49d7ca6a937fd36d2143d781b8687955b654bce4bb6c1df7c8a973ea62  artifact/CHK_Pirate_Warrior_2.apk' | sha256sum --check
+          python tools/v12_signed_delivery.py apply android-signing/releases/v12.0.8.json artifact/CHK_Pirate_Warrior_2_unsigned.apk artifact/CHK_Pirate_Warrior_2.apk
+          echo '2d0b0216486fdb95dd42f4c2172acfab91ad7bad1c69b274ff7450d19068ebb8  artifact/CHK_Pirate_Warrior_2.apk' | sha256sum --check
 
       - uses: android-actions/setup-android@v3
         with:
@@ -116,7 +128,7 @@ jobs:
           compression-level: 0
           retention-days: 30
 
-      - name: Vérifier si la release V12.0.7 existe déjà
+      - name: Vérifier si la release V12.0.8 existe déjà
         id: existing_release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -134,7 +146,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: python tools/publish_v12_metadata.py
 
-      - name: Publier la V12.0.7 dans GitHub Releases
+      - name: Publier la V12.0.8 dans GitHub Releases
         if: steps.existing_release.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -156,12 +168,12 @@ jobs:
       - name: Résultat
         run: |
           {
-            echo '## CHK Pirate Warrior 2 V12.0.7'
+            echo '## CHK Pirate Warrior 2 V12.0.8'
             echo
             echo '✅ APK signé avec le certificat permanent de la V12.0.5.'
             echo
-            echo '✅ V12.0.7 prête pour une mise à jour Android par-dessus la V12.0.5.'
+            echo '✅ V12.0.8 prête pour une mise à jour Android par-dessus la V12.0.7.'
             echo
-            echo '✅ Archipel Horizon, Aurora NX7 et Octavius intégrés.'
+            echo '✅ Mise à jour gameplay : cheval plus maniable, direction lissée et caméra monture/véhicule à suivi automatique.'
             echo "Artifact : `$ACTION_ARTIFACT_NAME`"
           } >> "$GITHUB_STEP_SUMMARY"
