@@ -231,6 +231,9 @@ func _refresh_gameplay_enabled_state() -> void:
         _jump_button.set_enabled(standard_enabled and not _last_vehicle_mode)
     if _enemy_recovery_button != null:
         _enemy_recovery_button.set_enabled(standard_enabled and not _last_vehicle_mode)
+    if _camera_reset_button != null:
+        _camera_reset_button.visible = standard_enabled and _last_vehicle_mode
+        _camera_reset_button.set_enabled(standard_enabled and _last_vehicle_mode)
 
 func _input(event: InputEvent) -> void:
     if not _edit_mode:
@@ -465,7 +468,7 @@ func _recenter_camera() -> void:
 func _cancel_all_touches() -> void:
     if _movement != null and _movement.has_method("cancel_input"):
         _movement.call("cancel_input")
-    for button in [_attack_button, _ability_1_button, _ability_2_button, _dodge_button, _jump_button, _interact_button, _hero_switch_button, _inventory_button, _enemy_recovery_button]:
+    for button in [_attack_button, _ability_1_button, _ability_2_button, _dodge_button, _jump_button, _interact_button, _hero_switch_button, _inventory_button, _enemy_recovery_button, _camera_reset_button]:
         if button != null:
             button.cancel_press()
 
