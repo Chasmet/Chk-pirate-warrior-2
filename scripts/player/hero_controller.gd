@@ -36,6 +36,7 @@ var _dodge_time := 0.0
 var _dodge_cooldown := 0.0
 var _dodge_direction := Vector3.ZERO
 var _coyote_remaining := 0.0
+var _jump_buffer_remaining := 0.0
 
 func _ready() -> void:
     add_to_group("player")
@@ -55,6 +56,11 @@ func _physics_process(delta: float) -> void:
     _dodge_cooldown = maxf(0.0, _dodge_cooldown - delta)
     _dodge_time = maxf(0.0, _dodge_time - delta)
 
+    if Input.is_action_just_pressed("jump"):
+        _jump_buffer_remaining = 0.15
+    else:
+        _jump_buffer_remaining = maxf(0.0, _jump_buffer_remaining - delta)
+
     var grounded_before := is_on_floor()
     if grounded_before:
         _coyote_remaining = coyote_time
@@ -72,8 +78,9 @@ func _physics_process(delta: float) -> void:
     var direction := _camera_relative_direction(input_vec)
     var jumped_this_frame := false
 
-    if Input.is_action_just_pressed("jump") and _coyote_remaining > 0.0 and _dodge_time <= 0.0:
+    if _jump_buffer_remaining > 0.0 and _coyote_remaining > 0.0 and _dodge_time <= 0.0:
         velocity.y = jump_velocity
+        _jump_buffer_remaining = 0.0
         _coyote_remaining = 0.0
         jumped_this_frame = true
         _play_animation_by_keywords(["jump"], false)
@@ -90,7 +97,7 @@ func _physics_process(delta: float) -> void:
         _last_move_dir = direction
         var input_strength := clampf(input_vec.length(), 0.0, 1.0)
         var speed_blend := clampf((input_strength - 0.32) / 0.68, 0.0, 1.0)
-        var current_speed := lerpf(move_speed, run_speed, speed_blend)
+        var current_speed := lerpf(move_speed, run_speed, speed_blend) * minf(1.0, input_strength / 0.65)
         if not grounded_before:
             current_speed *= 0.78
         velocity.x = direction.x * current_speed

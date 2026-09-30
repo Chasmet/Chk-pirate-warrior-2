@@ -1,0 +1,50 @@
+[
+  {
+    "file": "phare_corsaire.glb",
+    "triangles": 752,
+    "bytes": 20860,
+    "animated": true
+  },
+  {
+    "file": "marche_des_corsaires.glb",
+    "triangles": 796,
+    "bytes": 18736,
+    "animated": false
+  },
+  {
+    "file": "arche_du_port.glb",
+    "triangles": 308,
+    "bytes": 9824,
+    "animated": false
+  },
+  {
+    "file": "sanctuaire_des_marees.glb",
+    "triangles": 276,
+    "bytes": 9032,
+    "animated": true
+  },
+  {
+    "file": "reserves_du_port.glb",
+    "triangles": 816,
+    "bytes": 17704,
+    "animated": false
+  },
+  {
+    "file": "banniere_chk.glb",
+    "triangles": 132,
+    "bytes": 6292,
+    "animated": true
+  },
+  {
+    "file": "passerelle_cotiere.glb",
+    "triangles": 564,
+    "bytes": 12448,
+    "animated": false
+  },
+  {
+    "file": "corail_des_abysses.glb",
+    "triangles": 188,
+    "bytes": 6156,
+    "animated": false
+  }
+]

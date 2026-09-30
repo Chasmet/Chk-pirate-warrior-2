@@ -20,6 +20,8 @@ var _wheels: Array[Node3D] = []
 var _horse_legs: Array[Node3D] = []
 var _snapshot_accumulator := 0.0
 var _animation_time := 0.0
+var _smoothed_steering := 0.0
+var _last_drive_input := Vector2.ZERO
 
 func configure(spec: Dictionary) -> void:
     vehicle_name = str(spec.get("name", vehicle_name))
@@ -81,6 +83,35 @@ func camera_height() -> float:
         "quad": return 2.05
         _: return 2.15
 
+func camera_auto_follow_strength() -> float:
+    match style_key:
+        "horse": return 8.5
+        "quad": return 6.4
+        "4x4": return 4.8
+        _: return 5.2
+
+func camera_manual_hold_time() -> float:
+    match style_key:
+        "horse": return 0.85
+        "quad": return 1.00
+        _: return 1.20
+
+func camera_pitch_degrees() -> float:
+    match style_key:
+        "horse": return -11.5
+        "quad": return -11.0
+        "4x4": return -10.5
+        _: return -12.0
+
+func camera_heading_yaw() -> float:
+    var lead_degrees := 0.0
+    match style_key:
+        "horse": lead_degrees = 7.0
+        "quad": lead_degrees = 4.5
+        "4x4": lead_degrees = 2.5
+        _: lead_degrees = 3.0
+    return global_rotation.y - _smoothed_steering * deg_to_rad(lead_degrees)
+
 func try_interact(player: CharacterBody3D) -> bool:
     if is_boarded():
         disembark()
@@ -100,6 +131,8 @@ func board(player: CharacterBody3D) -> void:
     player.set_physics_process(false)
     player.velocity = Vector3.ZERO
     _current_speed = 0.0
+    _smoothed_steering = 0.0
+    _last_drive_input = Vector2.ZERO
     _snapshot_accumulator = 0.0
     add_to_group("active_controller")
     if player.has_method("set_mounted_pose"):
@@ -143,6 +176,8 @@ func _release_driver_at(player: CharacterBody3D, world_position: Vector3, yaw: f
     _driver_collision = null
     _virtual_move = Vector2.ZERO
     _current_speed = 0.0
+    _smoothed_steering = 0.0
+    _last_drive_input = Vector2.ZERO
     _snapshot_accumulator = 0.0
 
 func _find_safe_disembark_position() -> Dictionary:
@@ -178,17 +213,27 @@ func _physics_process(delta: float) -> void:
 
     var keyboard := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
     var input_vec := _virtual_move if _virtual_move.length() >= keyboard.length() else keyboard
+    _last_drive_input = input_vec
     var throttle := clampf(-input_vec.y, -1.0, 1.0)
-    var steering := clampf(input_vec.x, -1.0, 1.0)
+    var raw_steering := clampf(input_vec.x, -1.0, 1.0)
+    var steering_target := _steering_curve(raw_steering)
+    _smoothed_steering = move_toward(
+        _smoothed_steering,
+        steering_target,
+        _steering_response_rate() * delta
+    )
+    var steering := _smoothed_steering
     var target_speed := throttle * (maximum_speed if throttle >= 0.0 else reverse_speed)
     var drive_acceleration := acceleration if absf(throttle) > 0.05 else acceleration * 1.35
     _current_speed = move_toward(_current_speed, target_speed, drive_acceleration * delta)
 
     var speed_ratio := clampf(absf(_current_speed) / maxf(0.1, maximum_speed), 0.0, 1.0)
-    var minimum_grip := 0.60 if style_key in ["quad", "horse"] else 0.34
-    var steering_grip := lerpf(minimum_grip, 1.0, speed_ratio)
+    var steering_grip := _steering_grip(speed_ratio)
+    var pivot_boost := 1.0
+    if style_key == "horse" and absf(_current_speed) < 2.2:
+        pivot_boost = lerpf(1.38, 1.0, clampf(absf(_current_speed) / 2.2, 0.0, 1.0))
     var reverse_sign := -1.0 if _current_speed < -0.2 else 1.0
-    rotation.y -= steering * turn_speed * steering_grip * reverse_sign * delta
+    rotation.y -= steering * turn_speed * steering_grip * pivot_boost * reverse_sign * delta
     var forward := -global_transform.basis.z
     velocity.x = forward.x * _current_speed
     velocity.z = forward.z * _current_speed
@@ -203,6 +248,37 @@ func _physics_process(delta: float) -> void:
 
     if Input.is_action_just_pressed("interact"):
         disembark()
+
+func _steering_curve(value: float) -> float:
+    var amount := clampf(absf(value), 0.0, 1.0)
+    if amount < 0.03:
+        return 0.0
+    var exponent := 1.0
+    match style_key:
+        "horse": exponent = 0.72
+        "quad": exponent = 0.82
+        "4x4": exponent = 0.92
+    return signf(value) * pow(amount, exponent)
+
+func _steering_response_rate() -> float:
+    match style_key:
+        "horse": return 8.8
+        "quad": return 7.6
+        "4x4": return 5.8
+        _: return 6.2
+
+func _steering_grip(speed_ratio: float) -> float:
+    var ratio := clampf(speed_ratio, 0.0, 1.0)
+    match style_key:
+        "horse":
+            # Très maniable au pas, plus stable au galop.
+            return lerpf(1.22, 0.76, ratio)
+        "quad":
+            return lerpf(0.94, 0.88, ratio)
+        "4x4":
+            return lerpf(0.50, 0.92, ratio)
+        _:
+            return lerpf(0.46, 1.0, ratio)
 
 func _seat_offset() -> Vector3:
     match style_key:

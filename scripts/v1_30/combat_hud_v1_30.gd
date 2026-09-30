@@ -152,6 +152,7 @@ func _layout_enemy_panel() -> void:
     var width := clampf(viewport_size.x * 0.36, 430.0, 590.0)
     _enemy_panel.size = Vector2(width, 84.0)
     _enemy_panel.position.x = (viewport_size.x - width) * 0.5
+    _enemy_panel.position.y = 258.0
 
 func _refresh_enemy_bar() -> void:
     if _enemy_panel == null:

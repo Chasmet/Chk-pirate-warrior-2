@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "packageName": "com.chasmet.chkpiratewarrior2",
+  "certificateSha256": "75982f8c52d2059e5140cb5e361a6a80e46181f4b81b66e9c21bf2e0197779e4",
+  "alias": "chkpiratewarrior2",
+  "bootstrapPredecessor": {
+    "releaseId": 368343761,
+    "tag": "v1-30-100-hotfix-3-voice-mix",
+    "assetId": 509700230,
+    "apkSha256": "6ee2595215f4ed5d0a9960240537bedbe4df710e7c23b385e71bc98a3789fae3"
+  }
+}

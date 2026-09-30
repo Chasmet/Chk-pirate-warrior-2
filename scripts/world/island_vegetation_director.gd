@@ -217,12 +217,12 @@ func _spawn_bushes(center: Vector3, size: Vector2, info: Dictionary) -> void:
         var world := _snap_to_ground(p, 0.03)
         var bush := Node3D.new()
         bush.name = "Buisson_%02d" % i
+        _root.add_child(bush)
         bush.global_position = world
         bush.rotation.y = rng.randf_range(0.0, TAU)
         var scale_value := rng.randf_range(0.70, 1.45)
         bush.scale = Vector3.ONE * scale_value
         bush.add_child(_make_bush_visual(info, i))
-        _root.add_child(bush)
 
 func _spawn_flowers(center: Vector3, size: Vector2, info: Dictionary) -> void:
     var rng := RandomNumberGenerator.new()
@@ -231,11 +231,11 @@ func _spawn_flowers(center: Vector3, size: Vector2, info: Dictionary) -> void:
         var p := _random_inland_point(rng, center, size, 0.16, 0.60)
         var flower := Node3D.new()
         flower.name = "Fleurs_%02d" % i
+        _root.add_child(flower)
         flower.global_position = _snap_to_ground(p, 0.02)
         flower.rotation.y = rng.randf_range(0.0, TAU)
         flower.scale = Vector3.ONE * rng.randf_range(0.65, 1.15)
         flower.add_child(_make_flower_visual(info, i))
-        _root.add_child(flower)
 
 func _spawn_grass_clusters(center: Vector3, size: Vector2, info: Dictionary) -> void:
     var rng := RandomNumberGenerator.new()
@@ -244,11 +244,11 @@ func _spawn_grass_clusters(center: Vector3, size: Vector2, info: Dictionary) -> 
         var p := _random_inland_point(rng, center, size, 0.08, 0.74)
         var cluster := Node3D.new()
         cluster.name = "Herbes_%02d" % i
+        _root.add_child(cluster)
         cluster.global_position = _snap_to_ground(p, 0.01)
         cluster.rotation.y = rng.randf_range(0.0, TAU)
         cluster.scale = Vector3.ONE * rng.randf_range(0.72, 1.28)
         cluster.add_child(_make_grass_visual(info, i))
-        _root.add_child(cluster)
 
 func _spawn_troubled_growth() -> void:
     var info := WorldCatalog.island(10)
@@ -260,11 +260,11 @@ func _spawn_troubled_growth() -> void:
         var p := _random_inland_point(rng, center, size, 0.22, 0.68)
         var root := Node3D.new()
         root.name = "RonceTrouble_%02d" % i
+        _root.add_child(root)
         root.global_position = _snap_to_ground(p, 0.02)
         root.rotation.y = rng.randf_range(0.0, TAU)
         root.scale = Vector3.ONE * rng.randf_range(0.8, 1.5)
         root.add_child(_make_bush_visual(info, i, true))
-        _root.add_child(root)
 
 func _make_bush_visual(info: Dictionary, index: int, troubled: bool = false) -> Node3D:
     var root := Node3D.new()

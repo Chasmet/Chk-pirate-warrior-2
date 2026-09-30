@@ -308,22 +308,18 @@ func quick_save() -> void:
         "exact_rotation_y": exact_rotation_y,
         "exact_boat_mode": exact_boat_mode
     }
-    var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-    if file != null:
-        file.store_string(JSON.stringify(data, "  "))
+    var result := CHKSaveFiles.write_json(SAVE_PATH, data)
+    if result != OK:
+        push_warning("Sauvegarde impossible : %s" % error_string(result))
 
 func has_save() -> bool:
-    return FileAccess.file_exists(SAVE_PATH) or FileAccess.file_exists("user://savegame.json")
+    return not CHKSaveFiles.read_json(SAVE_PATH).is_empty() or not CHKSaveFiles.read_json("user://savegame.json").is_empty()
 
 func load_save() -> bool:
-    var path := SAVE_PATH if FileAccess.file_exists(SAVE_PATH) else "user://savegame.json"
-    if not FileAccess.file_exists(path):
-        return false
-    var file := FileAccess.open(path, FileAccess.READ)
-    if file == null:
-        return false
-    var data = JSON.parse_string(file.get_as_text())
-    if not data is Dictionary:
+    var data := CHKSaveFiles.read_json(SAVE_PATH)
+    if data.is_empty():
+        data = CHKSaveFiles.read_json("user://savegame.json")
+    if data.is_empty():
         return false
     selected_hero = str(data.get("hero", "cheikh"))
     if not HERO_ORDER.has(selected_hero):
