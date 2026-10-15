@@ -167,6 +167,10 @@ func _on_hero_changed(_hero_id: String) -> void:
     energy_changed.emit(energy, max_energy)
 
 func _clear_visuals() -> void:
+    if backpack_node != null and is_instance_valid(backpack_node):
+        backpack_node.queue_free()
+    if weapon_node != null and is_instance_valid(weapon_node):
+        weapon_node.queue_free()
     if hero_model != null and is_instance_valid(hero_model):
         hero_model.queue_free()
     hero_model = null
@@ -197,14 +201,9 @@ func _load_visuals() -> void:
     if ResourceLoader.exists(backpack_path):
         var backpack_scene = load(backpack_path)
         if backpack_scene is PackedScene:
-            backpack_node = backpack_scene.instantiate()
-            _attach_to_bone_or_fallback(
-                backpack_node,
-                ["chest", "spine", "Spine2", "Spine_02", "UpperChest", "Chest", "Spine1"],
-                Vector3(0.0, 0.03, 0.18),
-                Vector3(0.0, 180.0, 0.0),
-                true
-            )
+            var backpack_visual := backpack_scene.instantiate() as Node3D
+            if backpack_visual != null:
+                _attach_backpack(backpack_visual)
 
     var weapon_path := str(hero_data.get("weapon", ""))
     if weapon_path != "" and ResourceLoader.exists(weapon_path):
@@ -218,6 +217,29 @@ func _load_visuals() -> void:
                 Vector3(0.0, 0.0, 90.0),
                 true
             )
+
+func _attach_backpack(backpack_visual: Node3D) -> void:
+    var anchor := Node3D.new()
+    anchor.name = "BackpackAnchor"
+    add_child(anchor)
+    anchor.position = Vector3(0.0, 1.08, 0.30)
+    anchor.rotation_degrees = Vector3(0.0, 180.0, 0.0)
+    anchor.add_child(backpack_visual)
+
+    var result := _calculate_visual_bounds(anchor)
+    if bool(result.get("valid", false)):
+        var bounds: AABB = result.get("bounds", AABB())
+        var longest := maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
+        if longest > 0.001:
+            var factor := clampf(0.52 / longest, 0.001, 100.0)
+            backpack_visual.scale *= Vector3.ONE * factor
+            var centered_result := _calculate_visual_bounds(anchor)
+            if bool(centered_result.get("valid", false)):
+                var centered_bounds: AABB = centered_result.get("bounds", AABB())
+                var center := centered_bounds.position + centered_bounds.size * 0.5
+                backpack_visual.position -= center
+
+    backpack_node = anchor
 
 func _normalize_model_size() -> void:
     if hero_model == null:
