@@ -70,6 +70,36 @@ jobs:
           & 'build/node.exe' --version
           if ($LASTEXITCODE -ne 0) { throw "Node embarque ne demarre pas" }
 
+      - name: Test reel du serveur Node integre en local
+        working-directory: tools/godot-direct-mcp
+        shell: pwsh
+        run: |
+          $env:CHK_NODE_PACKAGED = "true"
+          $env:CHK_GODOT_MCP_TOKEN = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          $env:CHK_GODOT_EDITOR_TOKEN = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          $env:HOST = "127.0.0.1"
+          $env:PORT = "8871"
+          $node = (Resolve-Path 'build/node.exe').Path
+          $script = (Resolve-Path 'build/server.cjs').Path
+          $proc = Start-Process -FilePath $node -ArgumentList $script -PassThru -WindowStyle Hidden
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 25; $i++) {
+              try {
+                $health = Invoke-RestMethod 'http://127.0.0.1:8871/health' -TimeoutSec 2
+                if ($health.ok -eq $true -and $health.version -eq '1.0.0') { $ready = $true; break }
+              } catch {}
+              Start-Sleep -Milliseconds 350
+            }
+            if (-not $ready) { throw "Serveur Node bundle ne demarre pas" }
+            $body = '{"jsonrpc":"2.0","id":23,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"installer-smoke","version":"1"}}}'
+            $reply = Invoke-RestMethod -Method POST -Uri ("http://127.0.0.1:8871/mcp/" + $env:CHK_GODOT_MCP_TOKEN) -ContentType 'application/json' -Body $body -TimeoutSec 6
+            if ($reply.result.serverInfo.name -ne "CHK Godot Direct MCP") { throw "Reponse MCP incorrecte" }
+            Write-Output 'Serveur Node embarque et protocole MCP testes avec succes'
+          } finally {
+            if ($proc) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+          }
+
       - name: Verifier script installateur Python
         working-directory: tools/godot-direct-mcp
         shell: pwsh
