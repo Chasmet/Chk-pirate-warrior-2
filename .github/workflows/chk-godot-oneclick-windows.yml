@@ -7,6 +7,7 @@ on:
       - 'feature/godot-one-click-installer-20261025'
       - 'agent/v8-godot47-mcp-phone'
       - 'feature/godot-local-web-installer-20261025'
+      - 'fix/godot-local-web-refused-20261025'
     paths:
       - 'tools/godot-direct-mcp/**'
       - '.github/workflows/chk-godot-oneclick-windows.yml'
@@ -143,13 +144,13 @@ jobs:
         shell: pwsh
         run: |
           $exe = (Resolve-Path 'dist/CHK-Godot-Installation.exe').Path
-          $proc = Start-Process -FilePath $exe -ArgumentList '--web' -PassThru
+          $proc = Start-Process -FilePath $exe -PassThru
           try {
             $healthy = $false
             for ($attempt = 0; $attempt -lt 36; $attempt++) {
               try {
                 $r = Invoke-RestMethod -Uri 'http://127.0.0.1:8792/api/health' -TimeoutSec 2
-                if ($r.name -eq 'CHK Godot Local Web' -and $r.version -eq '1.2.0') {
+                if ($r.name -eq 'CHK Godot Local Web' -and $r.version -eq '1.2.1') {
                   $healthy = $true
                   break
                 }
@@ -164,7 +165,12 @@ jobs:
             if (-not $page.Content.Contains('COPIER MON LIEN CHATGPT')) {
               throw 'Bouton lien ChatGPT absent du site'
             }
-            Write-Output 'VERIFIE: vrai EXE Windows --> navigateur localhost:8792 --> page HTML'
+            Start-Sleep -Seconds 7
+            $stillRunning = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
+            if (-not $stillRunning) { throw 'Le lanceur quitte prématurément, localhost disparaît !' }
+            $check = Invoke-RestMethod 'http://127.0.0.1:8792/api/health' -TimeoutSec 3
+            if ($check.version -ne '1.2.1') { throw 'Le site local ne tient pas après l’ouverture du navigateur' }
+            Write-Output 'VERIFIE: Double-clic EXE, site localhost actif après 7 secondes et processus toujours vivant'
           } finally {
             Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
           }
@@ -197,9 +203,9 @@ jobs:
         run: |
           set -euo pipefail
           test -s release/CHK-Godot-Installation.exe
-          TAG="chk-godot-direct-installer-v1.2.0"
+          TAG="chk-godot-direct-installer-v1.2.1"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release/CHK-Godot-Installation.exe --clobber
           else
-            gh release create "$TAG" release/CHK-Godot-Installation.exe --title "CHK Godot Direct MCP - Installateur Windows 1.2.0" --notes "Veritable installateur Windows teste. Double-clic, puis INSTALLER ET CONNECTER. Tailscale deja present sur le PC. Serveur dedie au port 10000; les autres routes ne sont pas modifiees. Compatibilite HTTPS ChatGPT a valider."
+            gh release create "$TAG" release/CHK-Godot-Installation.exe --title "CHK Godot Direct MCP - Installateur Windows 1.2.1" --notes "Veritable installateur Windows teste. Double-clic, puis INSTALLER ET CONNECTER. Tailscale deja present sur le PC. Serveur dedie au port 10000; les autres routes ne sont pas modifiees. Compatibilite HTTPS ChatGPT a valider."
           fi
