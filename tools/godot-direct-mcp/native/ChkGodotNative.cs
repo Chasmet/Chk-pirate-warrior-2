@@ -561,7 +561,7 @@ namespace CHKGodotNative
                         Reply(stream,200,"text/html; charset=utf-8",WebPage().Replace("__UI_TOKEN__",uiSecret));return;
                     }
                     if(verb=="GET" && route=="/api/health") {
-                        Reply(stream,200,"application/json","{\"name\":\"CHK Godot Native\",\"version\":\"1.3.0\"}");return;
+                        Reply(stream,200,"application/json","{\"name\":\"CHK Godot Native\",\"version\":\"1.3.1\"}");return;
                     }
                     if(verb=="GET" && route=="/api/status") {
                         bool running,publicReady;string msg;
