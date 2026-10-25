@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import ctypes
 import hashlib
+import secrets
+import traceback
+import datetime
 import json
 import os
 from pathlib import Path
@@ -30,6 +33,9 @@ CONFIG_FILE = INSTALL_DIR / "settings.json"
 GUI_BINARY = "CHK-Godot-Installation.exe"
 SERVER_BINARY = "node.exe"
 SERVER_SCRIPT = "server.cjs"
+RUNTIME_FILE = INSTALL_DIR / "runtime.json"
+DIAGNOSTIC_FILE = INSTALL_DIR / "diagnostic.log"
+APP_VERSION = "1.0.1"
 LOCAL_PORT = 8791
 FUNNEL_PORT = 10000
 STARTUP_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -63,6 +69,65 @@ def installed_config() -> dict:
             cfg.get("chat_token") == cfg.get("editor_token")):
         raise RuntimeError("Configuration privée invalide, conservée sans la modifier.")
     return cfg
+
+
+def sha256_file(source: Path) -> str:
+    digest = hashlib.sha256()
+    with open(source, "rb") as handle:
+        for part in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(part)
+    return digest.hexdigest()
+
+
+def install_immutable(source: Path, prefix: str, extension: str) -> Path:
+    """Never overwrite the running installer or node.exe, even during upgrades."""
+    digest = sha256_file(source)
+    destination = INSTALL_DIR / f"{prefix}-{digest[:16]}{extension}"
+    if destination.is_file():
+        if sha256_file(destination) != digest:
+            raise RuntimeError(f"Fichier existant modifié : {destination.name}.")
+        return destination
+    temp = INSTALL_DIR / f".{prefix}-{secrets.token_hex(8)}.tmp"
+    try:
+        shutil.copyfile(source, temp)
+        if sha256_file(temp) != digest:
+            raise RuntimeError("Copie incomplète : contrôle SHA256 incorrect.")
+        os.replace(temp, destination)
+    finally:
+        temp.unlink(missing_ok=True)
+    return destination
+
+
+def save_runtime(executable: Path, node: Path, script: Path) -> None:
+    data = {"app": str(executable), "node": str(node), "script": str(script),
+            "version": APP_VERSION}
+    temp = INSTALL_DIR / f".runtime-{secrets.token_hex(8)}.tmp"
+    try:
+        temp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        os.replace(temp, RUNTIME_FILE)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def runtime_binaries() -> tuple[Path, Path]:
+    if RUNTIME_FILE.is_file():
+        data = json.loads(RUNTIME_FILE.read_text(encoding="utf-8"))
+        node = Path(str(data.get("node", "")))
+        script = Path(str(data.get("script", "")))
+        if node.is_file() and script.is_file() and node.parent == INSTALL_DIR and script.parent == INSTALL_DIR:
+            return node, script
+        raise RuntimeError("Installation du moteur incomplète : cliquer sur INSTALLER ET CONNECTER.")
+    return INSTALL_DIR / SERVER_BINARY, INSTALL_DIR / SERVER_SCRIPT
+
+
+def write_diagnostic(error: BaseException) -> None:
+    try:
+        INSTALL_DIR.mkdir(parents=True, exist_ok=True)
+        with open(DIAGNOSTIC_FILE, "a", encoding="utf-8") as f:
+            f.write("\n" + datetime.datetime.now().isoformat(timespec="seconds") + " CHK v" + APP_VERSION + "\n")
+            f.write("".join(traceback.format_exception(type(error), error, error.__traceback__)))
+    except Exception:
+        pass
 
 
 def create_config_once() -> dict:
@@ -123,9 +188,12 @@ def status_10000(tailscale: str) -> str:
             for hostname, entry in web.items():
                 if hostname.endswith(":" + str(FUNNEL_PORT)):
                     handlers = entry.get("Handlers", {})
-                    destinations = [str(handler.get("Proxy", "")) for handler in handlers.values() if isinstance(handler, dict)]
-                    allowed = data.get("AllowFunnel", {})
-                    if any(dest == f"http://127.0.0.1:{LOCAL_PORT}" for dest in destinations) and allowed.get(hostname) is True:
+                    destinations = [str(handler.get("Proxy", "")).rstrip("/") for handler in handlers.values() if isinstance(handler, dict)]
+                    # Tailcale versions differ: AllowFunnel may be omitted from the
+                    # status JSON. Matching the exact proxy safely establishes
+                    # ownership; the public HTTP MCP check establishes reachability.
+                    if any(dest in (f"http://127.0.0.1:{LOCAL_PORT}",
+                                    f"http://localhost:{LOCAL_PORT}") for dest in destinations):
                         return "ours"
                     return "occupied"
             # Some Tailscale builds use different JSON keys; conservatively refuse.
@@ -207,8 +275,7 @@ def supervisor() -> int:
         if ctypes.windll.kernel32.GetLastError() == 183:
             return 0
         cfg = installed_config()
-        node = INSTALL_DIR / SERVER_BINARY
-        script = INSTALL_DIR / SERVER_SCRIPT
+        node, script = runtime_binaries()
         if not node.is_file() or not script.is_file():
             return 3
         env = os.environ.copy()
@@ -240,9 +307,9 @@ def supervisor() -> int:
 class Installer(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("CHK GODOT — Installation automatique")
-        self.geometry("620x445")
-        self.minsize(565, 410)
+        self.title("CHK GODOT — Installation automatique v" + APP_VERSION)
+        self.geometry("680x525")
+        self.minsize(595, 455)
         self.configure(bg="#111827")
         self.busy = False
         self.verified_host = ""
@@ -275,6 +342,8 @@ class Installer(tk.Tk):
                                      style="Main.TButton", command=self.copy_editor_token,
                                      state="disabled")
         self.copy_godot.pack(fill="x", pady=4)
+        self.diagnostic = ttk.Button(root, text="OUVRIR LE RAPPORT DES ERREURS", style="Main.TButton", command=self.open_diagnostic)
+        self.diagnostic.pack(fill="x", pady=4)
         self.state = ttk.Label(root, text="État : prêt pour l'installation.", style="State.TLabel",
                                wraplength=550, justify="left")
         self.state.pack(fill="x", pady=(18, 5))
@@ -308,10 +377,25 @@ class Installer(tk.Tk):
         try:
             worker()
         except Exception as exc:
+            write_diagnostic(exc)
             detail = str(exc).replace("\n", " ")[:300]
-            self.after(0, lambda d=detail: self.set_status("ATTENTION — " + d))
+            self.after(0, lambda d=detail: self.show_error(d))
         finally:
             self.after(0, self.ready)
+
+    def show_error(self, detail: str):
+        self.set_status("ERREUR : " + detail + ". Rapport disponible ci-dessous.")
+        messagebox.showerror("CHK Godot — erreur d'installation",
+                             detail + "\n\nL'application reste ouverte. Rapport disponible dans l'application.")
+
+    def open_diagnostic(self):
+        if not DIAGNOSTIC_FILE.exists():
+            messagebox.showinfo("CHK Godot", "Aucune erreur enregistrée.")
+            return
+        try:
+            os.startfile(str(DIAGNOSTIC_FILE))
+        except OSError as exc:
+            messagebox.showerror("CHK Godot", str(exc))
 
     def ready(self):
         self.busy = False
@@ -337,15 +421,13 @@ class Installer(tk.Tk):
         if port_state == "occupied":
             raise RuntimeError("Port Tailscale 10000 déjà occupé : aucune route existante n'a été modifiée.")
         cfg = create_config_once()
-        installed_exe = INSTALL_DIR / GUI_BINARY
-        node = INSTALL_DIR / SERVER_BINARY
-        script = INSTALL_DIR / SERVER_SCRIPT
-        self.update_message("Installation locale du serveur et conservation de tes clés...")
-        if Path(sys.executable).resolve() != installed_exe.resolve():
-            shutil.copy2(sys.executable, installed_exe)
-        shutil.copy2(bundled("node.exe"), node)
-        shutil.copy2(bundled("server.cjs"), script)
+        self.update_message("Installation : copie sans écraser aucun processus Windows actif...")
+        installed_exe = install_immutable(Path(sys.executable), "CHK-Godot-Application", ".exe")
+        node = install_immutable(bundled("node.exe"), "node", ".exe")
+        script = install_immutable(bundled("server.cjs"), "godot-server", ".cjs")
+        save_runtime(installed_exe, node, script)
         save_startup(installed_exe)
+        self.update_message("Démarrage du nouveau serveur local...")
         launch_supervisor(installed_exe)
         self.update_message("Serveur local actif. Activation automatique de Funnel HTTPS 10000...")
         if port_state == "empty":
@@ -365,10 +447,10 @@ class Installer(tk.Tk):
         cfg = installed_config()
         tailscale = find_tailscale()
         hostname = hostname_override or tls_hostname(tailscale)
-        if status_10000(tailscale) != "ours":
-            raise RuntimeError("Port public 10000 non relié à ce serveur. Clique INSTALLER ET CONNECTER.")
         if not check_local_health():
-            raise RuntimeError("Serveur Node local hors ligne. Clique INSTALLER ET CONNECTER.")
+            raise RuntimeError("Serveur local non démarré : clique INSTALLER ET CONNECTER. Tes clés sont conservées.")
+        if status_10000(tailscale) != "ours":
+            raise RuntimeError("Serveur local actif, Funnel 10000 non configuré : clique INSTALLER ET CONNECTER.")
         self.update_message("Vérification du véritable HTTPS MCP externe...")
         check_public_mcp(hostname, cfg["chat_token"])
         self.verified_host = hostname
