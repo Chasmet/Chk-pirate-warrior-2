@@ -26,7 +26,7 @@ stretch/aspect="expand"
 handheld/orientation=0
 
 [editor_plugins]
-enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg", "res://addons/chk_mcp_relay/plugin.cfg")
+enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg", "res://addons/chk_mcp_relay/plugin.cfg", "res://addons/chk_direct_mcp/plugin.cfg")
 
 [rendering]
 renderer/rendering_method="gl_compatibility"
