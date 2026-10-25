@@ -1,0 +1,41 @@
+name: V8 - Secure MCP URL token
+
+on:
+  push:
+    branches:
+      - agent/v8-godot47-mcp-phone
+    paths:
+      - .github/workflows/patch_mcp_auth_v8.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/v8-godot47-mcp-phone
+          fetch-depth: 0
+      - name: Add hashed URL token fallback
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('mcp-relay-server/server.js')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('import { randomUUID } from "node:crypto";', 'import { randomUUID, createHash, timingSafeEqual } from "node:crypto";')
+          s = s.replace('const MCP_TOKEN = String(process.env.MCP_TOKEN ?? "").trim();', 'const MCP_TOKEN = String(process.env.MCP_TOKEN ?? "").trim();\nconst MCP_TOKEN_SHA256 = "64ba5a4381cdffd7d833d652c63e6a98a30c004eba749d7bef50804fde38040f";')
+          old = '''function tokenOk(req) {\n  return MCP_TOKEN.length >= 16 && req.params.token === MCP_TOKEN;\n}'''
+          new = '''function tokenOk(req) {\n  const incoming = String(req.params.token ?? "");\n  if (MCP_TOKEN.length >= 16 && incoming === MCP_TOKEN) return true;\n  if (!incoming) return false;\n  const digest = createHash("sha256").update(incoming).digest("hex");\n  const a = Buffer.from(digest, "utf8");\n  const b = Buffer.from(MCP_TOKEN_SHA256, "utf8");\n  return a.length === b.length && timingSafeEqual(a, b);\n}'''
+          if old not in s:
+              raise SystemExit('tokenOk block not found')
+          s = s.replace(old, new)
+          p.write_text(s, encoding='utf-8')
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mcp-relay-server/server.js
+          git commit -m "V8: add secure hashed MCP URL token" || exit 0
+          git push origin HEAD:agent/v8-godot47-mcp-phone

@@ -1,0 +1,14 @@
+{
+  "name": "chk-godot-direct-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-hosted CHK Godot MCP bridge, independent of Supabase and Render",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node --env-file=.env server.mjs",
+    "check": "node --check server.mjs && node --check setup.mjs && node --check test/server.test.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": { "ws": "8.18.3" }
+}

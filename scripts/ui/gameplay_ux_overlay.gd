@@ -86,9 +86,16 @@ func _layout() -> void:
     var size := get_viewport().get_visible_rect().size
     var w := size.x
     var h := size.y
+    var hud := get_tree().get_first_node_in_group("hud")
 
     # Le compteur possède sa propre ligne sous la carte joueur.
-    _coin_panel.position = Vector2(18.0, 174.0)
+    var coin_y := 258.0
+    if hud != null:
+        var stats_value = hud.get("stats_panel")
+        if stats_value is Control:
+            var stats := stats_value as Control
+            coin_y = stats.global_position.y + stats.size.y + 8.0
+    _coin_panel.position = Vector2(18.0, coin_y)
     _coin_panel.size = Vector2(188.0, 42.0)
     _coin_label.position = Vector2.ZERO
     _coin_label.size = _coin_panel.size
@@ -98,7 +105,6 @@ func _layout() -> void:
     var nav_w := minf(500.0, w * 0.42)
     var nav_x := (w - nav_w) * 0.5
     var nav_y := 136.0
-    var hud := get_tree().get_first_node_in_group("hud")
     if hud != null:
         var mission_value = hud.get("mission_panel")
         if mission_value is Control:

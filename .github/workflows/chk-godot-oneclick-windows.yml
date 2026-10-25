@@ -1,0 +1,211 @@
+name: CHK Godot - Tableau de bord web local
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'feature/godot-one-click-installer-20261025'
+      - 'agent/v8-godot47-mcp-phone'
+      - 'feature/godot-local-web-installer-20261025'
+      - 'fix/godot-local-web-refused-20261025'
+    paths:
+      - 'tools/godot-direct-mcp/**'
+      - '.github/workflows/chk-godot-oneclick-windows.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compiler-vrai-exe:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Recuperer le depot
+        uses: actions/checkout@v4
+      - name: Installer Node 22 de compilation
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Installer modules Node et tester le MCP
+        working-directory: tools/godot-direct-mcp
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
+          npm run check
+          if ($LASTEXITCODE -ne 0) { throw "Syntax check failed" }
+          npm test
+          if ($LASTEXITCODE -ne 0) { throw "Tests MCP echoues" }
+
+      - name: Preparer la version autonome du serveur
+        working-directory: tools/godot-direct-mcp
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path 'build' -Force | Out-Null
+          npm install --no-save --no-audit --no-fund esbuild@0.25.12
+          if ($LASTEXITCODE -ne 0) { throw "esbuild installation failed" }
+          npx --no-install esbuild entrypoint.mjs --bundle --platform=node --format=cjs --target=node22 --outfile=build/server.cjs
+          if ($LASTEXITCODE -ne 0) { throw "Echec bundling serveur" }
+          if (-not (Test-Path 'build/server.cjs')) { throw "Serveur bundle manquant" }
+
+      - name: Integrer Node portable officiel et verifier son SHA-256
+        working-directory: tools/godot-direct-mcp
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = 'v22.16.0'
+          $archive = "node-$version-win-x64.zip"
+          $origin = "https://nodejs.org/dist/$version"
+          Invoke-WebRequest -UseBasicParsing "$origin/SHASUMS256.txt" -OutFile 'build/node-sha256.txt'
+          Invoke-WebRequest -UseBasicParsing "$origin/$archive" -OutFile 'build/node.zip'
+          $matchesSha = Select-String -Path 'build/node-sha256.txt' -Pattern "^\s*([a-fA-F0-9]{64})\s+$([regex]::Escape($archive))\s*$"
+          if (-not $matchesSha) { throw "Archive absente du manifeste officiel" }
+          $expected = $matchesSha.Matches[0].Groups[1].Value.ToLowerInvariant()
+          $actual = (Get-FileHash 'build/node.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "SHA256 Node portable non conforme" }
+          Expand-Archive -Path 'build/node.zip' -DestinationPath 'build/node-portable' -Force
+          Copy-Item "build/node-portable/node-$version-win-x64/node.exe" 'build/node.exe' -Force
+          & 'build/node.exe' --version
+          if ($LASTEXITCODE -ne 0) { throw "Node embarque ne demarre pas" }
+
+      - name: Test reel du serveur Node integre en local
+        working-directory: tools/godot-direct-mcp
+        shell: pwsh
+        run: |
+          $env:CHK_NODE_PACKAGED = "true"
+          $env:CHK_GODOT_MCP_TOKEN = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          $env:CHK_GODOT_EDITOR_TOKEN = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          $env:HOST = "127.0.0.1"
+          $env:PORT = "8871"
+          $node = (Resolve-Path 'build/node.exe').Path
+          $script = (Resolve-Path 'build/server.cjs').Path
+          $proc = Start-Process -FilePath $node -ArgumentList $script -PassThru -WindowStyle Hidden
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 25; $i++) {
+              try {
+                $health = Invoke-RestMethod 'http://127.0.0.1:8871/health' -TimeoutSec 2
+                if ($health.ok -eq $true -and $health.version -eq '1.0.0') { $ready = $true; break }
+              } catch {}
+              Start-Sleep -Milliseconds 350
+            }
+            if (-not $ready) { throw "Serveur Node bundle ne demarre pas" }
+            $body = '{"jsonrpc":"2.0","id":23,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"installer-smoke","version":"1"}}}'
+            $reply = Invoke-RestMethod -Method POST -Uri ("http://127.0.0.1:8871/mcp/" + $env:CHK_GODOT_MCP_TOKEN) -ContentType 'application/json' -Body $body -TimeoutSec 6
+            if ($reply.result.serverInfo.name -ne "CHK Godot Direct MCP") { throw "Reponse MCP incorrecte" }
+            Write-Output 'Serveur Node embarque et protocole MCP testes avec succes'
+          } finally {
+            if ($proc) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+          }
+
+      - name: Verifier script installateur Python
+        working-directory: tools/godot-direct-mcp
+        shell: pwsh
+        run: |
+          python -m py_compile installer/chk_godot_installer.py installer/local_web.py
+          if ($LASTEXITCODE -ne 0) { throw "Syntaxe GUI incorrecte" }
+
+      - name: Regressions Windows WinError32 et port Tailscale
+        working-directory: tools/godot-direct-mcp
+        shell: pwsh
+        run: |
+          python -m unittest discover -s installer -p "test_*.py" -v
+          if ($LASTEXITCODE -ne 0) { throw "Regression Windows echouee" }
+
+      - name: Construire veritable EXE graphique PyInstaller
+        working-directory: tools/godot-direct-mcp
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller==6.16.0
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller installation failed" }
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name CHK-Godot-Installation --add-binary "build/node.exe;runtime" --add-data "build/server.cjs;runtime" --paths installer installer/local_web.py
+          if ($LASTEXITCODE -ne 0) { throw "Echec compilation EXE" }
+          if (-not (Test-Path 'dist/CHK-Godot-Installation.exe')) { throw "EXE manquant" }
+
+      - name: Tester EXE et verifier signature physique
+        working-directory: tools/godot-direct-mcp
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'dist/CHK-Godot-Installation.exe').Path
+          $proc = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
+          if ($proc.ExitCode -ne 0) { throw "Self-test EXE echoue code $($proc.ExitCode)" }
+          $bytes = [System.IO.File]::ReadAllBytes($exe)
+          if ($bytes.Length -lt 1000000) { throw "EXE trop petit, build incomplet" }
+          if ($bytes[0] -ne 77 -or $bytes[1] -ne 90) { throw "Fichier non executable Windows PE" }
+          $sha = (Get-FileHash $exe -Algorithm SHA256).Hash
+          Write-Output "Installateur Windows PE valide: $($bytes.Length) octets SHA256=$sha"
+
+      - name: Tester le vrai site local dans EXE compilé
+        working-directory: tools/godot-direct-mcp
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'dist/CHK-Godot-Installation.exe').Path
+          $proc = Start-Process -FilePath $exe -PassThru
+          try {
+            $healthy = $false
+            for ($attempt = 0; $attempt -lt 36; $attempt++) {
+              try {
+                $r = Invoke-RestMethod -Uri 'http://127.0.0.1:8792/api/health' -TimeoutSec 2
+                if ($r.name -eq 'CHK Godot Local Web' -and $r.version -eq '1.2.1') {
+                  $healthy = $true
+                  break
+                }
+              } catch {}
+              Start-Sleep -Milliseconds 500
+            }
+            if (-not $healthy) { throw 'Le vrai EXE ne lance pas le tableau de bord local' }
+            $page = Invoke-WebRequest -Uri 'http://127.0.0.1:8792/' -UseBasicParsing -TimeoutSec 5
+            if (-not $page.Content.Contains('INSTALLER ET CONNECTER AUTOMATIQUEMENT')) {
+              throw 'Site local incomplet'
+            }
+            if (-not $page.Content.Contains('COPIER MON LIEN CHATGPT')) {
+              throw 'Bouton lien ChatGPT absent du site'
+            }
+            Start-Sleep -Seconds 7
+            $stillRunning = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
+            if (-not $stillRunning) { throw 'Le lanceur quitte prématurément, localhost disparaît !' }
+            $check = Invoke-RestMethod 'http://127.0.0.1:8792/api/health' -TimeoutSec 3
+            if ($check.version -ne '1.2.1') { throw 'Le site local ne tient pas apres ouverture du navigateur' }
+            Write-Output 'VERIFIE: Double-clic EXE, site localhost actif après 7 secondes et processus toujours vivant'
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Mettre installateur dans GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: CHK-Godot-Installation-Windows
+          path: tools/godot-direct-mcp/dist/CHK-Godot-Installation.exe
+          if-no-files-found: error
+          retention-days: 90
+
+  publier-version-telechargeable:
+    if: github.ref == 'refs/heads/agent/v8-godot47-mcp-phone'
+    needs: [compiler-vrai-exe]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Recuperer le vrai EXE compile et teste
+        uses: actions/download-artifact@v4
+        with:
+          name: CHK-Godot-Installation-Windows
+          path: release
+      - name: Publier un lien direct sur GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s release/CHK-Godot-Installation.exe
+          TAG="chk-godot-direct-installer-v1.2.1"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/CHK-Godot-Installation.exe --clobber
+          else
+            gh release create "$TAG" release/CHK-Godot-Installation.exe --title "CHK Godot Direct MCP - Installateur Windows 1.2.1" --notes "Veritable installateur Windows teste. Double-clic, puis INSTALLER ET CONNECTER. Tailscale deja present sur le PC. Serveur dedie au port 10000; les autres routes ne sont pas modifiees. Compatibilite HTTPS ChatGPT a valider."
+          fi

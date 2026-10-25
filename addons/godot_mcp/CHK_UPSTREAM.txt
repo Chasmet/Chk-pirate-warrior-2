@@ -1,0 +1,5 @@
+Upstream: https://github.com/regiellis/godot-mcp-go
+Source branch: asset-library
+Purpose: Godot MCP/CLI editor addon for CHK Pirate Warrior 2 V8.
+License: MIT (see addon LICENSE).
+The upstream Asset Library entry requires Godot 4.7 or newer.

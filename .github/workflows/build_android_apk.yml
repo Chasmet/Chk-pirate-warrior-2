@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - agent/full-game-rebuild-v1
+      - agent/v8-godot47-mcp-phone
 
 permissions:
   contents: read
@@ -214,6 +215,12 @@ jobs:
           godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
             --script res://scripts/tests/full_repo_audit.gd
 
+      - name: Vérifier joystick HUD graphismes et coop V9
+        shell: bash
+        run: |
+          godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
+            --script res://scripts/tests/v9_mobile_coop_regression_audit.gd
+
       - name: Vérifier le chargement du projet
         shell: bash
         run: |
@@ -226,6 +233,21 @@ jobs:
           if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
             exit "$STATUS"
           fi
+
+      - name: Tester en jeu recul HUD et herbe visible
+        shell: bash
+        run: |
+          set -o pipefail
+          timeout 180s godot --headless --path "$GITHUB_WORKSPACE/ci_export" \
+            res://scenes/tests/v10_mobile_feedback_runtime_test.tscn 2>&1 | tee godot-runtime-mobile.log || STATUS=$?
+          STATUS=${STATUS:-0}
+          if grep -E "SCRIPT ERROR:|Parse Error:|Invalid call|Invalid access|ÉCHEC FEEDBACK MOBILE" godot-runtime-mobile.log; then
+            exit 5
+          fi
+          if [ "$STATUS" -ne 0 ]; then
+            exit "$STATUS"
+          fi
+          grep -q 'CHK_PIRATE_WARRIOR_2_V10_MOBILE_FEEDBACK_OK' godot-runtime-mobile.log
 
       - name: Exporter le véritable APK Android complet
         shell: bash
