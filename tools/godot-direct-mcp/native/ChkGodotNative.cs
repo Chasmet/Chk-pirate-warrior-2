@@ -40,7 +40,9 @@ namespace CHKGodotNative
 
     sealed class Dashboard : Form
     {
-        const string Version = "1.3.1";
+        const string Version = "1.4.0";
+        const int PublicHttpsPort = 443;
+        const string SharedPath = "/chk-godot";
         const int PanelPort = 8792;
         const string Host = "127.0.0.1";
         const string PanelUrl = "http://127.0.0.1:8792/";
@@ -62,6 +64,7 @@ namespace CHKGodotNative
         Process node;
         string status = "Site local actif. Clique sur INSTALLER ET CONNECTER.";
         string hostname = "";
+        string publicPrefix = "";
         bool busy = false;
         bool publicOk = false;
         bool exiting = false;
@@ -279,7 +282,7 @@ namespace CHKGodotNative
             config["chat_token"] = Secret(32);
             config["editor_token"] = Secret(32);
             config["local_port"] = 8791;
-            config["funnel_port"] = 10000;
+            config["funnel_port"] = PublicHttpsPort;
             using (var fs = new FileStream(ConfigPath, FileMode.CreateNew, FileAccess.Write))
             using (var writer = new StreamWriter(fs, new UTF8Encoding(false)))
                 writer.Write(serializer.Serialize(config));
@@ -332,15 +335,80 @@ namespace CHKGodotNative
             if (!match.Success) throw new Exception("Tailscale est déconnecté ou MagicDNS est indisponible.");
             return match.Groups[1].Value.ToLowerInvariant();
         }
+        // Inspect the existing Tailscale HTTPS 443 routes before any write.
+        // Serve private paths must never become public just to enable Godot.
+        static Dictionary<string, object> Map(object item)
+        {
+            return item as Dictionary<string, object> ??
+                   new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        }
+        static bool IsGodotProxy(object item)
+        {
+            var handler = Map(item);
+            object target;
+            if (!handler.TryGetValue("Proxy", out target)) return false;
+            string url = Convert.ToString(target).TrimEnd('/');
+            return url == "http://127.0.0.1:8791" ||
+                   url == "http://localhost:8791";
+        }
+        internal static string Port443Mode(string json)
+        {
+            // Unknown/ambiguous config must fail closed, not replace services.
+            if (String.IsNullOrWhiteSpace(json))
+                throw new Exception("Statut Tailscale 443 vide : aucune route modifiée.");
+            string normalized = json.Trim();
+            // New Tailscale accounts can report an empty JSON config.
+            if (normalized == "{}" || normalized == "null") return "empty";
+            var root = Map(new JavaScriptSerializer().DeserializeObject(json));
+            if (root.Count == 0)
+                throw new Exception("Statut Tailscale 443 inconnu, configuration intacte.");
+            var tcp = Map(root.ContainsKey("TCP") ? root["TCP"] : null);
+            bool hasWebHttps = false;
+            object tcpRule;
+            if (tcp.TryGetValue("443", out tcpRule))
+            {
+                var rule = Map(tcpRule);
+                object https;
+                if (!rule.TryGetValue("HTTPS", out https) ||
+                    !(https is bool) || !(bool)https)
+                    return "occupied"; // TCP forwarding or an unknown binding
+                hasWebHttps = true; // Normal Tailscale HTTPS Web 443 marker
+            }
+            var web = Map(root.ContainsKey("Web") ? root["Web"] : null);
+            var allow = Map(root.ContainsKey("AllowFunnel") ? root["AllowFunnel"] : null);
+            foreach (var entry in web)
+            {
+                if (!entry.Key.EndsWith(":443", StringComparison.OrdinalIgnoreCase)) continue;
+                object val;
+                if (!allow.TryGetValue(entry.Key, out val) || !(val is bool) || !(bool)val)
+                    return "private";
+                var webconfig = Map(entry.Value);
+                var handlers = Map(webconfig.ContainsKey("Handlers") ?
+                                   webconfig["Handlers"] : null);
+                object rootHandler;
+                object sharedHandler;
+                if (handlers.TryGetValue("/", out rootHandler) && IsGodotProxy(rootHandler))
+                    return "ours_root";
+                if ((handlers.TryGetValue(SharedPath+"/", out sharedHandler) ||
+                     handlers.TryGetValue(SharedPath, out sharedHandler)) &&
+                     IsGodotProxy(sharedHandler))
+                    return "ours_path";
+                if (handlers.ContainsKey(SharedPath) || handlers.ContainsKey(SharedPath+"/"))
+                    return "occupied";
+                return "shared_public";
+            }
+            return hasWebHttps ? "occupied" : "empty";
+        }
         string FunnelState(string tailscale)
         {
-            string data = "";
-            try { data = Run(tailscale, "funnel status --json", 15); }
-            catch { data = Run(tailscale, "funnel status", 15); }
-            if (!Regex.IsMatch(data, @"(^|[^0-9])10000([^0-9]|$)")) return "empty";
-            if (data.Contains("127.0.0.1:8791") || data.Contains("localhost:8791"))
-                return "ours";
-            return "occupied";
+            string json;
+            try { json = Run(tailscale, "funnel status --json", 15); }
+            catch (Exception ex)
+            {
+                throw new Exception("Statut JSON HTTPS 443 Tailscale indisponible. "
+                  + "Aucune ancienne route n'a été modifiée.", ex);
+            }
+            return Port443Mode(json);
         }
         static bool LocalNodeOk()
         {
@@ -355,15 +423,15 @@ namespace CHKGodotNative
         void RecoverNode()
         {
             try {
-                var file = Path.Combine(InstallDir, "native-v1.3.1", "node.exe");
-                var script = Path.Combine(InstallDir, "native-v1.3.1", "server.cjs");
+                var file = Path.Combine(InstallDir, "native-v1.4.0", "node.exe");
+                var script = Path.Combine(InstallDir, "native-v1.4.0", "server.cjs");
                 if (File.Exists(file) && File.Exists(script) && File.Exists(ConfigPath))
                     LaunchNode(Config(), file, script);
             } catch(Exception e) { Log(e); }
         }
         void InstallNode()
         {
-            var root = Path.Combine(InstallDir, "native-v1.3.1");
+            var root = Path.Combine(InstallDir, "native-v1.4.0");
             Directory.CreateDirectory(root);
             var nodeExe = Path.Combine(root, "node.exe");
             if (!File.Exists(nodeExe))
@@ -437,10 +505,10 @@ namespace CHKGodotNative
             }
             throw new Exception("Le moteur MCP ne répond pas sur le port local 8791.");
         }
-        void VerifyPublic(string name, Dictionary<string, object> cfg)
+        void VerifyPublic(string name, string prefix, Dictionary<string, object> cfg)
         {
-            var url = "https://" + name + ":10000/mcp/" + Convert.ToString(cfg["chat_token"]);
-            var data = Encoding.UTF8.GetBytes("{\"jsonrpc\":\"2.0\",\"id\":33,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"CHK-Godot-Native\",\"version\":\"1.3.1\"}}}");
+            var url = "https://" + name + prefix + "/mcp/" + Convert.ToString(cfg["chat_token"]);
+            var data = Encoding.UTF8.GetBytes("{\"jsonrpc\":\"2.0\",\"id\":33,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"CHK-Godot-Native\",\"version\":\"1.4.0\"}}}");
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             var req = (HttpWebRequest)WebRequest.Create(url);
             req.Method = "POST"; req.ContentType = "application/json";
@@ -466,17 +534,38 @@ namespace CHKGodotNative
                     string tailscale = GetTool("tailscale.exe");
                     string name = TailscaleName(tailscale);
                     string current = FunnelState(tailscale);
+                    if (current == "private")
+                        throw new Exception("HTTPS 443 contient un service Tailscale privé. "
+                          + "Impossible de le rendre public sans exposer d'autres routes : "
+                          + "aucun service existant modifié.");
                     if (current == "occupied")
-                        throw new Exception("Le port Tailscale 10000 est déjà utilisé par une autre application : aucun réglage modifié.");
-                    var cfg = Config(); // existing secrets retained
+                        throw new Exception("HTTPS 443 est occupé par une autre configuration "
+                          + "(TCP ou chemin Godot). Aucun service existant modifié.");
+                    string prefix = (current == "shared_public" || current == "ours_path")
+                                  ? SharedPath : "";
+                    var cfg = Config(); // old credentials preserved
                     InstallNode();
-                    Message("Activation Tailscale Funnel sur 10000...");
-                    if (current == "empty") {
-                        Run(tailscale, "funnel --bg --yes --https=10000 http://127.0.0.1:8791", 50);
+                    Message("Activation de HTTPS 443 via Tailscale Funnel...");
+                    if (current == "empty")
+                    {
+                        Run(tailscale, "funnel --bg --yes --https=443 http://127.0.0.1:8791", 50);
                     }
-                    Message("Contrôle du lien MCP HTTPS depuis ce PC...");
-                    VerifyPublic(name, cfg);
+                    else if (current == "shared_public")
+                    {
+                        // Port 443 already PUBLIC: add /chk-godot safely without
+                        // changing the existing public root application.
+                        Run(tailscale,
+                            "funnel --bg --yes --https=443 --set-path=/chk-godot http://127.0.0.1:8791",
+                            50);
+                    }
+                    string after = FunnelState(tailscale);
+                    if (after != (prefix == "" ? "ours_root" : "ours_path"))
+                        throw new Exception("HTTPS 443 n'est pas confirmé pour Godot. "
+                          + "Contrôle Tailscale nécessaire, aucune route remise à zéro.");
+                    Message("Vérification du certificat HTTPS 443 et du vrai protocole MCP...");
+                    VerifyPublic(name, prefix, cfg);
                     hostname = name;
+                    publicPrefix = prefix;
                     lock(gate) { busy = false; publicOk = true; }
                     Message("CONNEXION VALIDÉE. Copie le lien MCP dans ChatGPT.");
                     SaveAutostart();
@@ -490,7 +579,7 @@ namespace CHKGodotNative
             try {
                 string file = Assembly.GetExecutingAssembly().Location;
                 // Avoid overwriting an EXE that Windows has already locked.
-                var dir = Path.Combine(InstallDir,"native-v1.3.1");
+                var dir = Path.Combine(InstallDir,"native-v1.4.0");
                 Directory.CreateDirectory(dir);
                 var dest = Path.Combine(dir, "CHK-Godot-Natif.exe");
                 if (!File.Exists(dest)) File.Copy(file,dest);
@@ -505,7 +594,7 @@ namespace CHKGodotNative
             }
             try {
                 var cfg = Config();
-                Clipboard.SetText("https://" + hostname + ":10000/mcp/" + Convert.ToString(cfg["chat_token"]));
+                Clipboard.SetText("https://" + hostname + publicPrefix + "/mcp/" + Convert.ToString(cfg["chat_token"]));
                 Message("Lien ChatGPT copié dans le presse-papiers Windows.");
             } catch(Exception e){ Fail("Copie impossible : " + e.Message, e); }
         }
@@ -561,7 +650,7 @@ namespace CHKGodotNative
                         Reply(stream,200,"text/html; charset=utf-8",WebPage().Replace("__UI_TOKEN__",uiSecret));return;
                     }
                     if(verb=="GET" && route=="/api/health") {
-                        Reply(stream,200,"application/json","{\"name\":\"CHK Godot Native\",\"version\":\"1.3.1\"}");return;
+                        Reply(stream,200,"application/json","{\"name\":\"CHK Godot Native\",\"version\":\"1.4.0\"}");return;
                     }
                     if(verb=="GET" && route=="/api/status") {
                         bool running,publicReady;string msg;
@@ -597,9 +686,9 @@ namespace CHKGodotNative
                             Reply(stream,409,"application/json","{\"error\":\"Acces public non verifie\"}");return;
                         }
                         var cfg=Config();
-                        string url=route=="/api/copy-chat"?"https://"+name+":10000/mcp/"+cfg["chat_token"]:
+                        string url=route=="/api/copy-chat"?"https://"+name+publicPrefix+"/mcp/"+cfg["chat_token"]:
                                   route=="/api/copy-editor"?Convert.ToString(cfg["editor_token"]):
-                                  "https://"+name+":10000";
+                                  "https://"+name+publicPrefix;
                         Reply(stream,200,"application/json",serializer.Serialize(new{value=url}));return;
                     }
                     Reply(stream,404,"application/json","{\"error\":\"Commande inconnue\"}");
@@ -629,8 +718,31 @@ namespace CHKGodotNative
         }
         internal static void SelfTest()
         {
-            if(PanelPort!=8792 || Version!="1.3.1") throw new Exception("Version invalide");
+            if(PanelPort!=8792 || Version!="1.4.0") throw new Exception("Version invalide");
             if(String.IsNullOrEmpty(Secret(32)))throw new Exception("RNG fail");
+            // Regression: do not overwrite existing port 443 or expose
+            // private Serve routes when attaching a Godot Funnel.
+            if (Port443Mode("{}") != "empty") throw new Exception("Empty 443 config");
+            if (Port443Mode("{\"TCP\":{\"443\":{\"TCPForward\":\"127.0.0.1:9000\"}}}") != "occupied")
+                throw new Exception("Occupied TCP 443 must be preserved");
+            const string private443 = "{\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/\":{\"Proxy\":\"http://127.0.0.1:7777\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":false}}";
+            if (Port443Mode(private443) != "private")
+                throw new Exception("Private 443 must remain private");
+            const string existingPublic = "{\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/\":{\"Proxy\":\"http://127.0.0.1:7777\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":true}}";
+            const string publicWithHttpsMarker = "{\"TCP\":{\"443\":{\"HTTPS\":true}},\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/\":{\"Proxy\":\"http://127.0.0.1:7777\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":true}}";
+            if (Port443Mode(publicWithHttpsMarker) != "shared_public")
+                throw new Exception("Ordinary Tailscale HTTPS marker misidentified as TCP collision");
+            if (Port443Mode(existingPublic) != "shared_public")
+                throw new Exception("Existing public root must be shared, not replaced");
+            const string ownRoot = "{\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/\":{\"Proxy\":\"http://127.0.0.1:8791\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":true}}";
+            if (Port443Mode(ownRoot) != "ours_root")
+                throw new Exception("Existing Godot root should be reused");
+            const string ownSubpath = "{\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/\":{\"Proxy\":\"http://127.0.0.1:7777\"},\"/chk-godot/\":{\"Proxy\":\"http://127.0.0.1:8791\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":true}}";
+            if (Port443Mode(ownSubpath) != "ours_path")
+                throw new Exception("Existing Godot subpath should be reused");
+            const string otherSubpath = "{\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/chk-godot/\":{\"Proxy\":\"http://127.0.0.1:7777\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":true}}";
+            if (Port443Mode(otherSubpath) != "occupied")
+                throw new Exception("Other subpath must be preserved");
             using(var r=Assembly.GetExecutingAssembly().GetManifestResourceStream("chk.web"))
                 if(r==null || r.Length<1000)throw new Exception("Ressource web absente");
             using(var r=Assembly.GetExecutingAssembly().GetManifestResourceStream("chk.server"))
