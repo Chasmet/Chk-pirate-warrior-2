@@ -412,7 +412,7 @@ def self_test() -> int:
     if legacy.self_test()!=0:return 5
     if "http://127.0.0.1:8792/" != PANEL_URL:return 6
     if "__UI_SECRET__" not in INDEX:return 7
-    if "/api/install" not in INDEX:return 8
+    if 'api("install")' not in INDEX:return 8
     return 0
 
 
