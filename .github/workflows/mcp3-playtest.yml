@@ -1,0 +1,75 @@
+name: CHK MCP3 - Test automatique du jeu
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/mcp3-autoplay-qa-20261025
+      - agent/v11-8-full-audit-fixes
+    paths:
+      - 'project.godot'
+      - 'scripts/**'
+      - 'scenes/**'
+      - 'data/**'
+      - 'addons/chk_mcp_relay/**'
+      - '.github/workflows/mcp3-playtest.yml'
+  pull_request:
+    branches:
+      - agent/v11-8-full-audit-fixes
+
+concurrency:
+  group: chk-mcp3-playtest-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mcp3-playtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Recuperer le jeu V11.8
+        uses: actions/checkout@v4
+
+      - name: Installer Godot 4.7.1 officiel
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 3 https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip -o /tmp/godot.zip
+          echo 'c7ff14fd28472c8d4f193043de30278dcf7e5241a1dcf7566b02e27addaa33ba  /tmp/godot.zip' | sha256sum -c -
+          mkdir -p /tmp/godot-engine
+          unzip -q /tmp/godot.zip -d /tmp/godot-engine
+          chmod +x /tmp/godot-engine/Godot_v4.7.1-stable_linux.x86_64
+          sudo ln -sf /tmp/godot-engine/Godot_v4.7.1-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+
+      - name: Importer les ressources et analyser les scripts
+        shell: bash
+        run: |
+          set -uo pipefail
+          timeout 420s godot --headless --path . --editor --import --quit 2>&1 | tee mcp3-import.log
+          test ${PIPESTATUS[0]} -eq 0
+          if grep -E 'SCRIPT ERROR:|Parse Error:|Parser Error:' mcp3-import.log; then
+            echo "Erreur de chargement du projet"
+            exit 3
+          fi
+
+      - name: Jouer et tester sans intervention (headless)
+        shell: bash
+        run: |
+          set -uo pipefail
+          timeout 420s godot --headless --path . --script res://scripts/tests/mcp3_autoplay_audit.gd 2>&1 | tee mcp3-playtest.log
+          test ${PIPESTATUS[0]} -eq 0
+          grep -q 'CHK_MCP3_AUTOPLAY_OK' mcp3-playtest.log
+
+      - name: Conserver les journaux de diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CHK-MCP3-playtest-logs
+          path: |
+            mcp3-import.log
+            mcp3-playtest.log
+          if-no-files-found: warn
+          retention-days: 14

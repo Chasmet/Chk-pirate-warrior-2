@@ -14,7 +14,7 @@ func _ready() -> void:
     super._ready()
     add_to_group("gameplay_stability_v11_3")
     _last_heartbeat_msec = Time.get_ticks_msec()
-    _log_event("BOOT", "V11.3 stabilité active")
+    _log_event("BOOT", "V11.8 stabilité active")
 
 func _repair_all() -> void:
     super._repair_all()
@@ -26,10 +26,10 @@ func _repair_all() -> void:
     _write_heartbeat_if_needed()
 
 func _notification(what: int) -> void:
-    if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+    if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_APPLICATION_PAUSED:
         _cancel_mobile_inputs()
         GameState.quick_save()
-        _log_event("FOCUS_OUT", "Entrées tactiles annulées et sauvegarde demandée")
+        _log_event("APP_SUSPEND", "Entrées tactiles annulées et sauvegarde demandée")
     elif what == NOTIFICATION_APPLICATION_FOCUS_IN:
         _repair_all.call_deferred()
         _log_event("FOCUS_IN", "Retour application, auto-réparation lancée")

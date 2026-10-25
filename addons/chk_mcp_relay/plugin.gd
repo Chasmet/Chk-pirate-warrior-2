@@ -1,13 +1,15 @@
 @tool
 extends EditorPlugin
 
-const REMOTE_URL := "wss://chk-pirate-godot-mcp.onrender.com/relay/godot"
+const LEGACY_RELAY_URL := "wss://chk-pirate-godot-mcp.onrender.com/relay/godot"
+const MCP3_RELAY_ENV := "CHK_PIRATE_MCP3_WS_URL"
 const DEFAULT_LOCAL_PORT := 9080
 const RECONNECT_MS := 3000
 const HEARTBEAT_MS := 20000
 const DISCOVERY_PATH := "res://.godot/godot-mcp.json"
 
 var _remote := WebSocketPeer.new()
+var _remote_url := LEGACY_RELAY_URL
 var _local := WebSocketPeer.new()
 var _remote_was_open := false
 var _local_was_open := false
@@ -20,6 +22,7 @@ var _local_port := DEFAULT_LOCAL_PORT
 func _enter_tree() -> void:
 	set_process(true)
 	_local_port = _discover_local_port()
+	_remote_url = _resolve_relay_url()
 	print("[GODOT MCP] Phone relay enabled. Local Godot MCP port: %d" % _local_port)
 	_try_connect_remote(true)
 	_try_connect_local(true)
@@ -77,7 +80,7 @@ func _try_connect_remote(immediate: bool) -> void:
 	_remote.inbound_buffer_size = 16 * 1024 * 1024
 	_remote.outbound_buffer_size = 16 * 1024 * 1024
 	_last_remote_attempt = Time.get_ticks_msec()
-	var err := _remote.connect_to_url(REMOTE_URL)
+	var err := _remote.connect_to_url(_remote_url)
 	if err != OK:
 		print("[GODOT MCP] Remote relay connection error: %s" % error_string(err))
 
@@ -93,6 +96,23 @@ func _try_connect_local(immediate: bool) -> void:
 	var err := _local.connect_to_url(url)
 	if err != OK:
 		print("[GODOT MCP] Local MCP connection error on %s: %s" % [url, error_string(err)])
+
+
+## MCP 3 URL is explicitly configured on the host, never committed to GitHub.
+## An empty variable preserves the existing legacy relay.
+## Only loopback plaintext WebSockets are accepted.
+func _resolve_relay_url() -> String:
+	var configured := OS.get_environment(MCP3_RELAY_ENV).strip_edges()
+	if configured.is_empty():
+		return LEGACY_RELAY_URL
+	if configured.begins_with("wss://"):
+		print("[GODOT MCP] CHK Pirate Serveur 3 relay selected (secure WebSocket).")
+		return configured
+	if configured.begins_with("ws://127.0.0.1:") or configured.begins_with("ws://localhost:") or configured.begins_with("ws://[::1]:"):
+		print("[GODOT MCP] CHK Pirate Serveur 3 relay selected (loopback).")
+		return configured
+	push_warning("[GODOT MCP] Invalid CHK_PIRATE_MCP3_WS_URL: use wss:// or local ws://; legacy relay used.")
+	return LEGACY_RELAY_URL
 
 
 func _discover_local_port() -> int:
@@ -164,7 +184,9 @@ func _send_hello() -> void:
 			"godot_version": "%s.%s.%s" % [version.get("major", 0), version.get("minor", 0), version.get("patch", 0)],
 			"platform": OS.get_name(),
 			"model": OS.get_model_name(),
-			"local_mcp_port": _local_port
+			"local_mcp_port": _local_port,
+			"bridge": "chk_pirate_serveur_3_compatible",
+			"mcp_transport": "Godot MCP/CLI WebSocket"
 		}
 	})
 

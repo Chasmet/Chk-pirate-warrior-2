@@ -71,14 +71,55 @@ func on_boss_defeated(enemy: Node) -> void:
             GameState.quick_save()
         _boss_spawned_for_island = -1
         _notify("SORCIÈRE GARDIENNE VAINCUE • LA GRANDE SORCIÈRE ARRIVE")
-        call_deferred("_spawn_current_boss")
+        # WorldEnemy appelle ce callback avant son queue_free(). Un simple
+        # call_deferred pouvait donc revoir le premier boss encore dans l'arbre,
+        # considérer qu'un boss était vivant et ne jamais créer le boss final.
+        call_deferred("_spawn_island_11_final_after_cleanup")
         return
 
     # Seule la défaite de la Grande Sorcière passe ici : le parent marque alors
     # réellement l’île 11 comme terminée. L’écran trophée peut ensuite apparaître.
     super.on_boss_defeated(enemy)
 
+func _spawn_island_11_final_after_cleanup() -> void:
+    await get_tree().process_frame
+    if not is_inside_tree() or _current_index != ISLAND_11_INDEX:
+        return
+    if GameState.is_boss_defeated(ISLAND_11_ID):
+        return
+    _boss_spawned_for_island = -1
+    _spawn_current_boss()
+
 func _is_first_island_11_boss(enemy: Node) -> bool:
     if enemy == null or not is_instance_valid(enemy):
         return false
     return str(enemy.get("model_path")) == FIRST_BOSS_PATH
+
+func _spawn_hierarchy_enemy(index: int, rank: int) -> void:
+    # Les commandants des îles 1 à 10 utilisaient une difficulté fixe et
+    # ignoraient le choix DÉCOUVERTE / AVENTURE / LÉGENDE. On applique le même
+    # multiplicateur que pour les soldats et les grands boss.
+    if index < 0 or index >= WorldCatalog.island_count() or _has_live_boss():
+        return
+    var info := WorldCatalog.island(index)
+    var island_id := int(info["id"])
+    var key := _commandant_key(island_id, rank)
+    if int(GameState.get_quest_value(key, 0)) == 1:
+        return
+    var path := _hierarchy_asset(info, rank)
+    if not ResourceLoader.exists(path):
+        _notify("GLB du commandant %d indisponible pour l’île %02d" % [rank, island_id])
+        return
+    var size: Vector2 = info["size"]
+    var name := "Commandant 1" if rank == 1 else "Commandant 2"
+    var archetype := "boss_duelist" if rank == 1 else "boss_guard"
+    var difficulty := (1.25 + float(island_id) * 0.14) * GameState.difficulty_enemy_multiplier()
+    _spawn_enemy(
+        path,
+        Vector3(0.0, 12.0, -size.y * (0.10 if rank == 1 else 0.05)),
+        false,
+        difficulty,
+        name,
+        archetype,
+        20 + rank
+    )
