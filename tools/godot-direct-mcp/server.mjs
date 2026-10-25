@@ -284,7 +284,7 @@ export function createDirectGodotServer(settings = {}) {
   return { server, close, liveStatus, config: { host: cfg.host, port: cfg.port } };
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+if (process.env.CHK_NODE_PACKAGED !== "true" && process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const app = createDirectGodotServer();
   app.server.listen(app.config.port, app.config.host, () => {
     console.log("CHK Godot Direct MCP " + VERSION + " on " + app.config.host + ":" + app.config.port);
