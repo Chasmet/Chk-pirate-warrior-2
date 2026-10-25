@@ -7,6 +7,7 @@ on:
       - 'fix/godot-native-bootstrap-v130-20261025'
       - 'agent/v8-godot47-mcp-phone'
       - 'fix/godot-native-browser-class-v131-20261025'
+      - 'fix/godot-chatgpt-https443-20261025'
     paths:
       - 'tools/godot-direct-mcp/native/**'
       - 'tools/godot-direct-mcp/server.mjs'
@@ -81,7 +82,7 @@ jobs:
             for ($i=0;$i -lt 35;$i++) {
               try {
                 $h=Invoke-RestMethod 'http://127.0.0.1:8792/api/health' -TimeoutSec 2
-                if ($h.name -eq 'CHK Godot Native' -and $h.version -eq '1.3.1') { $ok=$true;break }
+                if ($h.name -eq 'CHK Godot Native' -and $h.version -eq '1.3.2') { $ok=$true;break }
               } catch {}
               Start-Sleep -Milliseconds 400
             }
@@ -93,7 +94,7 @@ jobs:
               throw 'Desktop program closed unexpectedly after Chrome opened'
             }
             $again=Invoke-RestMethod 'http://127.0.0.1:8792/api/health' -TimeoutSec 3
-            if ($again.version -ne '1.3.1') { throw 'Local web server stopped after nine seconds' }
+            if ($again.version -ne '1.3.2') { throw 'Local web server stopped after nine seconds' }
             Write-Output 'PASS: REAL Windows launcher stays alive; local web works after nine seconds'
           } finally {
             Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
@@ -117,7 +118,7 @@ jobs:
           if-no-files-found: error
 
   publication-directe:
-    if: github.ref == 'refs/heads/agent/v8-godot47-mcp-phone'
+    if: github.ref == 'refs/heads/fix/godot-chatgpt-https443-20261025'
     needs: compiler-et-tester-windows
     runs-on: ubuntu-latest
     permissions:
@@ -134,9 +135,9 @@ jobs:
         run: |
           set -euo pipefail
           test -s release/CHK-Godot-Serveur-Personnel.exe
-          TAG="chk-godot-native-server-v1.3.1"
+          TAG="chk-godot-native-server-v1.3.2"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release/CHK-Godot-Serveur-Personnel.exe --clobber
           else
-            gh release create "$TAG" release/CHK-Godot-Serveur-Personnel.exe --title "CHK Godot - Serveur Windows natif 1.3.1" --notes "Application Windows .NET native avec interface visible et tableau de bord local : aucun PyInstaller. Le premier lancement peut télécharger Node.js officiel vérifié par SHA256. Ne touche pas aux ports 443 et 8443. Tailscale Funnel fournit l'accès Internet au MCP personnel; aucun Render ni Supabase."
+            gh release create "$TAG" release/CHK-Godot-Serveur-Personnel.exe --title "CHK Godot - Serveur Windows natif 1.3.2 - ChatGPT HTTPS 443" --notes "Application Windows .NET native avec interface visible et tableau de bord local : aucun PyInstaller. Le premier lancement peut télécharger Node.js officiel vérifié par SHA256. Tailscale Funnel expose le MCP sur HTTPS 443 vers 8791 local. Préserve le serveur 8443 et les secrets existants. Test initialize et tools/list; aucun Render ni Supabase."
           fi
