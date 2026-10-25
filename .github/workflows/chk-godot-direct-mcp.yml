@@ -1,0 +1,74 @@
+name: CHK Godot Direct MCP - tests et paquet
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'feature/godot-direct-mcp-20261025'
+      - 'agent/v8-godot47-mcp-phone'
+    paths:
+      - 'tools/godot-direct-mcp/**'
+      - 'addons/chk_direct_mcp/**'
+      - 'project.godot'
+      - '.github/workflows/chk-godot-direct-mcp.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test-mcp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Installer dependances exactes
+        working-directory: tools/godot-direct-mcp
+        run: npm install --no-audit --no-fund
+      - name: Verifier JavaScript et tests MCP/WebSocket
+        working-directory: tools/godot-direct-mcp
+        run: |
+          npm run check
+          npm test
+      - name: Preparer paquet sans secrets ni modules installes
+        run: |
+          mkdir -p /tmp/chk-godot-direct-package/addons
+          mkdir -p /tmp/chk-godot-direct-package/tools
+          cp -R addons/chk_direct_mcp /tmp/chk-godot-direct-package/addons/
+          cp -R tools/godot-direct-mcp /tmp/chk-godot-direct-package/tools/
+          rm -rf /tmp/chk-godot-direct-package/tools/godot-direct-mcp/node_modules
+          rm -f /tmp/chk-godot-direct-package/tools/godot-direct-mcp/.env
+          cd /tmp/chk-godot-direct-package
+          zip -qr "$GITHUB_WORKSPACE/CHK-Godot-Direct-MCP.zip" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CHK-Godot-Direct-MCP
+          path: CHK-Godot-Direct-MCP.zip
+          if-no-files-found: error
+
+  verify-godot-plugin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer Godot 4.7.2
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -O /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp
+          chmod +x /tmp/Godot_v4.7.2-stable_linux.x86_64
+          /tmp/Godot_v4.7.2-stable_linux.x86_64 --version
+      - name: Isoler le plugin dans un projet de test minimal
+        run: |
+          mkdir -p /tmp/chk_plugin_test/addons
+          cp -R addons/chk_direct_mcp /tmp/chk_plugin_test/addons/
+          cat > /tmp/chk_plugin_test/project.godot <<'EOF'
+          config_version=5
+          [application]
+          config/name="CHK MCP smoke test"
+          [editor_plugins]
+          enabled=PackedStringArray("res://addons/chk_direct_mcp/plugin.cfg")
+          EOF
+          /tmp/Godot_v4.7.2-stable_linux.x86_64 --headless --path /tmp/chk_plugin_test --editor --quit 2>&1 | tee /tmp/chk_godot_result.log
+          if grep -E 'SCRIPT ERROR|Parse Error' /tmp/chk_godot_result.log; then exit 1; fi
