@@ -1,0 +1,74 @@
+name: CHK Godot - Lanceur Web Local Windows
+on:
+  push:
+    paths:
+      - 'tools/chk-godot-web-launcher/**'
+      - '.github/workflows/chk-godot-local-web-launcher.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Tester la page locale et les importations
+        shell: pwsh
+        run: python -m unittest discover -s tools/chk-godot-web-launcher/tests -v
+      - name: Compiler le vrai programme Windows
+        shell: pwsh
+        run: |
+          python -m pip install pyinstaller==6.16.0
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name CHK-Godot-Lanceur-Web tools/chk-godot-web-launcher/launcher.py
+      - name: Controler le binaire Windows
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path 'dist/CHK-Godot-Lanceur-Web.exe'
+          $bytes = [System.IO.File]::ReadAllBytes($exe)
+          if ($bytes.Length -lt 100000 -or $bytes[0] -ne 77 -or $bytes[1] -ne 90) { throw 'EXE invalide' }
+      - name: Vérifier le double-clic réel et la page localhost
+        shell: pwsh
+        env:
+          CHK_NO_BROWSER: '1'
+        run: |
+          $p = Start-Process -FilePath (Resolve-Path 'dist/CHK-Godot-Lanceur-Web.exe') -PassThru
+          try {
+            $ok = $false
+            for ($i=0; $i -lt 40; $i++) {
+              Start-Sleep -Seconds 1
+              $p.Refresh()
+              if ($p.HasExited) { throw 'Le programme se ferme immediatement (code ' + $p.ExitCode + ')' }
+              try {
+                $response = Invoke-WebRequest 'http://127.0.0.1:8793/api/status' -UseBasicParsing -TimeoutSec 2
+                if ($response.StatusCode -eq 200 -and $response.Content -match '"online"') {
+                  $ok = $true
+                  break
+                }
+              } catch {}
+            }
+            if (-not $ok) { throw 'La page locale 8793 ne repond pas.' }
+            Write-Host 'EXE Windows actif et tableau de bord accessible'
+          } finally {
+            $p.Refresh()
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CHK-Godot-Lanceur-Web-Windows
+          path: dist/CHK-Godot-Lanceur-Web.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publier le lanceur en téléchargement direct
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'godot-web-local-v1.0.0'
+          if (gh release view $tag 2>$null) { Write-Host 'Version deja publiee'; exit 0 }
+          gh release create $tag dist/CHK-Godot-Lanceur-Web.exe --title 'CHK Godot - Lanceur Web Local 1.0.0' --notes 'Lanceur Windows local sans CMD, Render ni Supabase. La page ouvre http://127.0.0.1:8793 et pilote le service Godot du port 8792. Premiere version, import local du programme existant requis.' --prerelease
