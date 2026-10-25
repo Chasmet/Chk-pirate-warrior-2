@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>CHK Godot MCP — Mon serveur local</title>
+<style>
+:root{font-family:system-ui,Segoe UI,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:#0b1425;color:#e5edf7;margin:0}
+main{max-width:760px;margin:auto;padding:24px 18px 48px}
+h1{font-size:clamp(26px,5vw,37px);margin:6px 0 14px;letter-spacing:-.04em}
+h2{font-size:20px;margin:0 0 12px}
+p{line-height:1.55;color:#c4d0e0}
+small{font-size:13px;color:#95a6ba}
+.kicker{font-size:12px;letter-spacing:.17em;font-weight:750;color:#7dd3fc}
+article{margin:18px 0;border:1px solid #334155;background:#172337;border-radius:18px;padding:22px}
+button{width:100%;padding:15px;background:#38bdf8;border:0;border-radius:10px;color:#082338;font-weight:750;font-size:15px;cursor:pointer;margin:5px 0}
+button.secondary{border:1px solid #425875;background:#263953;color:#ebf2ff}
+button:disabled{opacity:.45;cursor:not-allowed}
+.twocol{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:550px){.twocol{grid-template-columns:1fr}}
+#status,#report{padding:16px 14px;background:#0d1b2d;border-radius:10px;border:1px solid #334155;overflow-wrap:anywhere;white-space:pre-wrap;line-height:1.6}
+#status.ok{color:#86efac}#status.bad{color:#fca5a5}
+#report{font-size:12px;max-height:300px;overflow:auto}
+footer{padding:12px 0;color:#94a3b8;font-size:12px}
+code{color:#a5f3fc}
+</style>
+</head>
+<body>
+<main>
+<div class="kicker">100 % SUR TON PC — PAS DE RENDER / SUPABASE</div>
+<h1>CHK GODOT DIRECT MCP</h1>
+<p>Ce site est hébergé sur ton ordinateur par le programme Windows natif. Tu peux fermer Chrome et
+y revenir : le programme reste actif dans la zone de notification près de l’horloge.</p>
+<article>
+<h2>Installation et état</h2>
+<div id="status" role="status">Vérification du serveur...</div>
+<button id="install" onclick="install()">INSTALLER ET CONNECTER AUTOMATIQUEMENT</button>
+<div class="twocol">
+<button class="secondary" onclick="refresh()">VÉRIFIER LE SERVEUR</button>
+<button class="secondary" onclick="diagnostic()">VOIR LES ERREURS</button>
+</div>
+</article>
+<article>
+<h2>Relier ChatGPT à Pirate Warrior 2</h2>
+<p>Quand le serveur est prêt, copie le lien complet dans <strong>Plugins → Ajouter → URL du serveur</strong>
+avec l’option « Sans authentification ».</p>
+<button id="chat" disabled onclick="copy('chat')">COPIER MON LIEN CHATGPT</button>
+<div class="twocol">
+<button id="godot_url" class="secondary" disabled onclick="copy('godot_url')">COPIER L’ADRESSE GODOT</button>
+<button id="editor" class="secondary" disabled onclick="copy('editor')">COPIER LA CLÉ GODOT</button>
+</div>
+<small>Deux clés privées distinctes sont conservées dans le dossier utilisateur Windows.
+Le panneau d’administration n’est jamais accessible via Tailscale : seul le MCP protégé est exposé.</small>
+</article>
+<article><h2>Diagnostic local</h2><pre id="report">Aucun diagnostic affiché.</pre></article>
+<footer>
+Page locale : <code>http://127.0.0.1:8792/</code> |
+Moteur : <code>127.0.0.1:8791</code> |
+Tailscale Funnel : <code>10000</code>.
+Les ports existants 443 et 8443 restent intacts. En cas de problème, la fenêtre
+Windows « CHK Godot — Serveur personnel » affiche aussi les erreurs.
+</footer>
+</main>
+<script>
+const csrf="__UI_TOKEN__";
+async function post(path){
+ const r=await fetch("/api/"+path,{method:"POST",cache:"no-store",credentials:"same-origin",
+  headers:{"Content-Type":"application/json","X-CHK-UI":csrf},body:"{}"});
+ const data=await r.json();
+ if(!r.ok)throw Error(data.error||"Erreur HTTP "+r.status);
+ return data;
+}
+async function refresh(){
+ try{
+  const r=await fetch("/api/status",{cache:"no-store",credentials:"same-origin"});
+  const o=await r.json();
+  const s=document.getElementById("status");
+  s.textContent=o.message+"\n\nMoteur MCP : "+(o.local_ok?"actif":"non démarré")+
+   "\nHTTPS Tailscale : "+(o.public_ok?"vérifié":o.busy?"installation...":"non vérifié");
+  s.className=o.public_ok?"ok":o.message.startsWith("ERREUR")?"bad":"";
+  document.getElementById("install").disabled=o.busy;
+  document.getElementById("chat").disabled=!o.public_ok;
+  document.getElementById("godot_url").disabled=!o.public_ok;
+  document.getElementById("editor").disabled=!o.configured;
+ }catch(e){document.getElementById("status").textContent="Erreur de connexion locale : "+e.message;}
+}
+async function install(){try{await post("install");refresh()}catch(e){alert(e.message)}}
+async function copy(which){
+ try{
+  const r=await post("copy-"+which);
+  try{await navigator.clipboard.writeText(r.value)}
+  catch(e){
+   const ta=document.createElement("textarea");ta.value=r.value;
+   ta.style.position="fixed";ta.style.left="-5000px";
+   document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();
+  }
+  document.getElementById("status").textContent="Valeur copiée dans le presse-papiers.";
+ }catch(e){alert(e.message)}
+}
+async function diagnostic(){
+ try{
+  const r=await post("diagnostic");
+  document.getElementById("report").textContent=r.report;
+ }catch(e){alert(e.message)}
+}
+refresh();setInterval(refresh,2500);
+</script>
+</body></html>

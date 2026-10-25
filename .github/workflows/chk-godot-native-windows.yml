@@ -1,0 +1,130 @@
+name: CHK Godot - lanceur Windows natif
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'fix/godot-native-bootstrap-v130-20261025'
+      - 'agent/v8-godot47-mcp-phone'
+    paths:
+      - 'tools/godot-direct-mcp/native/**'
+      - 'tools/godot-direct-mcp/server.mjs'
+      - 'tools/godot-direct-mcp/entrypoint.mjs'
+      - '.github/workflows/chk-godot-native-windows.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compiler-et-tester-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test du protocole MCP officiel
+        shell: pwsh
+        working-directory: tools/godot-direct-mcp
+        run: |
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+          npm test
+          if ($LASTEXITCODE -ne 0) { throw 'MCP tests failed' }
+
+      - name: Produire le serveur Node fiable embarqué
+        shell: pwsh
+        working-directory: tools/godot-direct-mcp
+        run: |
+          npm install --no-save --no-audit --no-fund esbuild@0.25.12
+          if ($LASTEXITCODE -ne 0) { throw 'esbuild install failed' }
+          New-Item -ItemType Directory -Force 'native/dist' | Out-Null
+          npx --no-install esbuild entrypoint.mjs --bundle --platform=node --format=cjs --target=node22 --outfile=native/server.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'server bundle failed' }
+
+      - name: Compiler vrai logiciel Windows natif .NET sans PyInstaller
+        shell: pwsh
+        working-directory: tools/godot-direct-mcp/native
+        run: |
+          $ErrorActionPreference='Stop'
+          $csc=Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe'
+          if (!(Test-Path $csc)) { throw 'Compilateur Microsoft .NET Windows manquant' }
+          $target=(Join-Path (Get-Location).Path 'dist\CHK-Godot-Serveur-Personnel.exe')
+          $server=(Join-Path (Get-Location).Path 'server.cjs')
+          $html=(Join-Path (Get-Location).Path 'site.html')
+          & $csc /nologo /target:winexe /platform:anycpu /optimize+ "/out:$target" '/reference:System.Windows.Forms.dll' '/reference:System.Drawing.dll' '/reference:System.Web.Extensions.dll' '/reference:System.IO.Compression.dll' '/reference:System.IO.Compression.FileSystem.dll' "/resource:$server,chk.server" "/resource:$html,chk.web" 'ChkGodotNative.cs'
+          if ($LASTEXITCODE -ne 0) { throw 'Compilation native Windows C# failed' }
+          if (!(Test-Path $target)) { throw 'EXE not created' }
+          Write-Output "Native Windows binary $target"
+
+      - name: Auto-diagnostic de l'exécutable réel
+        shell: pwsh
+        working-directory: tools/godot-direct-mcp/native
+        run: |
+          $exe=(Resolve-Path 'dist\CHK-Godot-Serveur-Personnel.exe').Path
+          $p=Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Self-test native EXE failed ($($p.ExitCode))" }
+          $bytes=[System.IO.File]::ReadAllBytes($exe)
+          if ($bytes.Length -lt 12000) { throw 'Invalid executable size' }
+          if ($bytes[0] -ne 77 -or $bytes[1] -ne 90) { throw 'Invalid Windows PE header' }
+
+      - name: VRAI test double-clic normal et serveur local persistant
+        shell: pwsh
+        working-directory: tools/godot-direct-mcp/native
+        run: |
+          $exe=(Resolve-Path 'dist\CHK-Godot-Serveur-Personnel.exe').Path
+          $proc=Start-Process -FilePath $exe -PassThru
+          try {
+            $ok=$false
+            for ($i=0;$i -lt 35;$i++) {
+              try {
+                $h=Invoke-RestMethod 'http://127.0.0.1:8792/api/health' -TimeoutSec 2
+                if ($h.name -eq 'CHK Godot Native' -and $h.version -eq '1.3.0') { $ok=$true;break }
+              } catch {}
+              Start-Sleep -Milliseconds 400
+            }
+            if (!$ok) { throw 'The REAL double-click app failed to start the local website' }
+            $html=Invoke-WebRequest 'http://127.0.0.1:8792/' -UseBasicParsing -TimeoutSec 5
+            if (!$html.Content.Contains('INSTALLER ET CONNECTER AUTOMATIQUEMENT')) { throw 'UI missing install control' }
+            Start-Sleep -Seconds 9
+            if (!(Get-Process -Id $proc.Id -ErrorAction SilentlyContinue)) {
+              throw 'Desktop program closed unexpectedly after Chrome opened'
+            }
+            $again=Invoke-RestMethod 'http://127.0.0.1:8792/api/health' -TimeoutSec 3
+            if ($again.version -ne '1.3.0') { throw 'Local web server stopped after nine seconds' }
+            Write-Output 'PASS: REAL Windows launcher stays alive; local web works after nine seconds'
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CHK-Godot-Serveur-Personnel-Windows
+          path: tools/godot-direct-mcp/native/dist/CHK-Godot-Serveur-Personnel.exe
+          if-no-files-found: error
+
+  publication-directe:
+    if: github.ref == 'refs/heads/agent/v8-godot47-mcp-phone'
+    needs: compiler-et-tester-windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: CHK-Godot-Serveur-Personnel-Windows
+          path: release
+      - name: Publication du véritable exe Windows autonome
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test -s release/CHK-Godot-Serveur-Personnel.exe
+          TAG="chk-godot-native-server-v1.3.0"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/CHK-Godot-Serveur-Personnel.exe --clobber
+          else
+            gh release create "$TAG" release/CHK-Godot-Serveur-Personnel.exe --title "CHK Godot - Serveur Windows natif 1.3.0" --notes "Application Windows .NET native avec interface visible et tableau de bord local : aucun PyInstaller. Le premier lancement peut télécharger Node.js officiel vérifié par SHA256. Ne touche pas aux ports 443 et 8443. Tailscale Funnel fournit l'accès Internet au MCP personnel; aucun Render ni Supabase."
+          fi
