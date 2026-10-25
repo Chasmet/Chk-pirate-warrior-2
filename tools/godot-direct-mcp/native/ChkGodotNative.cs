@@ -363,7 +363,17 @@ namespace CHKGodotNative
             if (root.Count == 0)
                 throw new Exception("Statut Tailscale 443 inconnu, configuration intacte.");
             var tcp = Map(root.ContainsKey("TCP") ? root["TCP"] : null);
-            if (tcp.ContainsKey("443")) return "occupied";
+            bool hasWebHttps = false;
+            object tcpRule;
+            if (tcp.TryGetValue("443", out tcpRule))
+            {
+                var rule = Map(tcpRule);
+                object https;
+                if (!rule.TryGetValue("HTTPS", out https) ||
+                    !(https is bool) || !(bool)https)
+                    return "occupied"; // TCP forwarding or an unknown binding
+                hasWebHttps = true; // Normal Tailscale HTTPS Web 443 marker
+            }
             var web = Map(root.ContainsKey("Web") ? root["Web"] : null);
             var allow = Map(root.ContainsKey("AllowFunnel") ? root["AllowFunnel"] : null);
             foreach (var entry in web)
@@ -387,7 +397,7 @@ namespace CHKGodotNative
                     return "occupied";
                 return "shared_public";
             }
-            return "empty";
+            return hasWebHttps ? "occupied" : "empty";
         }
         string FunnelState(string tailscale)
         {
@@ -719,6 +729,9 @@ namespace CHKGodotNative
             if (Port443Mode(private443) != "private")
                 throw new Exception("Private 443 must remain private");
             const string existingPublic = "{\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/\":{\"Proxy\":\"http://127.0.0.1:7777\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":true}}";
+            const string publicWithHttpsMarker = "{\"TCP\":{\"443\":{\"HTTPS\":true}},\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/\":{\"Proxy\":\"http://127.0.0.1:7777\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":true}}";
+            if (Port443Mode(publicWithHttpsMarker) != "shared_public")
+                throw new Exception("Ordinary Tailscale HTTPS marker misidentified as TCP collision");
             if (Port443Mode(existingPublic) != "shared_public")
                 throw new Exception("Existing public root must be shared, not replaced");
             const string ownRoot = "{\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/\":{\"Proxy\":\"http://127.0.0.1:8791\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":true}}";
