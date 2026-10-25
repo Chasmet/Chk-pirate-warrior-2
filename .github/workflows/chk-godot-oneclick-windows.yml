@@ -169,7 +169,7 @@ jobs:
             $stillRunning = Get-Process -Id $proc.Id -ErrorAction SilentlyContinue
             if (-not $stillRunning) { throw 'Le lanceur quitte prématurément, localhost disparaît !' }
             $check = Invoke-RestMethod 'http://127.0.0.1:8792/api/health' -TimeoutSec 3
-            if ($check.version -ne '1.2.1') { throw 'Le site local ne tient pas après l’ouverture du navigateur' }
+            if ($check.version -ne '1.2.1') { throw 'Le site local ne tient pas apres ouverture du navigateur' }
             Write-Output 'VERIFIE: Double-clic EXE, site localhost actif après 7 secondes et processus toujours vivant'
           } finally {
             Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
