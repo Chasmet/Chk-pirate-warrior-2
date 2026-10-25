@@ -107,6 +107,13 @@ jobs:
           python -m py_compile installer/chk_godot_installer.py
           if ($LASTEXITCODE -ne 0) { throw "Syntaxe GUI incorrecte" }
 
+      - name: Regressions Windows WinError32 et port Tailscale
+        working-directory: tools/godot-direct-mcp
+        shell: pwsh
+        run: |
+          python -m unittest discover -s installer -p "test_*.py" -v
+          if ($LASTEXITCODE -ne 0) { throw "Regression Windows echouee" }
+
       - name: Construire veritable EXE graphique PyInstaller
         working-directory: tools/godot-direct-mcp
         shell: pwsh
@@ -158,9 +165,9 @@ jobs:
         run: |
           set -euo pipefail
           test -s release/CHK-Godot-Installation.exe
-          TAG="chk-godot-direct-installer-v1.0.0"
+          TAG="chk-godot-direct-installer-v1.0.1"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release/CHK-Godot-Installation.exe --clobber
           else
-            gh release create "$TAG" release/CHK-Godot-Installation.exe --title "CHK Godot Direct MCP - Installateur Windows 1.0.0" --notes "Veritable installateur Windows teste. Double-clic, puis INSTALLER ET CONNECTER. Tailscale deja present sur le PC. Serveur dedie au port 10000; les autres routes ne sont pas modifiees. Compatibilite HTTPS ChatGPT a valider."
+            gh release create "$TAG" release/CHK-Godot-Installation.exe --title "CHK Godot Direct MCP - Installateur Windows 1.0.1" --notes "Veritable installateur Windows teste. Double-clic, puis INSTALLER ET CONNECTER. Tailscale deja present sur le PC. Serveur dedie au port 10000; les autres routes ne sont pas modifiees. Compatibilite HTTPS ChatGPT a valider."
           fi
