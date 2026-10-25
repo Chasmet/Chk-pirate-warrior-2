@@ -40,7 +40,7 @@ namespace CHKGodotNative
 
     sealed class Dashboard : Form
     {
-        const string Version = "1.3.1";
+        const string Version = "1.3.2";
         const int PanelPort = 8792;
         const string Host = "127.0.0.1";
         const string PanelUrl = "http://127.0.0.1:8792/";
@@ -279,7 +279,7 @@ namespace CHKGodotNative
             config["chat_token"] = Secret(32);
             config["editor_token"] = Secret(32);
             config["local_port"] = 8791;
-            config["funnel_port"] = 10000;
+            config["funnel_port"] = 443;
             using (var fs = new FileStream(ConfigPath, FileMode.CreateNew, FileAccess.Write))
             using (var writer = new StreamWriter(fs, new UTF8Encoding(false)))
                 writer.Write(serializer.Serialize(config));
@@ -337,7 +337,7 @@ namespace CHKGodotNative
             string data = "";
             try { data = Run(tailscale, "funnel status --json", 15); }
             catch { data = Run(tailscale, "funnel status", 15); }
-            if (!Regex.IsMatch(data, @"(^|[^0-9])10000([^0-9]|$)")) return "empty";
+            if (!Regex.IsMatch(data, @"(^|[^0-9])443([^0-9]|$)")) return "empty";
             if (data.Contains("127.0.0.1:8791") || data.Contains("localhost:8791"))
                 return "ours";
             return "occupied";
@@ -437,21 +437,38 @@ namespace CHKGodotNative
             }
             throw new Exception("Le moteur MCP ne répond pas sur le port local 8791.");
         }
-        void VerifyPublic(string name, Dictionary<string, object> cfg)
+        static string RemoteMcpRequest(string url, string method, string parameters, int id)
         {
-            var url = "https://" + name + ":10000/mcp/" + Convert.ToString(cfg["chat_token"]);
-            var data = Encoding.UTF8.GetBytes("{\"jsonrpc\":\"2.0\",\"id\":33,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"CHK-Godot-Native\",\"version\":\"1.3.1\"}}}");
+            var rpc = "{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"method\":\"" + method + "\",\"params\":" + parameters + "}";
+            var data = Encoding.UTF8.GetBytes(rpc);
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             var req = (HttpWebRequest)WebRequest.Create(url);
-            req.Method = "POST"; req.ContentType = "application/json";
-            req.Timeout = 16000; req.ReadWriteTimeout = 16000; req.ContentLength = data.Length;
+            req.Method = "POST";
+            req.ContentType = "application/json";
+            req.Accept = "application/json, text/event-stream";
+            req.Timeout = 16000;
+            req.ReadWriteTimeout = 16000;
+            req.ContentLength = data.Length;
             using(var stream = req.GetRequestStream()) stream.Write(data,0,data.Length);
-            using(var res = req.GetResponse())
-            using(var reader = new StreamReader(res.GetResponseStream())) {
-                var answer = reader.ReadToEnd();
-                if (!answer.Contains("CHK Godot Direct MCP") || !answer.Contains("\"id\":33"))
-                    throw new Exception("Le serveur HTTPS ne répond pas comme un MCP valide.");
+            using(var response = (HttpWebResponse)req.GetResponse())
+            using(var reader = new StreamReader(response.GetResponseStream())) {
+                if (response.StatusCode != HttpStatusCode.OK)
+                    throw new Exception("Réponse MCP invalide : HTTP " + (int)response.StatusCode);
+                return reader.ReadToEnd();
             }
+        }
+        void VerifyPublic(string name, Dictionary<string, object> cfg)
+        {
+            var url = "https://" + name + "/mcp/" + Convert.ToString(cfg["chat_token"]);
+            var init = RemoteMcpRequest(url, "initialize",
+                "{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"CHK-Godot-Native\",\"version\":\"1.3.2\"}}", 33);
+            if (!init.Contains("\"id\":33") || !init.Contains("CHK Godot Direct MCP") ||
+                !init.Contains("\"result\""))
+                throw new Exception("HTTPS 443 répond, mais initialize MCP a échoué.");
+            var catalog = RemoteMcpRequest(url, "tools/list", "{}", 34);
+            if (!catalog.Contains("\"id\":34") || !catalog.Contains("\"godot_status\"") ||
+                !catalog.Contains("\"godot_run\"") || !catalog.Contains("\"godot_batch\""))
+                throw new Exception("HTTPS 443 répond, mais ChatGPT ne peut pas obtenir la liste des outils MCP.");
         }
         void StartInstall()
         {
@@ -467,12 +484,12 @@ namespace CHKGodotNative
                     string name = TailscaleName(tailscale);
                     string current = FunnelState(tailscale);
                     if (current == "occupied")
-                        throw new Exception("Le port Tailscale 10000 est déjà utilisé par une autre application : aucun réglage modifié.");
+                        throw new Exception("Le port HTTPS 443 est déjà utilisé par une autre application Tailscale : aucun réglage modifié.");
                     var cfg = Config(); // existing secrets retained
                     InstallNode();
-                    Message("Activation Tailscale Funnel sur 10000...");
+                    Message("Activation Tailscale Funnel sur HTTPS 443...");
                     if (current == "empty") {
-                        Run(tailscale, "funnel --bg --yes --https=10000 http://127.0.0.1:8791", 50);
+                        Run(tailscale, "funnel --bg --yes --https=443 http://127.0.0.1:8791", 50);
                     }
                     Message("Contrôle du lien MCP HTTPS depuis ce PC...");
                     VerifyPublic(name, cfg);
@@ -490,7 +507,7 @@ namespace CHKGodotNative
             try {
                 string file = Assembly.GetExecutingAssembly().Location;
                 // Avoid overwriting an EXE that Windows has already locked.
-                var dir = Path.Combine(InstallDir,"native-v1.3.1");
+                var dir = Path.Combine(InstallDir,"native-v1.3.2");
                 Directory.CreateDirectory(dir);
                 var dest = Path.Combine(dir, "CHK-Godot-Natif.exe");
                 if (!File.Exists(dest)) File.Copy(file,dest);
@@ -505,7 +522,7 @@ namespace CHKGodotNative
             }
             try {
                 var cfg = Config();
-                Clipboard.SetText("https://" + hostname + ":10000/mcp/" + Convert.ToString(cfg["chat_token"]));
+                Clipboard.SetText("https://" + hostname + "/mcp/" + Convert.ToString(cfg["chat_token"]));
                 Message("Lien ChatGPT copié dans le presse-papiers Windows.");
             } catch(Exception e){ Fail("Copie impossible : " + e.Message, e); }
         }
@@ -561,7 +578,7 @@ namespace CHKGodotNative
                         Reply(stream,200,"text/html; charset=utf-8",WebPage().Replace("__UI_TOKEN__",uiSecret));return;
                     }
                     if(verb=="GET" && route=="/api/health") {
-                        Reply(stream,200,"application/json","{\"name\":\"CHK Godot Native\",\"version\":\"1.3.1\"}");return;
+                        Reply(stream,200,"application/json","{\"name\":\"CHK Godot Native\",\"version\":\"1.3.2\"}");return;
                     }
                     if(verb=="GET" && route=="/api/status") {
                         bool running,publicReady;string msg;
@@ -597,9 +614,9 @@ namespace CHKGodotNative
                             Reply(stream,409,"application/json","{\"error\":\"Acces public non verifie\"}");return;
                         }
                         var cfg=Config();
-                        string url=route=="/api/copy-chat"?"https://"+name+":10000/mcp/"+cfg["chat_token"]:
+                        string url=route=="/api/copy-chat"?"https://"+name+"/mcp/"+cfg["chat_token"]:
                                   route=="/api/copy-editor"?Convert.ToString(cfg["editor_token"]):
-                                  "https://"+name+":10000";
+                                  "https://"+name;
                         Reply(stream,200,"application/json",serializer.Serialize(new{value=url}));return;
                     }
                     Reply(stream,404,"application/json","{\"error\":\"Commande inconnue\"}");
@@ -629,7 +646,7 @@ namespace CHKGodotNative
         }
         internal static void SelfTest()
         {
-            if(PanelPort!=8792 || Version!="1.3.1") throw new Exception("Version invalide");
+            if(PanelPort!=8792 || Version!="1.3.2") throw new Exception("Version invalide");
             if(String.IsNullOrEmpty(Secret(32)))throw new Exception("RNG fail");
             using(var r=Assembly.GetExecutingAssembly().GetManifestResourceStream("chk.web"))
                 if(r==null || r.Length<1000)throw new Exception("Ressource web absente");
