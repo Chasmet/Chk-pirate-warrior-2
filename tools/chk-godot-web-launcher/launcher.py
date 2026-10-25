@@ -259,7 +259,8 @@ def main():
         except Exception:
             print(str(exc), file=sys.stderr)
         return
-    threading.Timer(0.4, lambda: webbrowser.open(url)).start()
+    if os.environ.get("CHK_NO_BROWSER") != "1":
+        threading.Timer(0.4, lambda: webbrowser.open(url)).start()
     try:
         server.serve_forever(0.2)
     except KeyboardInterrupt:
