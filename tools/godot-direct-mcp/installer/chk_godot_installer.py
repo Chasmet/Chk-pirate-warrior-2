@@ -188,9 +188,12 @@ def status_10000(tailscale: str) -> str:
             for hostname, entry in web.items():
                 if hostname.endswith(":" + str(FUNNEL_PORT)):
                     handlers = entry.get("Handlers", {})
-                    destinations = [str(handler.get("Proxy", "")) for handler in handlers.values() if isinstance(handler, dict)]
-                    allowed = data.get("AllowFunnel", {})
-                    if any(dest == f"http://127.0.0.1:{LOCAL_PORT}" for dest in destinations) and allowed.get(hostname) is True:
+                    destinations = [str(handler.get("Proxy", "")).rstrip("/") for handler in handlers.values() if isinstance(handler, dict)]
+                    # Tailcale versions differ: AllowFunnel may be omitted from the
+                    # status JSON. Matching the exact proxy safely establishes
+                    # ownership; the public HTTP MCP check establishes reachability.
+                    if any(dest in (f"http://127.0.0.1:{LOCAL_PORT}",
+                                    f"http://localhost:{LOCAL_PORT}") for dest in destinations):
                         return "ours"
                     return "occupied"
             # Some Tailscale builds use different JSON keys; conservatively refuse.
