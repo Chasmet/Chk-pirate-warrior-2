@@ -40,7 +40,7 @@ namespace CHKGodotNative
 
     sealed class Dashboard : Form
     {
-        const string Version = "1.3.0";
+        const string Version = "1.3.1";
         const int PanelPort = 8792;
         const string Host = "127.0.0.1";
         const string PanelUrl = "http://127.0.0.1:8792/";
@@ -72,8 +72,8 @@ namespace CHKGodotNative
             autorun = startHidden;
             Text = "CHK Godot — Serveur personnel v" + Version;
             Icon = SystemIcons.Application;
-            Size = new Size(590, 345);
-            MinimumSize = new Size(535, 305);
+            Size = new Size(590, 400);
+            MinimumSize = new Size(535, 360);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.FromArgb(12, 20, 35);
             ForeColor = Color.White;
@@ -89,8 +89,9 @@ namespace CHKGodotNative
             btnInstall = MakeButton("INSTALLER ET CONNECTER", 160, delegate { StartInstall(); });
             var btnWeb = MakeButton("OUVRIR LE SITE LOCAL", 205, delegate { OpenWeb(); });
             btnCopy = MakeButton("COPIER MON LIEN CHATGPT", 250, delegate { CopyChat(); });
+            var btnSite = MakeButton("COPIER L'ADRESSE DU SITE LOCAL", 295, delegate { CopyLocalSite(); });
             Controls.Add(heading); Controls.Add(lbl);
-            Controls.Add(btnInstall); Controls.Add(btnWeb); Controls.Add(btnCopy);
+            Controls.Add(btnInstall); Controls.Add(btnWeb); Controls.Add(btnCopy); Controls.Add(btnSite);
             tray = new NotifyIcon {
                 Icon = SystemIcons.Application, Visible = true,
                 Text = "CHK Godot MCP - PC personnel"
@@ -145,12 +146,80 @@ namespace CHKGodotNative
             Show(); WindowState = FormWindowState.Normal; ShowInTaskbar = true;
             Activate();
         }
+        /// <summary>
+        /// Windows may return REGDB_E_CLASSNOTREG (0x80040154) when the HTTP
+        /// URL file association is broken even though Chrome is installed.
+        /// Launch known installed browsers by absolute exe path FIRST,
+        /// without Windows URL/protocol COM associations.
+        /// </summary>
+        static IEnumerable<string> BrowserExecutables()
+        {
+            var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!String.IsNullOrEmpty(pf))
+            {
+                yield return Path.Combine(pf, "Google", "Chrome", "Application", "chrome.exe");
+                yield return Path.Combine(pf, "Microsoft", "Edge", "Application", "msedge.exe");
+                yield return Path.Combine(pf, "Mozilla Firefox", "firefox.exe");
+            }
+            if (!String.IsNullOrEmpty(pf86))
+            {
+                yield return Path.Combine(pf86, "Google", "Chrome", "Application", "chrome.exe");
+                yield return Path.Combine(pf86, "Microsoft", "Edge", "Application", "msedge.exe");
+                yield return Path.Combine(pf86, "Mozilla Firefox", "firefox.exe");
+            }
+            if (!String.IsNullOrEmpty(local))
+                yield return Path.Combine(local, "Google", "Chrome", "Application", "chrome.exe");
+        }
+        void CopyLocalSite()
+        {
+            try
+            {
+                Clipboard.SetText(PanelUrl);
+                Message("Adresse du site copiée. Ouvre Chrome et colle : " + PanelUrl);
+            }
+            catch (Exception ex)
+            {
+                Log(ex);
+                Message("Adresse du site à saisir dans Chrome : " + PanelUrl);
+            }
+        }
         void OpenWeb()
         {
-            try { Process.Start(PanelUrl); }
-            catch (Exception e) {
-                Fail("Chrome ne s'ouvre pas : " + e.Message +
-                     " | Adresse à ouvrir : " + PanelUrl, e);
+            // Unlike Process.Start(PanelUrl), this does not depend on
+            // the damaged URL handler that the user's Windows reports.
+            foreach (var browser in BrowserExecutables())
+            {
+                if (!File.Exists(browser)) continue;
+                try
+                {
+                    Process.Start(new ProcessStartInfo(browser, "\"" + PanelUrl + "\"")
+                    {
+                        UseShellExecute = false,
+                        CreateNoWindow = false
+                    });
+                    Message("Navigateur ouvert. Site local : " + PanelUrl);
+                    return;
+                }
+                catch (Exception ex) { Log(ex); }
+            }
+            // ShellExecute is ONLY a secondary fallback, never the default.
+            try
+            {
+                Process.Start(new ProcessStartInfo(PanelUrl) { UseShellExecute = true });
+                Message("Navigateur ouvert. Site local : " + PanelUrl);
+                return;
+            }
+            catch (Exception ex)
+            {
+                Log(ex);
+                // A broken Windows browser association must NOT mark the
+                // MCP as failed, rotate keys or close the panel.
+                ShowPanel();
+                Message("Le site est actif mais Windows ne lance pas Chrome automatiquement. "
+                      + "Ouvre Chrome toi-même et colle : " + PanelUrl
+                      + "  (bouton COPIER L'ADRESSE DU SITE LOCAL).");
             }
         }
         void Message(string msg)
@@ -286,15 +355,15 @@ namespace CHKGodotNative
         void RecoverNode()
         {
             try {
-                var file = Path.Combine(InstallDir, "native-v1.3.0", "node.exe");
-                var script = Path.Combine(InstallDir, "native-v1.3.0", "server.cjs");
+                var file = Path.Combine(InstallDir, "native-v1.3.1", "node.exe");
+                var script = Path.Combine(InstallDir, "native-v1.3.1", "server.cjs");
                 if (File.Exists(file) && File.Exists(script) && File.Exists(ConfigPath))
                     LaunchNode(Config(), file, script);
             } catch(Exception e) { Log(e); }
         }
         void InstallNode()
         {
-            var root = Path.Combine(InstallDir, "native-v1.3.0");
+            var root = Path.Combine(InstallDir, "native-v1.3.1");
             Directory.CreateDirectory(root);
             var nodeExe = Path.Combine(root, "node.exe");
             if (!File.Exists(nodeExe))
@@ -371,7 +440,7 @@ namespace CHKGodotNative
         void VerifyPublic(string name, Dictionary<string, object> cfg)
         {
             var url = "https://" + name + ":10000/mcp/" + Convert.ToString(cfg["chat_token"]);
-            var data = Encoding.UTF8.GetBytes("{\"jsonrpc\":\"2.0\",\"id\":33,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"CHK-Godot-Native\",\"version\":\"1.3.0\"}}}");
+            var data = Encoding.UTF8.GetBytes("{\"jsonrpc\":\"2.0\",\"id\":33,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"CHK-Godot-Native\",\"version\":\"1.3.1\"}}}");
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             var req = (HttpWebRequest)WebRequest.Create(url);
             req.Method = "POST"; req.ContentType = "application/json";
@@ -421,7 +490,7 @@ namespace CHKGodotNative
             try {
                 string file = Assembly.GetExecutingAssembly().Location;
                 // Avoid overwriting an EXE that Windows has already locked.
-                var dir = Path.Combine(InstallDir,"native-v1.3.0");
+                var dir = Path.Combine(InstallDir,"native-v1.3.1");
                 Directory.CreateDirectory(dir);
                 var dest = Path.Combine(dir, "CHK-Godot-Natif.exe");
                 if (!File.Exists(dest)) File.Copy(file,dest);
@@ -560,7 +629,7 @@ namespace CHKGodotNative
         }
         internal static void SelfTest()
         {
-            if(PanelPort!=8792 || Version!="1.3.0") throw new Exception("Version invalide");
+            if(PanelPort!=8792 || Version!="1.3.1") throw new Exception("Version invalide");
             if(String.IsNullOrEmpty(Secret(32)))throw new Exception("RNG fail");
             using(var r=Assembly.GetExecutingAssembly().GetManifestResourceStream("chk.web"))
                 if(r==null || r.Length<1000)throw new Exception("Ressource web absente");
