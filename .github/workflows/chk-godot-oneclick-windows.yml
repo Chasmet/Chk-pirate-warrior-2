@@ -1,4 +1,4 @@
-name: CHK Godot - Installateur Windows automatique
+name: CHK Godot - Tableau de bord web local
 
 on:
   workflow_dispatch:
@@ -6,6 +6,7 @@ on:
     branches:
       - 'feature/godot-one-click-installer-20261025'
       - 'agent/v8-godot47-mcp-phone'
+      - 'feature/godot-local-web-installer-20261025'
     paths:
       - 'tools/godot-direct-mcp/**'
       - '.github/workflows/chk-godot-oneclick-windows.yml'
@@ -104,7 +105,7 @@ jobs:
         working-directory: tools/godot-direct-mcp
         shell: pwsh
         run: |
-          python -m py_compile installer/chk_godot_installer.py
+          python -m py_compile installer/chk_godot_installer.py installer/local_web.py
           if ($LASTEXITCODE -ne 0) { throw "Syntaxe GUI incorrecte" }
 
       - name: Regressions Windows WinError32 et port Tailscale
@@ -120,7 +121,7 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check pyinstaller==6.16.0
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller installation failed" }
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name CHK-Godot-Installation --add-binary "build/node.exe;runtime" --add-data "build/server.cjs;runtime" installer/chk_godot_installer.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name CHK-Godot-Installation --add-binary "build/node.exe;runtime" --add-data "build/server.cjs;runtime" --paths installer installer/local_web.py
           if ($LASTEXITCODE -ne 0) { throw "Echec compilation EXE" }
           if (-not (Test-Path 'dist/CHK-Godot-Installation.exe')) { throw "EXE manquant" }
 
@@ -136,6 +137,37 @@ jobs:
           if ($bytes[0] -ne 77 -or $bytes[1] -ne 90) { throw "Fichier non executable Windows PE" }
           $sha = (Get-FileHash $exe -Algorithm SHA256).Hash
           Write-Output "Installateur Windows PE valide: $($bytes.Length) octets SHA256=$sha"
+
+      - name: Tester le vrai site local dans EXE compilé
+        working-directory: tools/godot-direct-mcp
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'dist/CHK-Godot-Installation.exe').Path
+          $proc = Start-Process -FilePath $exe -ArgumentList '--web' -PassThru
+          try {
+            $healthy = $false
+            for ($attempt = 0; $attempt -lt 36; $attempt++) {
+              try {
+                $r = Invoke-RestMethod -Uri 'http://127.0.0.1:8792/api/health' -TimeoutSec 2
+                if ($r.name -eq 'CHK Godot Local Web' -and $r.version -eq '1.2.0') {
+                  $healthy = $true
+                  break
+                }
+              } catch {}
+              Start-Sleep -Milliseconds 500
+            }
+            if (-not $healthy) { throw 'Le vrai EXE ne lance pas le tableau de bord local' }
+            $page = Invoke-WebRequest -Uri 'http://127.0.0.1:8792/' -UseBasicParsing -TimeoutSec 5
+            if (-not $page.Content.Contains('INSTALLER ET CONNECTER AUTOMATIQUEMENT')) {
+              throw 'Site local incomplet'
+            }
+            if (-not $page.Content.Contains('COPIER MON LIEN CHATGPT')) {
+              throw 'Bouton lien ChatGPT absent du site'
+            }
+            Write-Output 'VERIFIE: vrai EXE Windows --> navigateur localhost:8792 --> page HTML'
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          }
 
       - name: Mettre installateur dans GitHub Artifacts
         uses: actions/upload-artifact@v4
@@ -165,9 +197,9 @@ jobs:
         run: |
           set -euo pipefail
           test -s release/CHK-Godot-Installation.exe
-          TAG="chk-godot-direct-installer-v1.0.1"
+          TAG="chk-godot-direct-installer-v1.2.0"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release/CHK-Godot-Installation.exe --clobber
           else
-            gh release create "$TAG" release/CHK-Godot-Installation.exe --title "CHK Godot Direct MCP - Installateur Windows 1.0.1" --notes "Veritable installateur Windows teste. Double-clic, puis INSTALLER ET CONNECTER. Tailscale deja present sur le PC. Serveur dedie au port 10000; les autres routes ne sont pas modifiees. Compatibilite HTTPS ChatGPT a valider."
+            gh release create "$TAG" release/CHK-Godot-Installation.exe --title "CHK Godot Direct MCP - Installateur Windows 1.2.0" --notes "Veritable installateur Windows teste. Double-clic, puis INSTALLER ET CONNECTER. Tailscale deja present sur le PC. Serveur dedie au port 10000; les autres routes ne sont pas modifiees. Compatibilite HTTPS ChatGPT a valider."
           fi
