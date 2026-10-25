@@ -26,7 +26,7 @@ import chk_godot_installer as legacy
 PANEL_HOST = "127.0.0.1"
 PANEL_PORT = 8792
 PANEL_URL = f"http://{PANEL_HOST}:{PANEL_PORT}/"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 HTTP_MAX_BYTES = 4096
 PROCESS_FLAGS = legacy.NO_WINDOW | getattr(subprocess, "DETACHED_PROCESS", 0)
 HEALTH_NAME = "CHK Godot Local Web"
@@ -257,7 +257,7 @@ def save_web_startup(exe: Path):
 
 
 class LocalHandler(BaseHTTPRequestHandler):
-    server_version = "CHKGodotLocalWeb/1.2.0"
+    server_version = "CHKGodotLocalWeb/1.2.1"
 
     def allowed(self) -> bool:
         host = self.headers.get("Host", "")
@@ -351,50 +351,64 @@ def health_running() -> bool:
     try:
         with urlopen(f"http://{PANEL_HOST}:{PANEL_PORT}/api/health",timeout=1.4) as response:
             data=json.loads(response.read(1024))
-            return data.get("name")==HEALTH_NAME
+            return data.get("name")==HEALTH_NAME and data.get("version")==APP_VERSION
     except (OSError,ValueError):
         return False
 
 
-def serve_web() -> int:
+def serve_web(open_browser: bool = False) -> int:
+    """
+    Keep the HTTP server inside the original frozen executable.
+
+    PyInstaller --onefile unpacks a temporary runtime. Re-launching the same
+    executable via subprocess and exiting its original parent can cause
+    the shared extraction directory to disappear, killing the child. The
+    previous 1.2.0 build tested --web, NOT the user's double-click pathway.
+    This process now *remains alive* until Windows closes it.
+    """
     try:
-        httpd=ThreadingHTTPServer((PANEL_HOST,PANEL_PORT),LocalHandler)
+        httpd = ThreadingHTTPServer((PANEL_HOST, PANEL_PORT), LocalHandler)
     except OSError as exc:
         if health_running():
+            if open_browser:
+                webbrowser.open(PANEL_URL)
             return 0
         legacy.write_diagnostic(exc)
+        error_box("Impossible d'ouvrir le port local 8792. Une ancienne version "
+                  "ou un autre programme l'utilise peut-être.\n\n"
+                  "Ferme l'ancien CHK Godot, puis relance la version 1.2.1.\n"
+                  "Aucun réglage ni clé n'a été supprimé.")
         return 3
-    httpd.daemon_threads=True
+    httpd.daemon_threads = True
     with httpd:
-        httpd.serve_forever(poll_interval=.5)
+        if open_browser:
+            try:
+                webbrowser.open(PANEL_URL)
+            except Exception as exc:
+                legacy.write_diagnostic(exc)
+                error_box("Le serveur est actif, mais Chrome ne s'ouvre pas "
+                          "automatiquement. Ouvre cette adresse dans Chrome :\n"
+                          + PANEL_URL)
+        try:
+            httpd.serve_forever(poll_interval=.5)
+        except (KeyboardInterrupt, SystemExit):
+            return 0
+        except BaseException as exc:
+            legacy.write_diagnostic(exc)
+            error_box("Le tableau de bord a rencontré une erreur.\n"
+                      "Rapport : %LOCALAPPDATA%\\CHKGodotDirectMCP\\diagnostic.log\n"
+                      + str(exc)[:240])
+            return 4
     return 0
 
 
 def start_browser_panel() -> int:
-    # Initial executable only needs to start once; after this the local web
-    # server keeps running when the visible launcher exits.
-    if not health_running():
-        try:
-            subprocess.Popen([sys.executable,"--web"],
-                             cwd=str(Path(sys.executable).parent),
-                             stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL,creationflags=PROCESS_FLAGS,
-                             close_fds=True)
-        except OSError as exc:
-            legacy.write_diagnostic(exc)
-            error_box("Impossible de lancer le tableau de bord : "+str(exc))
-            return 3
-        for _ in range(45):
-            if health_running():
-                break
-            time.sleep(.35)
-    if not health_running():
-        error_box("Le tableau de bord local ne démarre pas sur le port 8792.\n"
-                  "Un autre programme utilise peut-être ce port.\n"
-                  "Le rapport se trouve dans le dossier AppData\\Local\\CHKGodotDirectMCP.")
-        return 4
-    webbrowser.open(PANEL_URL)
-    return 0
+    if health_running():
+        webbrowser.open(PANEL_URL)
+        return 0
+    # A genuine double-click now runs the HTTP server in *this process*.
+    # Do not relaunch a child with --web and let the original onefile app exit.
+    return serve_web(open_browser=True)
 
 
 def error_box(text: str):
