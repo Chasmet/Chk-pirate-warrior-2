@@ -138,6 +138,37 @@ jobs:
           $sha = (Get-FileHash $exe -Algorithm SHA256).Hash
           Write-Output "Installateur Windows PE valide: $($bytes.Length) octets SHA256=$sha"
 
+      - name: Tester le vrai site local dans EXE compilé
+        working-directory: tools/godot-direct-mcp
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'dist/CHK-Godot-Installation.exe').Path
+          $proc = Start-Process -FilePath $exe -ArgumentList '--web' -PassThru
+          try {
+            $healthy = $false
+            for ($attempt = 0; $attempt -lt 36; $attempt++) {
+              try {
+                $r = Invoke-RestMethod -Uri 'http://127.0.0.1:8792/api/health' -TimeoutSec 2
+                if ($r.name -eq 'CHK Godot Local Web' -and $r.version -eq '1.2.0') {
+                  $healthy = $true
+                  break
+                }
+              } catch {}
+              Start-Sleep -Milliseconds 500
+            }
+            if (-not $healthy) { throw 'Le vrai EXE ne lance pas le tableau de bord local' }
+            $page = Invoke-WebRequest -Uri 'http://127.0.0.1:8792/' -UseBasicParsing -TimeoutSec 5
+            if (-not $page.Content.Contains('INSTALLER ET CONNECTER AUTOMATIQUEMENT')) {
+              throw 'Site local incomplet'
+            }
+            if (-not $page.Content.Contains('COPIER MON LIEN CHATGPT')) {
+              throw 'Bouton lien ChatGPT absent du site'
+            }
+            Write-Output 'VERIFIE: vrai EXE Windows --> navigateur localhost:8792 --> page HTML'
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+          }
+
       - name: Mettre installateur dans GitHub Artifacts
         uses: actions/upload-artifact@v4
         with:
