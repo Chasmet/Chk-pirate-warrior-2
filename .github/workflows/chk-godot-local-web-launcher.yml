@@ -6,7 +6,7 @@ on:
       - '.github/workflows/chk-godot-local-web-launcher.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -36,3 +36,13 @@ jobs:
           path: dist/CHK-Godot-Lanceur-Web.exe
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publier le lanceur en téléchargement direct
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'godot-web-local-v1.0.0'
+          if (gh release view $tag 2>$null) { Write-Host 'Version deja publiee'; exit 0 }
+          gh release create $tag dist/CHK-Godot-Lanceur-Web.exe --title 'CHK Godot - Lanceur Web Local 1.0.0' --notes 'Lanceur Windows local sans CMD, Render ni Supabase. La page ouvre http://127.0.0.1:8793 et pilote le service Godot du port 8792. Premiere version, import local du programme existant requis.' --prerelease
