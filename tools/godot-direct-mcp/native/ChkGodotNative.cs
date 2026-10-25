@@ -28,7 +28,7 @@ namespace CHKGodotNative
         {
             if (Array.IndexOf(args, "--self-test") >= 0)
             {
-                try { Bootstrap.SelfTest(); Environment.Exit(0); }
+                try { Dashboard.SelfTest(); Environment.Exit(0); }
                 catch { Environment.Exit(1); }
                 return;
             }
@@ -286,8 +286,8 @@ namespace CHKGodotNative
         void RecoverNode()
         {
             try {
-                var file = Path.Combine(InstallDir, "node.exe");
-                var script = Path.Combine(InstallDir, "server.cjs");
+                var file = Path.Combine(InstallDir, "native-v1.3.0", "node.exe");
+                var script = Path.Combine(InstallDir, "native-v1.3.0", "server.cjs");
                 if (File.Exists(file) && File.Exists(script) && File.Exists(ConfigPath))
                     LaunchNode(Config(), file, script);
             } catch(Exception e) { Log(e); }
