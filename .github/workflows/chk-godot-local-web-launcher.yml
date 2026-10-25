@@ -30,6 +30,32 @@ jobs:
           $exe = Resolve-Path 'dist/CHK-Godot-Lanceur-Web.exe'
           $bytes = [System.IO.File]::ReadAllBytes($exe)
           if ($bytes.Length -lt 100000 -or $bytes[0] -ne 77 -or $bytes[1] -ne 90) { throw 'EXE invalide' }
+      - name: Vérifier le double-clic réel et la page localhost
+        shell: pwsh
+        env:
+          CHK_NO_BROWSER: '1'
+        run: |
+          $p = Start-Process -FilePath (Resolve-Path 'dist/CHK-Godot-Lanceur-Web.exe') -PassThru
+          try {
+            $ok = $false
+            for ($i=0; $i -lt 40; $i++) {
+              Start-Sleep -Seconds 1
+              $p.Refresh()
+              if ($p.HasExited) { throw 'Le programme se ferme immediatement (code ' + $p.ExitCode + ')' }
+              try {
+                $response = Invoke-WebRequest 'http://127.0.0.1:8793/api/status' -UseBasicParsing -TimeoutSec 2
+                if ($response.StatusCode -eq 200 -and $response.Content -match '"online"') {
+                  $ok = $true
+                  break
+                }
+              } catch {}
+            }
+            if (-not $ok) { throw 'La page locale 8793 ne repond pas.' }
+            Write-Host 'EXE Windows actif et tableau de bord accessible'
+          } finally {
+            $p.Refresh()
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: CHK-Godot-Lanceur-Web-Windows
