@@ -1,4 +1,6 @@
 import http from "node:http";
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 
@@ -282,7 +284,7 @@ export function createDirectGodotServer(settings = {}) {
   return { server, close, liveStatus, config: { host: cfg.host, port: cfg.port } };
 }
 
-if (process.argv[1] && import.meta.url === new URL("file://" + process.argv[1]).href) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const app = createDirectGodotServer();
   app.server.listen(app.config.port, app.config.host, () => {
     console.log("CHK Godot Direct MCP " + VERSION + " on " + app.config.host + ":" + app.config.port);
