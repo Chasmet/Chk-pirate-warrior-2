@@ -58,8 +58,9 @@ Le panneau d’administration n’est jamais accessible via Tailscale : seul le 
 <footer>
 Page locale : <code>http://127.0.0.1:8792/</code> |
 Moteur : <code>127.0.0.1:8791</code> |
-Tailscale Funnel : <code>10000</code>.
-Les ports existants 443 et 8443 restent intacts. En cas de problème, la fenêtre
+Tailscale Funnel public : <code>443</code> → moteur local <code>8791</code>.
+Le port 8443 du MCP existant reste intact. Le service Windows local sur 443 n’est pas modifié.
+Si le port 443 de Tailscale est déjà occupé, l’installation s’arrête sans écraser sa configuration. En cas de problème, la fenêtre
 Windows « CHK Godot — Serveur personnel » affiche aussi les erreurs.
 </footer>
 </main>
