@@ -61,7 +61,7 @@ class WebPanelTests(unittest.TestCase):
     def test_health_route(self):
         status,body=self.req("/api/health")
         self.assertEqual(status,200)
-        self.assertEqual(json.loads(body)["version"],"1.2.0")
+        self.assertEqual(json.loads(body)["version"],"1.2.1")
 
     def test_no_cross_origin_post(self):
         for headers in ({"X-CHK-UI":"wrong"},
