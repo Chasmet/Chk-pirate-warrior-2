@@ -5,10 +5,21 @@ on:
   push:
     branches:
       - agent/mcp3-autoplay-qa-20261025
+      - agent/v11-8-full-audit-fixes
     paths:
-      - 'scripts/tests/mcp3_autoplay_audit.gd'
+      - 'project.godot'
+      - 'scripts/**'
+      - 'scenes/**'
+      - 'data/**'
       - 'addons/chk_mcp_relay/**'
       - '.github/workflows/mcp3-playtest.yml'
+  pull_request:
+    branches:
+      - agent/v11-8-full-audit-fixes
+
+concurrency:
+  group: chk-mcp3-playtest-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
