@@ -103,10 +103,22 @@ func _run() -> void:
             _record("Attaque declenchable", false, "basic_attack absent")
 
         if player.has_method("use_ability"):
-            var energy_before := float(player.get("energy"))
-            var ability_ok: Variant = player.call("use_ability", 0)
-            var energy_after := float(player.get("energy"))
-            _record("Pouvoir 1 activable", ability_ok == true, "energie %.1f -> %.1f" % [energy_before, energy_after])
+            var abilities: Array = player.get("hero_data").get("abilities", [])
+            if abilities.is_empty():
+                _record("Pouvoir 1 defini", false, "aucune capacite dans hero_data")
+            else:
+                var unlock_level := maxi(1, int((abilities[0] as Dictionary).get("unlock_level", 1)))
+                if int(state.get("level")) < unlock_level:
+                    var locked: Variant = player.call("use_ability", 0)
+                    _record("Pouvoir verrouille au niveau initial", locked == false, "deblocage niveau %d" % unlock_level)
+                    var target_xp := int(state.call("xp_threshold_for_level", unlock_level))
+                    state.call("add_xp", maxi(0, target_xp - int(state.get("xp"))))
+                    await physics_frame
+                    _record("Progression jusqu'au niveau du pouvoir", int(state.get("level")) >= unlock_level, "niveau %d" % int(state.get("level")))
+                var energy_before := float(player.get("energy"))
+                var ability_ok: Variant = player.call("use_ability", 0)
+                var energy_after := float(player.get("energy"))
+                _record("Pouvoir 1 activable apres deblocage", ability_ok == true, "energie %.1f -> %.1f" % [energy_before, energy_after])
         else:
             _record("Pouvoir 1 activable", false, "use_ability absent")
 
