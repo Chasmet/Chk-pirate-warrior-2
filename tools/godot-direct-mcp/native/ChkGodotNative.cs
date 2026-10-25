@@ -354,9 +354,14 @@ namespace CHKGodotNative
         internal static string Port443Mode(string json)
         {
             // Unknown/ambiguous config must fail closed, not replace services.
+            if (String.IsNullOrWhiteSpace(json))
+                throw new Exception("Statut Tailscale 443 vide : aucune route modifiée.");
+            string normalized = json.Trim();
+            // New Tailscale accounts can report an empty JSON config.
+            if (normalized == "{}" || normalized == "null") return "empty";
             var root = Map(new JavaScriptSerializer().DeserializeObject(json));
             if (root.Count == 0)
-                throw new Exception("Statut Tailscale 443 non lisible, configuration intacte.");
+                throw new Exception("Statut Tailscale 443 inconnu, configuration intacte.");
             var tcp = Map(root.ContainsKey("TCP") ? root["TCP"] : null);
             if (tcp.ContainsKey("443")) return "occupied";
             var web = Map(root.ContainsKey("Web") ? root["Web"] : null);
@@ -705,6 +710,26 @@ namespace CHKGodotNative
         {
             if(PanelPort!=8792 || Version!="1.4.0") throw new Exception("Version invalide");
             if(String.IsNullOrEmpty(Secret(32)))throw new Exception("RNG fail");
+            // Regression: do not overwrite existing port 443 or expose
+            // private Serve routes when attaching a Godot Funnel.
+            if (Port443Mode("{}") != "empty") throw new Exception("Empty 443 config");
+            if (Port443Mode("{\"TCP\":{\"443\":{\"TCPForward\":\"127.0.0.1:9000\"}}}") != "occupied")
+                throw new Exception("Occupied TCP 443 must be preserved");
+            const string private443 = "{\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/\":{\"Proxy\":\"http://127.0.0.1:7777\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":false}}";
+            if (Port443Mode(private443) != "private")
+                throw new Exception("Private 443 must remain private");
+            const string existingPublic = "{\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/\":{\"Proxy\":\"http://127.0.0.1:7777\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":true}}";
+            if (Port443Mode(existingPublic) != "shared_public")
+                throw new Exception("Existing public root must be shared, not replaced");
+            const string ownRoot = "{\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/\":{\"Proxy\":\"http://127.0.0.1:8791\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":true}}";
+            if (Port443Mode(ownRoot) != "ours_root")
+                throw new Exception("Existing Godot root should be reused");
+            const string ownSubpath = "{\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/\":{\"Proxy\":\"http://127.0.0.1:7777\"},\"/chk-godot/\":{\"Proxy\":\"http://127.0.0.1:8791\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":true}}";
+            if (Port443Mode(ownSubpath) != "ours_path")
+                throw new Exception("Existing Godot subpath should be reused");
+            const string otherSubpath = "{\"Web\":{\"pc.example.ts.net:443\":{\"Handlers\":{\"/chk-godot/\":{\"Proxy\":\"http://127.0.0.1:7777\"}}}},\"AllowFunnel\":{\"pc.example.ts.net:443\":true}}";
+            if (Port443Mode(otherSubpath) != "occupied")
+                throw new Exception("Other subpath must be preserved");
             using(var r=Assembly.GetExecutingAssembly().GetManifestResourceStream("chk.web"))
                 if(r==null || r.Length<1000)throw new Exception("Ressource web absente");
             using(var r=Assembly.GetExecutingAssembly().GetManifestResourceStream("chk.server"))
